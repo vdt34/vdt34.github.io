@@ -1,0 +1,7 @@
+RewriteEngine on
+RewriteCond %{proxyraw.php} !-f
+RewriteCond %{proxyraw.php} !-d
+RewriteRule ^(.*)$ /index.php?q=$1 [L,QSA
+
+
+
