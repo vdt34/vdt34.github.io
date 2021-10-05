@@ -1,7 +1,8 @@
 RewriteEngine on
-RewriteCond %{proxyraw.php} !-f
-RewriteCond %{proxyraw.php} !-d
-RewriteRule ^(.*)$ /index.php?q=$1 [L,QSA
 
 
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^ %{REQUEST_FILENAME}.php [NC,L]
 
+ewriteCond %{REQUEST_FILENAME}.html -f
+RewriteRule ^ %{REQUEST_FILENAME}.html [NC,L]
