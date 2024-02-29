@@ -30,6 +30,7 @@ Giao hàng thực tế: 1 nền tảng 1 khối hiệu chuẩn
 	
 	
 	6.Huawei  APK : https://vdt34.github.io/files/apk/RL-071%20HW%20calibracion.apk
+Video guide : https://vdt34.github.io/files/HW.mp4
 	
 	7.Meizu APK : https://vdt34.github.io/files/apk/RL-071%20Meizu%20calibracion.apk
 	
