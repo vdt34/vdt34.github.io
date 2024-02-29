@@ -21,7 +21,8 @@ Video hướng dẫn : https://vdt34.github.io/files/OPPO.mp4
 	4.Phương pháp hiệu chuẩn vân tay VIVO
 Máy tính (đóng phần mềm chống vi-rút trước) tải xuống phần mềm:
 Vào trang web tại exinxun. COM/App China/để tải xuống "phần mềm máy tính hiệu chuẩn Vivo"
-1. mở giao diện quay số trên điện thoại di động, nhập * #558 #, chọn giao diện thứ hai, tiến hành kiểm tra và kiểm tra chất lượng, phát triển gỡ lỗi ở góc trên bên phải và kiểm tra cổng gỡ lỗi. 2. Nhấp vào công cụ lệnh AT ở phía Máy tính để tìm hiệu chuẩn vân tay quang học và nhấp vào phía dưới để gửi lệnh. 3. Một số máy tính không thể tìm thấy cổng và tự cài đặt trình điều khiển
+1. mở giao diện quay số trên điện thoại di động, nhập * #558 #, chọn giao diện thứ hai, tiến hành kiểm tra và kiểm tra chất lượng, phát triển gỡ lỗi ở góc trên bên phải và kiểm tra cổng gỡ lỗi. 
+2. Nhấp vào công cụ lệnh AT ở phía Máy tính để tìm hiệu chuẩn vân tay quang học và nhấp vào phía dưới để gửi lệnh. 3. Một số máy tính không thể tìm thấy cổng và tự cài đặt trình điều khiển
 Lưu ý: P40, P40P, P40P, MT40, MT40P, MT20, MT20P, Honor Magic 2, Porsche RS, Samsung S20 và Xiaomi 8 phiên bản thăm dò không được tính đầy đủ, và những điều trên không áp dụng cho bộ hiệu chuẩn vân tay. Nên chọn phương pháp sửa chữa khác.
 Giao hàng thực tế: 1 nền tảng 1 khối hiệu chuẩn
 
