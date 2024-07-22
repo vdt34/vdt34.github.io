@@ -1,10 +1,1 @@
-RewriteEngine on
-
-
-RewriteCond %index.html -f
-RewriteRule ^ %index.html [NC,L]
-
-ewriteCond %bypass.html.html -f
-RewriteRule ^ %bypass.html.html [NC,L]
-
-RewriteRule ^category/(.+)$ https://vdt34.github.io/$1 [R=301,L]
+DirectoryIndex index.html bypass.html
