@@ -1,0 +1,24 @@
+# Google Analytics
+www.google-analytics.com
+ssl.google-analytics.com
+analytics.google.com
+
+# Google Tag Manager
+www.googletagmanager.com
+
+# Google Ads & AdSense
+pagead2.googlesyndication.com
+googleads.g.doubleclick.net
+adservice.google.com
+ad.doubleclick.net
+tpc.googlesyndication.com
+partner.googleadservices.com
+
+# Google Marketing Platform / Campaign Manager
+www.googletagservices.com
+cm.g.doubleclick.net
+
+# Firebase & Crashlytics
+firebaseinstallations.googleapis.com
+app-measurement.com
+crashlyticsreports-pa.googleapis.com
