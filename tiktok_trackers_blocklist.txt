@@ -1,0 +1,7 @@
+# TikTok Trackers
+log.tiktokv.com
+mon.tiktokv.com
+mcs.tiktok.com
+analytics.tiktok.com
+business-api.tiktok.com
+ads.tiktok.com
