@@ -1,0 +1,9 @@
+# Microsoft Trackers
+bat.bing.com
+c.bing.com
+browser.events.data.microsoft.com
+v10.events.data.microsoft.com
+telemetry.microsoft.com
+settings-win.data.microsoft.com
+watson.telemetry.microsoft.com
+mobile.events.data.microsoft.com
