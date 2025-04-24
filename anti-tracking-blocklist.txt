@@ -1,0 +1,37 @@
+# Facebook Tracking Domains
+graph.facebook.com
+connect.facebook.net
+pixel.facebook.com
+ads.facebook.com
+ads-api.facebook.com
+events.facebook.com
+facebookads.g.doubleclick.net
+
+# TikTok Tracking Domains
+ads.tiktok.com
+analytics.tiktok.com
+log.byteoversea.com
+business-api.tiktok.com
+tracking.tiktok.com
+
+# Zalo Tracking Domains
+ads.zalo.me
+tracking.zalo.me
+sdk.zalo.me
+sp.zalo.me
+
+# Shopee Tracking Domains
+deo.shopeemobile.com
+cv.shopee.vn
+cf.shopee.vn
+video.shopee.com
+streaming.shopee.sg
+
+# Google Tracking Domains (Safe to block, not search-related)
+www.googleadservices.com
+pagead2.googlesyndication.com
+googleads.g.doubleclick.net
+ad.doubleclick.net
+www.googletagmanager.com
+www.google-analytics.com
+ssl.google-analytics.com
