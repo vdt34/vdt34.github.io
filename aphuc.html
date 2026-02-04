@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taxi Gia Đình Quang Phúc - Dịch vụ Uy tín, An toàn</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Reset & Base Styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #f8f9fa;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header & Navigation */
+        header {
+            background: linear-gradient(to right, #1a6bc4, #0d4d9c);
+            color: white;
+            padding: 15px 0;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-icon {
+            font-size: 2.8rem;
+            color: #ffcc00;
+        }
+
+        .logo-text h1 {
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+
+        .logo-text p {
+            font-size: 0.95rem;
+            opacity: 0.9;
+        }
+
+        .contact-header {
+            text-align: right;
+        }
+
+        .phone-number {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #ffcc00;
+            text-decoration: none;
+            display: block;
+            margin-bottom: 5px;
+            transition: color 0.3s;
+        }
+
+        .phone-number:hover {
+            color: #fff;
+        }
+
+        .hotline-text {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        /* Hero Section */
+        .hero {
+            background: linear-gradient(rgba(13, 77, 156, 0.85), rgba(13, 77, 156, 0.9)), url('https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?ixlib=rb-4.0.3&auto=format&fit=crop&w=1350&q=80');
+            background-size: cover;
+            background-position: center;
+            color: white;
+            text-align: center;
+            padding: 80px 20px;
+            margin-bottom: 40px;
+        }
+
+        .hero h2 {
+            font-size: 2.8rem;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            max-width: 800px;
+            margin: 0 auto 30px;
+            opacity: 0.95;
+        }
+
+        .btn {
+            display: inline-block;
+            background-color: #ffcc00;
+            color: #0d4d9c;
+            padding: 15px 35px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            text-decoration: none;
+            border-radius: 50px;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn:hover {
+            background-color: #ffd633;
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+        }
+
+        /* Services Section */
+        .section-title {
+            text-align: center;
+            margin-bottom: 40px;
+            color: #0d4d9c;
+            position: relative;
+            padding-bottom: 15px;
+        }
+
+        .section-title:after {
+            content: '';
+            position: absolute;
+            width: 80px;
+            height: 4px;
+            background-color: #ffcc00;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            border-radius: 2px;
+        }
+
+        .services {
+            padding: 60px 0;
+        }
+
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .service-card {
+            background-color: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .service-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .service-icon {
+            background-color: #0d4d9c;
+            color: white;
+            font-size: 2.5rem;
+            padding: 25px;
+            text-align: center;
+        }
+
+        .service-content {
+            padding: 25px;
+        }
+
+        .service-content h3 {
+            color: #0d4d9c;
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+        }
+
+        /* Car Fleet Section */
+        .fleet {
+            padding: 60px 0;
+            background-color: #f0f5ff;
+        }
+
+        .fleet-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+
+        .car-card {
+            background-color: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .car-image {
+            height: 180px;
+            background-color: #e9ecef;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #0d4d9c;
+            font-size: 3.5rem;
+        }
+
+        .car-info {
+            padding: 20px;
+        }
+
+        .car-info h3 {
+            color: #0d4d9c;
+            margin-bottom: 10px;
+        }
+
+        .car-features {
+            list-style: none;
+            margin-top: 15px;
+        }
+
+        .car-features li {
+            padding: 5px 0;
+            border-bottom: 1px dashed #eee;
+        }
+
+        .car-features li:last-child {
+            border-bottom: none;
+        }
+
+        .car-features i {
+            color: #ffcc00;
+            margin-right: 10px;
+        }
+
+        /* Contact CTA */
+        .contact-cta {
+            background: linear-gradient(to right, #1a6bc4, #0d4d9c);
+            color: white;
+            text-align: center;
+            padding: 70px 20px;
+            margin: 60px 0;
+        }
+
+        .contact-cta h2 {
+            font-size: 2.3rem;
+            margin-bottom: 20px;
+        }
+
+        .contact-cta p {
+            font-size: 1.2rem;
+            max-width: 700px;
+            margin: 0 auto 30px;
+            opacity: 0.95;
+        }
+
+        /* Footer */
+        footer {
+            background-color: #0c3d7a;
+            color: white;
+            padding: 50px 0 20px;
+        }
+
+        .footer-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+
+        .footer-column h3 {
+            font-size: 1.4rem;
+            margin-bottom: 25px;
+            color: #ffcc00;
+            position: relative;
+            padding-bottom: 10px;
+        }
+
+        .footer-column h3:after {
+            content: '';
+            position: absolute;
+            width: 40px;
+            height: 3px;
+            background-color: #ffcc00;
+            bottom: 0;
+            left: 0;
+            border-radius: 2px;
+        }
+
+        .contact-info p {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+
+        .contact-info i {
+            color: #ffcc00;
+            margin-right: 12px;
+            font-size: 1.2rem;
+            width: 25px;
+        }
+
+        .copyright {
+            text-align: center;
+            padding-top: 25px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 0.95rem;
+            opacity: 0.8;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                text-align: center;
+                gap: 15px;
+            }
+            
+            .contact-header {
+                text-align: center;
+            }
+            
+            .hero h2 {
+                font-size: 2.2rem;
+            }
+            
+            .phone-number {
+                font-size: 1.6rem;
+            }
+            
+            .services-grid, .fleet-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .hero h2 {
+                font-size: 1.8rem;
+            }
+            
+            .hero p {
+                font-size: 1rem;
+            }
+            
+            .btn {
+                padding: 12px 25px;
+                font-size: 1.1rem;
+            }
+            
+            .logo-text h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="container header-content">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-taxi"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>TAXI GIA ĐÌNH QUANG PHÚC</h1>
+                    <p>Uy tín - An toàn - Tiện lợi</p>
+                </div>
+            </div>
+            <div class="contact-header">
+                <a href="tel:0961995486" class="phone-number">
+                    <i class="fas fa-phone-alt"></i> 0961.995.486
+                </a>
+                <p class="hotline-text">Hotline đặt xe 24/7</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <h2>DỊCH VỤ TAXI GIA ĐÌNH CHẤT LƯỢNG CAO</h2>
+            <p>Chúng tôi cung cấp dịch vụ taxi đưa đón tận nơi, an toàn và tiện lợi cho mọi hành trình của bạn. Đội ngũ tài xế chuyên nghiệp, giàu kinh nghiệm, xe đời mới sạch sẽ phục vụ 24/7.</p>
+            <a href="tel:0961995486" class="btn">
+                <i class="fas fa-phone-alt"></i> GỌI NGAY ĐỂ ĐẶT XE
+            </a>
+        </div>
+    </section>
+
+    <!-- Services Section -->
+    <section class="services">
+        <div class="container">
+            <h2 class="section-title">DỊCH VỤ CỦA CHÚNG TÔI</h2>
+            <div class="services-grid">
+                <div class="service-card">
+                    <div class="service-icon">
+                        <i class="fas fa-home"></i>
+                    </div>
+                    <div class="service-content">
+                        <h3>Taxi Đưa Đón Gia Đình</h3>
+                        <p>Dịch vụ taxi chuyên phục vụ các chuyến đi gia đình, đưa đón trẻ đi học, đi chơi, thăm người thân. Xe rộng rãi, an toàn tuyệt đối.</p>
+                    </div>
+                </div>
+                
+                <div class="service-card">
+                    <div class="service-icon">
+                        <i class="fas fa-plane"></i>
+                    </div>
+                    <div class="service-content">
+                        <h3>Đưa Đón Sân Bay</h3>
+                        <p>Đón khách từ nhà đến sân bay và ngược lại. Đúng giờ, hỗ trợ hành lý, đảm bảo bạn có chuyến khởi hành thuận lợi.</p>
+                    </div>
+                </div>
+                
+                <div class="service-card">
+                    <div class="service-icon">
+                        <i class="fas fa-briefcase"></i>
+                    </div>
+                    <div class="service-content">
+                        <h3>Taxi Công Tác</h3>
+                        <p>Phục vụ các chuyến đi công tác trong và ngoài thành phố. Xe sang trọng, có WIFI miễn phí, phù hợp cho các cuộc họp quan trọng.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Car Fleet Section -->
+    <section class="fleet">
+        <div class="container">
+            <h2 class="section-title">ĐỘI XE ĐA DẠNG</h2>
+            <p style="text-align: center; max-width: 800px; margin: 0 auto 20px; color: #555;">
+                Chúng tôi cung cấp đa dạng các dòng xe từ 4 chỗ đến 7 chỗ, đáp ứng mọi nhu cầu di chuyển của quý khách. Tất cả xe đều là đời mới, sạch sẽ và bảo dưỡng định kỳ.
+            </p>
+            <div class="fleet-grid">
+                <div class="car-card">
+                    <div class="car-image">
+                        <i class="fas fa-car"></i>
+                    </div>
+                    <div class="car-info">
+                        <h3>Xe 4 Chỗ</h3>
+                        <p>Phù hợp cho cá nhân hoặc nhóm nhỏ. Tiết kiệm chi phí, di chuyển linh hoạt.</p>
+                        <ul class="car-features">
+                            <li><i class="fas fa-check"></i> Vios, Kia Morning, Hyundai Accent</li>
+                            <li><i class="fas fa-check"></i> Điều hòa mát, ghế da</li>
+                            <li><i class="fas fa-check"></i> Tiết kiệm nhiên liệu</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="car-card">
+                    <div class="car-image">
+                        <i class="fas fa-car-side"></i>
+                    </div>
+                    <div class="car-info">
+                        <h3>Xe 5 Chỗ</h3>
+                        <p>Không gian rộng rãi hơn, phù hợp cho gia đình nhỏ hoặc nhóm bạn.</p>
+                        <ul class="car-features">
+                            <li><i class="fas fa-check"></i> Toyota Altis, Kia Cerato, Mazda 3</li>
+                            <li><i class="fas fa-check"></i> Cốp rộng, hành lý thoải mái</li>
+                            <li><i class="fas fa-check"></i> Hệ thống giải trí hiện đại</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="car-card">
+                    <div class="car-image">
+                        <i class="fas fa-shuttle-van"></i>
+                    </div>
+                    <div class="car-info">
+                        <h3>Xe 7 Chỗ</h3>
+                        <p>Lý tưởng cho gia đình đông người, nhóm du lịch hoặc đi sự kiện.</p>
+                        <ul class="car-features">
+                            <li><i class="fas fa-check"></i> Toyota Innova, Ford Everest, Xpander</li>
+                            <li><i class="fas fa-check"></i> Không gian rộng rãi, thoáng mát</li>
+                            <li><i class="fas fa-check"></i> Hỗ trợ wifi, sạc USB</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact CTA -->
+    <section class="contact-cta">
+        <div class="container">
+            <h2>ĐẶT XE NGAY HÔM NAY!</h2>
+            <p>Chỉ cần một cuộc gọi, chúng tôi sẽ có mặt nhanh chóng để phục vụ bạn. Đội ngũ tài xế thân thiện, am hiểu đường xá, cam kết đưa bạn đến đích an toàn và đúng giờ.</p>
+            <a href="tel:0961995486" class="btn">
+                <i class="fas fa-phone-alt"></i> GỌI NGAY: 0961.995.486
+            </a>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-column">
+                    <h3>TAXI QUANG PHÚC</h3>
+                    <p>Dịch vụ taxi gia đình uy tín, chất lượng hàng đầu. Với phương châm "Khách hàng là người thân", chúng tôi cam kết mang đến trải nghiệm di chuyển tốt nhất cho bạn.</p>
+                </div>
+                
+                <div class="footer-column">
+                    <h3>LIÊN HỆ</h3>
+                    <div class="contact-info">
+                        <p><i class="fas fa-phone-alt"></i> <strong>Hotline:</strong> 0961.995.486</p>
+                        <p><i class="fas fa-clock"></i> <strong>Thời gian phục vụ:</strong> 24/7 cả tuần</p>
+                        <p><i class="fas fa-map-marker-alt"></i> <strong>Khu vực hoạt động:</strong> Nội thành & Liên tỉnh</p>
+                        <p><i class="fas fa-envelope"></i> <strong>Email:</strong> contact@taxiquangphuc.com</p>
+                    </div>
+                </div>
+                
+                <div class="footer-column">
+                    <h3>CAM KẾT</h3>
+                    <ul class="car-features" style="color: white;">
+                        <li><i class="fas fa-shield-alt"></i> An toàn tuyệt đối</li>
+                        <li><i class="fas fa-clock"></i> Đúng giờ, nhanh chóng</li>
+                        <li><i class="fas fa-smile"></i> Phục vụ tận tâm</li>
+                        <li><i class="fas fa-tachometer-alt"></i> Xe đời mới, sạch sẽ</li>
+                        <li><i class="fas fa-money-bill-wave"></i> Giá cả hợp lý, không phát sinh</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="copyright">
+                <p>&copy; 2026 Taxi Gia Đình Quang Phúc. Tất cả các quyền được bảo lưu.</p>
+                <p>Thiết kế website phục vụ nhu cầu quảng cáo và đặt xe trực tuyến.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Simple script for phone button animation
+        document.querySelectorAll('a[href^="tel:"]').forEach(phoneLink => {
+            phoneLink.addEventListener('click', function() {
+                this.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    this.style.transform = '';
+                }, 200);
+            });
+        });
+        
+        // Add current year to copyright if needed
+        document.addEventListener('DOMContentLoaded', function() {
+            const yearSpan = document.getElementById('currentYear');
+            if(yearSpan) {
+                yearSpan.textContent = new Date().getFullYear();
+            }
+        });
+    </script>
+</body>
+</html>
