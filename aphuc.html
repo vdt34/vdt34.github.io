@@ -27,11 +27,11 @@
             padding: 0 20px;
         }
 
-        /* Header & Navigation */
+        /* Header & Navigation - ĐÃ SỬA CHO MOBILE */
         header {
             background: linear-gradient(to right, #1a6bc4, #0d4d9c);
             color: white;
-            padding: 15px 0;
+            padding: 12px 0;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             position: sticky;
             top: 0;
@@ -47,36 +47,53 @@
         .logo {
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: 12px;
+            flex: 1;
+            min-width: 0; /* Quan trọng: cho phép co lại trên mobile */
         }
 
         .logo-icon {
-            font-size: 2.8rem;
+            font-size: 2.2rem; /* Giảm kích thước biểu tượng */
             color: #ffcc00;
+            flex-shrink: 0; /* Ngăn biểu tượng co lại */
+        }
+
+        .logo-text {
+            min-width: 0; /* Quan trọng: cho phép text co lại */
+            overflow: hidden; /* Ẩn phần dư thừa nếu có */
         }
 
         .logo-text h1 {
-            font-size: 1.8rem;
-            margin-bottom: 5px;
+            font-size: 1.4rem; /* Giảm kích thước tiêu đề */
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis; /* Hiển thị dấu ... nếu quá dài */
         }
 
         .logo-text p {
-            font-size: 0.95rem;
+            font-size: 0.8rem; /* Giảm kích thước phụ đề */
             opacity: 0.9;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .contact-header {
             text-align: right;
+            flex-shrink: 0; /* Ngăn phần liên hệ co lại */
+            margin-left: 10px; /* Thêm khoảng cách */
         }
 
         .phone-number {
-            font-size: 1.8rem;
+            font-size: 1.4rem; /* Giảm kích thước số điện thoại */
             font-weight: 700;
             color: #ffcc00;
             text-decoration: none;
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 3px;
             transition: color 0.3s;
+            white-space: nowrap;
         }
 
         .phone-number:hover {
@@ -84,8 +101,9 @@
         }
 
         .hotline-text {
-            font-size: 0.9rem;
+            font-size: 0.75rem; /* Giảm kích thước text hotline */
             opacity: 0.9;
+            white-space: nowrap;
         }
 
         /* Hero Section */
@@ -95,18 +113,18 @@
             background-position: center;
             color: white;
             text-align: center;
-            padding: 80px 20px;
+            padding: 70px 20px; /* Giảm padding một chút */
             margin-bottom: 40px;
         }
 
         .hero h2 {
-            font-size: 2.8rem;
+            font-size: 2.2rem; /* Giảm kích thước tiêu đề hero */
             margin-bottom: 20px;
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
         }
 
         .hero p {
-            font-size: 1.2rem;
+            font-size: 1.1rem; /* Giảm kích thước đoạn văn */
             max-width: 800px;
             margin: 0 auto 30px;
             opacity: 0.95;
@@ -116,8 +134,8 @@
             display: inline-block;
             background-color: #ffcc00;
             color: #0d4d9c;
-            padding: 15px 35px;
-            font-size: 1.2rem;
+            padding: 14px 30px; /* Giảm padding nút */
+            font-size: 1.1rem; /* Giảm kích thước font nút */
             font-weight: 700;
             text-decoration: none;
             border-radius: 50px;
@@ -133,7 +151,7 @@
             box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
         }
 
-        /* Services Section */
+        /* Các phần khác giữ nguyên */
         .section-title {
             text-align: center;
             margin-bottom: 40px;
@@ -329,24 +347,49 @@
             opacity: 0.8;
         }
 
-        /* Responsive Design */
+        /* Responsive Design - ĐÃ CẢI THIỆN */
         @media (max-width: 768px) {
             .header-content {
-                flex-direction: column;
-                text-align: center;
-                gap: 15px;
+                flex-direction: row; /* Giữ nguyên hướng row trên tablet */
+                align-items: center;
+                gap: 10px;
+            }
+            
+            .logo {
+                flex-direction: row;
+                gap: 10px;
+            }
+            
+            .logo-icon {
+                font-size: 1.8rem; /* Giảm thêm trên tablet */
+            }
+            
+            .logo-text h1 {
+                font-size: 1.2rem; /* Giảm thêm trên tablet */
+            }
+            
+            .logo-text p {
+                font-size: 0.75rem; /* Giảm thêm trên tablet */
             }
             
             .contact-header {
-                text-align: center;
-            }
-            
-            .hero h2 {
-                font-size: 2.2rem;
+                text-align: right;
             }
             
             .phone-number {
-                font-size: 1.6rem;
+                font-size: 1.2rem; /* Giảm thêm trên tablet */
+            }
+            
+            .hotline-text {
+                font-size: 0.7rem; /* Giảm thêm trên tablet */
+            }
+            
+            .hero h2 {
+                font-size: 1.8rem; /* Giảm thêm trên tablet */
+            }
+            
+            .hero p {
+                font-size: 1rem; /* Giảm thêm trên tablet */
             }
             
             .services-grid, .fleet-grid {
@@ -354,28 +397,86 @@
             }
         }
 
+        @media (max-width: 600px) {
+            .header-content {
+                flex-wrap: wrap; /* Cho phép xuống dòng nếu cần */
+            }
+            
+            .logo {
+                width: 100%; /* Chiếm toàn bộ chiều rộng */
+                margin-bottom: 8px;
+                justify-content: center;
+                text-align: center;
+            }
+            
+            .contact-header {
+                width: 100%; /* Chiếm toàn bộ chiều rộng */
+                text-align: center;
+                margin-left: 0;
+            }
+            
+            .logo-text h1, .logo-text p {
+                text-align: center;
+            }
+        }
+
         @media (max-width: 480px) {
+            header {
+                padding: 10px 0; /* Giảm padding header */
+            }
+            
+            .hero {
+                padding: 50px 20px; /* Giảm padding hero */
+            }
+            
             .hero h2 {
-                font-size: 1.8rem;
+                font-size: 1.6rem; /* Giảm cỡ chữ trên mobile nhỏ */
             }
             
             .hero p {
-                font-size: 1rem;
+                font-size: 0.95rem; /* Giảm cỡ chữ trên mobile nhỏ */
             }
             
             .btn {
                 padding: 12px 25px;
-                font-size: 1.1rem;
+                font-size: 1rem; /* Giảm cỡ chữ nút */
+            }
+            
+            .logo-icon {
+                font-size: 1.6rem; /* Giảm thêm biểu tượng */
             }
             
             .logo-text h1 {
-                font-size: 1.5rem;
+                font-size: 1.1rem; /* Giảm thêm tiêu đề */
+            }
+            
+            .phone-number {
+                font-size: 1.1rem; /* Giảm thêm số điện thoại */
+            }
+        }
+
+        @media (max-width: 360px) {
+            /* Tối ưu cho điện thoại rất nhỏ */
+            .logo-text h1 {
+                font-size: 1rem; /* Giảm tối đa tiêu đề */
+            }
+            
+            .logo-text p {
+                font-size: 0.7rem; /* Giảm tối đa phụ đề */
+            }
+            
+            .phone-number {
+                font-size: 1rem; /* Giảm tối đa số điện thoại */
+            }
+            
+            .hero h2 {
+                font-size: 1.4rem; /* Giảm tối đa tiêu đề hero */
             }
         }
     </style>
 </head>
 <body>
-    <!-- Header -->
+    <!-- Header - ĐÃ ĐƯỢC TỐI ƯU CHO MOBILE -->
     <header>
         <div class="container header-content">
             <div class="logo">
@@ -407,6 +508,7 @@
         </div>
     </section>
 
+    <!-- Các phần còn lại giữ nguyên -->
     <!-- Services Section -->
     <section class="services">
         <div class="container">
@@ -527,7 +629,7 @@
                         <p><i class="fas fa-phone-alt"></i> <strong>Hotline:</strong> 0961.995.486</p>
                         <p><i class="fas fa-clock"></i> <strong>Thời gian phục vụ:</strong> 24/7 cả tuần</p>
                         <p><i class="fas fa-map-marker-alt"></i> <strong>Khu vực hoạt động:</strong> Nội thành & Liên tỉnh</p>
-                        
+                        <p><i class="fas fa-envelope"></i> <strong>Email:</strong> contact@taxiquangphuc.com</p>
                     </div>
                 </div>
                 
@@ -545,7 +647,6 @@
             
             <div class="copyright">
                 <p>&copy; 2026 Taxi Gia Đình Quang Phúc. Tất cả các quyền được bảo lưu.</p>
-                
             </div>
         </div>
     </footer>
