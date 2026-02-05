@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taxi Xe Điện Quang Phúc - Dịch Vụ Xe Điện VinFast Xanh Sạch</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Reset & Base Styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #f8f9fa;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header & Navigation - TỐI ƯU CHO MOBILE */
+        header {
+            background: linear-gradient(to right, #1a6bc4, #0d4d9c);
+            color: white;
+            padding: 12px 0;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .logo-icon {
+            font-size: 2.2rem;
+            color: #4CAF50; /* Màu xanh lá cho xe điện */
+            flex-shrink: 0;
+        }
+
+        .logo-text {
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .logo-text h1 {
+            font-size: 1.4rem;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .logo-text p {
+            font-size: 0.8rem;
+            opacity: 0.9;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .eco-badge {
+            background-color: #4CAF50;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            display: inline-block;
+            margin-top: 3px;
+        }
+
+        .contact-header {
+            text-align: right;
+            flex-shrink: 0;
+            margin-left: 10px;
+        }
+
+        .phone-number {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #ffcc00;
+            text-decoration: none;
+            display: block;
+            margin-bottom: 3px;
+            transition: color 0.3s;
+            white-space: nowrap;
+        }
+
+        .phone-number:hover {
+            color: #fff;
+        }
+
+        .hotline-text {
+            font-size: 0.75rem;
+            opacity: 0.9;
+            white-space: nowrap;
+        }
+
+        /* Hero Section với chủ đề xe điện */
+        .hero {
+            background: linear-gradient(rgba(76, 175, 80, 0.85), rgba(13, 77, 156, 0.9)), url('https://images.unsplash.com/photo-1621996659490-3275b4d0d7a2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1350&q=80');
+            background-size: cover;
+            background-position: center;
+            color: white;
+            text-align: center;
+            padding: 70px 20px;
+            margin-bottom: 40px;
+        }
+
+        .hero h2 {
+            font-size: 2.2rem;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .hero p {
+            font-size: 1.1rem;
+            max-width: 800px;
+            margin: 0 auto 30px;
+            opacity: 0.95;
+        }
+
+        .btn {
+            display: inline-block;
+            background-color: #4CAF50;
+            color: white;
+            padding: 14px 30px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            text-decoration: none;
+            border-radius: 50px;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn:hover {
+            background-color: #45a049;
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+        }
+
+        /* Benefits Section - Lợi ích xe điện */
+        .benefits {
+            padding: 60px 0;
+            background-color: #f0f9f0;
+        }
+
+        .benefits-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+
+        .benefit-card {
+            background-color: white;
+            border-radius: 10px;
+            padding: 25px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease;
+            border-top: 3px solid #4CAF50;
+        }
+
+        .benefit-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .benefit-icon {
+            font-size: 2.5rem;
+            color: #4CAF50;
+            margin-bottom: 20px;
+        }
+
+        .benefit-card h3 {
+            color: #0d4d9c;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+
+        /* Services Section */
+        .section-title {
+            text-align: center;
+            margin-bottom: 40px;
+            color: #0d4d9c;
+            position: relative;
+            padding-bottom: 15px;
+        }
+
+        .section-title:after {
+            content: '';
+            position: absolute;
+            width: 80px;
+            height: 4px;
+            background-color: #4CAF50;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            border-radius: 2px;
+        }
+
+        .services {
+            padding: 60px 0;
+        }
+
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .service-card {
+            background-color: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-top: 4px solid #4CAF50;
+        }
+
+        .service-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .service-icon {
+            background-color: #0d4d9c;
+            color: white;
+            font-size: 2.5rem;
+            padding: 25px;
+            text-align: center;
+        }
+
+        .service-content {
+            padding: 25px;
+        }
+
+        .service-content h3 {
+            color: #0d4d9c;
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+        }
+
+        /* Car Fleet Section - Xe điện VinFast */
+        .fleet {
+            padding: 60px 0;
+            background-color: #f0f5ff;
+        }
+
+        .fleet-intro {
+            text-align: center;
+            max-width: 800px;
+            margin: 0 auto 40px;
+            color: #555;
+            font-size: 1.1rem;
+            line-height: 1.8;
+        }
+
+        .vinfast-logo {
+            color: #4CAF50;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .electric-advantages {
+            background-color: #e8f5e9;
+            border-radius: 10px;
+            padding: 25px;
+            margin: 30px auto 40px;
+            max-width: 900px;
+            border-left: 5px solid #4CAF50;
+        }
+
+        .electric-advantages h3 {
+            color: #0d4d9c;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 1.5rem;
+        }
+
+        .advantages-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .advantage-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 10px;
+        }
+
+        .advantage-item i {
+            color: #4CAF50;
+            font-size: 1.2rem;
+            margin-top: 3px;
+            flex-shrink: 0;
+        }
+
+        .fleet-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+
+        .car-card {
+            background-color: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            border: 2px solid #e8f5e9;
+            transition: transform 0.3s ease;
+        }
+
+        .car-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .car-image {
+            height: 180px;
+            background-color: #e8f5e9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #4CAF50;
+            font-size: 3.5rem;
+            position: relative;
+        }
+
+        .electric-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: #4CAF50;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .car-info {
+            padding: 20px;
+        }
+
+        .car-info h3 {
+            color: #0d4d9c;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .car-model {
+            color: #4CAF50;
+            font-size: 0.9rem;
+            font-weight: normal;
+        }
+
+        .car-features {
+            list-style: none;
+            margin-top: 15px;
+        }
+
+        .car-features li {
+            padding: 5px 0;
+            border-bottom: 1px dashed #eee;
+        }
+
+        .car-features li:last-child {
+            border-bottom: none;
+        }
+
+        .car-features i {
+            color: #4CAF50;
+            margin-right: 10px;
+        }
+
+        /* Charging Info */
+        .charging-info {
+            background-color: #e8f5e9;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            border-left: 4px solid #4CAF50;
+        }
+
+        .charging-info h4 {
+            color: #0d4d9c;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Contact CTA */
+        .contact-cta {
+            background: linear-gradient(to right, #4CAF50, #0d4d9c);
+            color: white;
+            text-align: center;
+            padding: 70px 20px;
+            margin: 60px 0;
+        }
+
+        .contact-cta h2 {
+            font-size: 2.3rem;
+            margin-bottom: 20px;
+        }
+
+        .contact-cta p {
+            font-size: 1.2rem;
+            max-width: 700px;
+            margin: 0 auto 30px;
+            opacity: 0.95;
+        }
+
+        /* Footer */
+        footer {
+            background-color: #0c3d7a;
+            color: white;
+            padding: 50px 0 20px;
+        }
+
+        .footer-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+
+        .footer-column h3 {
+            font-size: 1.4rem;
+            margin-bottom: 25px;
+            color: #4CAF50;
+            position: relative;
+            padding-bottom: 10px;
+        }
+
+        .footer-column h3:after {
+            content: '';
+            position: absolute;
+            width: 40px;
+            height: 3px;
+            background-color: #4CAF50;
+            bottom: 0;
+            left: 0;
+            border-radius: 2px;
+        }
+
+        .contact-info p {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+
+        .contact-info i {
+            color: #4CAF50;
+            margin-right: 12px;
+            font-size: 1.2rem;
+            width: 25px;
+        }
+
+        .copyright {
+            text-align: center;
+            padding-top: 25px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 0.95rem;
+            opacity: 0.8;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: row;
+                align-items: center;
+                gap: 10px;
+            }
+            
+            .logo {
+                flex-direction: row;
+                gap: 10px;
+            }
+            
+            .logo-icon {
+                font-size: 1.8rem;
+            }
+            
+            .logo-text h1 {
+                font-size: 1.2rem;
+            }
+            
+            .logo-text p {
+                font-size: 0.75rem;
+            }
+            
+            .contact-header {
+                text-align: right;
+            }
+            
+            .phone-number {
+                font-size: 1.2rem;
+            }
+            
+            .hotline-text {
+                font-size: 0.7rem;
+            }
+            
+            .hero h2 {
+                font-size: 1.8rem;
+            }
+            
+            .hero p {
+                font-size: 1rem;
+            }
+            
+            .benefits-grid, .services-grid, .fleet-grid, .advantages-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .electric-advantages {
+                padding: 20px;
+                margin: 20px auto 30px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .header-content {
+                flex-wrap: wrap;
+            }
+            
+            .logo {
+                width: 100%;
+                margin-bottom: 8px;
+                justify-content: center;
+                text-align: center;
+            }
+            
+            .contact-header {
+                width: 100%;
+                text-align: center;
+                margin-left: 0;
+            }
+            
+            .logo-text h1, .logo-text p {
+                text-align: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            header {
+                padding: 10px 0;
+            }
+            
+            .hero {
+                padding: 50px 20px;
+            }
+            
+            .hero h2 {
+                font-size: 1.6rem;
+            }
+            
+            .hero p {
+                font-size: 0.95rem;
+            }
+            
+            .btn {
+                padding: 12px 25px;
+                font-size: 1rem;
+            }
+            
+            .logo-icon {
+                font-size: 1.6rem;
+            }
+            
+            .logo-text h1 {
+                font-size: 1.1rem;
+            }
+            
+            .phone-number {
+                font-size: 1.1rem;
+            }
+            
+            .contact-cta h2 {
+                font-size: 1.8rem;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .logo-text h1 {
+                font-size: 1rem;
+            }
+            
+            .logo-text p {
+                font-size: 0.7rem;
+            }
+            
+            .phone-number {
+                font-size: 1rem;
+            }
+            
+            .hero h2 {
+                font-size: 1.4rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header - ĐÃ ĐƯỢC TỐI ƯU CHO MOBILE -->
+    <header>
+        <div class="container header-content">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-car"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>TAXI XE ĐIỆN QUANG PHÚC</h1>
+                    <p>100% Xe Điện VinFast - Xanh Sạch Hiện Đại</p>
+                    <div class="eco-badge">♻️ VÌ MÔI TRƯỜNG XANH</div>
+                </div>
+            </div>
+            <div class="contact-header">
+                <a href="tel:0961995486" class="phone-number">
+                    <i class="fas fa-phone-alt"></i> 0961.995.486
+                </a>
+                <p class="hotline-text">Hotline đặt xe 24/7</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <h2>TAXI XE ĐIỆN VINFAST - TRẢI NGHIỆM DI CHUYỂN TƯƠNG LAI</h2>
+            <p>Đội xe điện VinFast hiện đại, yên tĩnh, êm ái và thân thiện môi trường. Di chuyển không khói bụi, không tiếng ồn - Chất lượng vượt trội với chi phí tiết kiệm.</p>
+            <a href="tel:0961995486" class="btn">
+                <i class="fas fa-bolt"></i> ĐẶT XE ĐIỆN NGAY
+            </a>
+        </div>
+    </section>
+
+    <!-- Benefits Section - Lợi ích xe điện -->
+    <section class="benefits">
+        <div class="container">
+            <h2 class="section-title">LỢI ÍCH VƯỢT TRỘI CỦA XE ĐIỆN</h2>
+            <div class="benefits-grid">
+                <div class="benefit-card">
+                    <div class="benefit-icon">
+                        <i class="fas fa-leaf"></i>
+                    </div>
+                    <h3>Thân Thiện Môi Trường</h3>
+                    <p>Không phát thải CO2, góp phần bảo vệ môi trường và sức khỏe cộng đồng.</p>
+                </div>
+                
+                <div class="benefit-card">
+                    <div class="benefit-icon">
+                        <i class="fas fa-money-bill-wave"></i>
+                    </div>
+                    <h3>Tiết Kiệm Chi Phí</h3>
+                    <p>Chi phí sạc điện chỉ bằng 1/3 chi phí xăng, giúp tiết kiệm đáng kể.</p>
+                </div>
+                
+                <div class="benefit-card">
+                    <div class="benefit-icon">
+                        <i class="fas fa-volume-mute"></i>
+                    </div>
+                    <h3>Vận Hành Yên Tĩnh</h3>
+                    <p>Động cơ điện hoạt động êm ái, không gây tiếng ồn, mang lại trải nghiệm thoải mái.</p>
+                </div>
+                
+                <div class="benefit-card">
+                    <div class="benefit-icon">
+                        <i class="fas fa-tachometer-alt"></i>
+                    </div>
+                    <h3>Gia Tốc Mượt Mà</h3>
+                    <p>Mô-men xoắn tức thời, tăng tốc nhanh và êm ái, không giật cục như xe xăng.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Services Section -->
+    <section class="services">
+        <div class="container">
+            <h2 class="section-title">DỊCH VỤ CỦA CHÚNG TÔI</h2>
+            <div class="services-grid">
+                <div class="service-card">
+                    <div class="service-icon">
+                        <i class="fas fa-home"></i>
+                    </div>
+                    <div class="service-content">
+                        <h3>Taxi Gia Đình Xanh</h3>
+                        <p>Dịch vụ taxi điện chuyên phục vụ gia đình. Xe sạch sẽ, an toàn tuyệt đối, không khói bụi ảnh hưởng sức khỏe.</p>
+                    </div>
+                </div>
+                
+                <div class="service-card">
+                    <div class="service-icon">
+                        <i class="fas fa-plane"></i>
+                    </div>
+                    <div class="service-content">
+                        <h3>Đưa Đón Sân Bay Xanh</h3>
+                        <p>Đón khách từ nhà đến sân bay bằng xe điện. Đúng giờ, không lo kẹt xe vì được ưu tiên làn đường tại nhiều thành phố.</p>
+                    </div>
+                </div>
+                
+                <div class="service-card">
+                    <div class="service-icon">
+                        <i class="fas fa-briefcase"></i>
+                    </div>
+                    <div class="service-content">
+                        <h3>Taxi Công Tác Cao Cấp</h3>
+                        <p>Phục vụ các chuyến đi công tác với xe điện sang trọng. Có WIFI miễn phí, cổng sạc USB, không gian yên tĩnh làm việc.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Car Fleet Section - Xe điện VinFast -->
+    <section class="fleet">
+        <div class="container">
+            <h2 class="section-title">ĐỘI XE ĐIỆN VINFAST CỦA CHÚNG TÔI</h2>
+            
+            <div class="fleet-intro">
+                <p>Chúng tôi tự hào là đơn vị taxi <span class="vinfast-logo">xe điện VinFast</span> đầu tiên tại khu vực. Tất cả xe đều là đời mới, được bảo dưỡng định kỳ và luôn trong tình trạng sạc đầy 80-100% để sẵn sàng phục vụ.</p>
+            </div>
+            
+            <!-- Ưu điểm xe điện -->
+            <div class="electric-advantages">
+                <h3><i class="fas fa-bolt"></i> ƯU ĐIỂM VƯỢT TRỘI CỦA XE ĐIỆN</h3>
+                <div class="advantages-grid">
+                    <div class="advantage-item">
+                        <i class="fas fa-check-circle"></i>
+                        <div>
+                            <strong>Tiết kiệm chi phí</strong>
+                            <p>Chi phí điện chỉ bằng 1/3 chi phí xăng</p>
+                        </div>
+                    </div>
+                    <div class="advantage-item">
+                        <i class="fas fa-check-circle"></i>
+                        <div>
+                            <strong>Vận hành êm ái</strong>
+                            <p>Không tiếng ồn động cơ, không rung giật</p>
+                        </div>
+                    </div>
+                    <div class="advantage-item">
+                        <i class="fas fa-check-circle"></i>
+                        <div>
+                            <strong>Bảo dưỡng đơn giản</strong>
+                            <p>Ít phụ tùng, chi phí bảo trì thấp hơn 40%</p>
+                        </div>
+                    </div>
+                    <div class="advantage-item">
+                        <i class="fas fa-check-circle"></i>
+                        <div>
+                            <strong>An toàn vượt trội</strong>
+                            <p>Trọng tâm thấp, ổn định cao, hệ thống phanh tái sinh</p>
+                        </div>
+                    </div>
+                    <div class="advantage-item">
+                        <i class="fas fa-check-circle"></i>
+                        <div>
+                            <strong>Tăng tốc nhanh</strong>
+                            <p>Mô-men xoắn tức thời, vượt xe dễ dàng</p>
+                        </div>
+                    </div>
+                    <div class="advantage-item">
+                        <i class="fas fa-check-circle"></i>
+                        <div>
+                            <strong>Không khói bụi</strong>
+                            <p>Không phát thải, bảo vệ sức khỏe hành khách</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="fleet-grid">
+                <div class="car-card">
+                    <div class="car-image">
+                        <i class="fas fa-car"></i>
+                        <div class="electric-badge">XE ĐIỆN</div>
+                    </div>
+                    <div class="car-info">
+                        <h3>VinFast VF e34 <span class="car-model">SUV Điện 5 Chỗ</span></h3>
+                        <p>SUV điện thông minh, không gian rộng rãi, công nghệ hiện đại. Phù hợp cho gia đình và công tác.</p>
+                        <ul class="car-features">
+                            <li><i class="fas fa-bolt"></i> Quãng đường: 300km/lần sạc</li>
+                            <li><i class="fas fa-plug"></i> Sạc nhanh 80% trong 30 phút</li>
+                            <li><i class="fas fa-wifi"></i> Kết nối 4G, giải trí thông minh</li>
+                            <li><i class="fas fa-shield-alt"></i> Hệ thống an toàn 5 sao</li>
+                        </ul>
+                        <div class="charging-info">
+                            <h4><i class="fas fa-charging-station"></i> THÔNG TIN SẠC</h4>
+                            <p>Xe luôn được sạc đầy 80-100%. Hệ thống trạm sạc VinFast dày đặc đảm bảo luôn sẵn sàng.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="car-card">
+                    <div class="car-image">
+                        <i class="fas fa-car-side"></i>
+                        <div class="electric-badge">XE ĐIỆN</div>
+                    </div>
+                    <div class="car-info">
+                        <h3>VinFast VF 5 Plus <span class="car-model">Hatchback Điện</span></h3>
+                        <p>Xe điện cỡ nhỏ linh hoạt, thiết kế trẻ trung. Tiết kiệm năng lượng tối ưu cho di chuyển đô thị.</p>
+                        <ul class="car-features">
+                            <li><i class="fas fa-bolt"></i> Quãng đường: 260km/lần sạc</li>
+                            <li><i class="fas fa-compress-arrows-alt"></i> Kích thước nhỏ gọn, dễ di chuyển</li>
+                            <li><i class="fas fa-sun"></i> Cửa sổ trời, không gian thoáng</li>
+                            <li><i class="fas fa-music"></i> Hệ thống âm thanh cao cấp</li>
+                        </ul>
+                        <div class="charging-info">
+                            <h4><i class="fas fa-charging-station"></i> TIẾT KIỆM CHI PHÍ</h4>
+                            <p>Chi phí điện chỉ khoảng 500đ/km, rẻ hơn 3 lần so với xe xăng cùng phân khúc.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="car-card">
+                    <div class="car-image">
+                        <i class="fas fa-shuttle-van"></i>
+                        <div class="electric-badge">XE ĐIỆN</div>
+                    </div>
+                    <div class="car-info">
+                        <h3>VinFast VF 8 <span class="car-model">SUV Điện 7 Chỗ</span></h3>
+                        <p>SUV điện cao cấp 7 chỗ, không gian rộng rãi. Lý tưởng cho gia đình đông người, nhóm du lịch.</p>
+                        <ul class="car-features">
+                            <li><i class="fas fa-bolt"></i> Quãng đường: 400km/lần sạc</li>
+                            <li><i class="fas fa-users"></i> 7 chỗ ngồi thoải mái</li>
+                            <li><i class="fas fa-snowflake"></i> Điều hòa 2 vùng độc lập</li>
+                            <li><i class="fas fa-luggage-cart"></i> Cốp xe rộng 500L</li>
+                        </ul>
+                        <div class="charging-info">
+                            <h4><i class="fas fa-charging-station"></i> CÔNG NGHỆ VƯỢT TRỘI</h4>
+                            <p>Hỗ trợ sạc tại nhà, trạm sạc công cộng và sạc nhanh DC. Đầy pin chỉ trong 30 phút.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact CTA -->
+    <section class="contact-cta">
+        <div class="container">
+            <h2>TRẢI NGHIỆM XE ĐIỆN VINFAST NGAY HÔM NAY!</h2>
+            <p>Chỉ một cuộc gọi, chúng tôi sẽ có mặt với xe điện VinFast sạch sẽ, hiện đại. Trải nghiệm sự êm ái, yên tĩnh và thân thiện với môi trường.</p>
+            <a href="tel:0961995486" class="btn">
+                <i class="fas fa-bolt"></i> GỌI NGAY: 0961.995.486
+            </a>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-column">
+                    <h3>TAXI XE ĐIỆN QUANG PHÚC</h3>
+                    <p>Đơn vị taxi xe điện VinFast uy tín, chất lượng hàng đầu. Với phương châm "Di chuyển xanh - Sống khỏe cùng cộng đồng", chúng tôi cam kết mang đến trải nghiệm di chuyển tốt nhất, thân thiện với môi trường.</p>
+                </div>
+                
+                <div class="footer-column">
+                    <h3>LIÊN HỆ</h3>
+                    <div class="contact-info">
+                        <p><i class="fas fa-phone-alt"></i> <strong>Hotline:</strong> 0961.995.486</p>
+                        <p><i class="fas fa-clock"></i> <strong>Thời gian phục vụ:</strong> 24/7 cả tuần</p>
+                        <p><i class="fas fa-map-marker-alt"></i> <strong>Khu vực hoạt động:</strong> Nội thành & Liên tỉnh</p>
+                        <p><i class="fas fa-bolt"></i> <strong>Đội xe:</strong> 100% Xe điện VinFast</p>
+                    </div>
+                </div>
+                
+                <div class="footer-column">
+                    <h3>CAM KẾT XANH</h3>
+                    <ul class="car-features" style="color: white;">
+                        <li><i class="fas fa-leaf"></i> 100% xe điện, không phát thải</li>
+                        <li><i class="fas fa-shield-alt"></i> An toàn tuyệt đối, công nghệ mới</li>
+                        <li><i class="fas fa-volume-mute"></i> Vận hành êm ái, không tiếng ồn</li>
+                        <li><i class="fas fa-money-bill-wave"></i> Giá cả hợp lý, tiết kiệm 30%</li>
+                        <li><i class="fas fa-user-shield"></i> Tài xế chuyên nghiệp, thân thiện</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="copyright">
+                <p>&copy; 2026 Taxi Xe Điện Quang Phúc. Tất cả các quyền được bảo lưu.</p>
+                <p><i class="fas fa-leaf"></i> Góp phần xây dựng môi trường xanh - sạch - đẹp</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Simple script for phone button animation
+        document.querySelectorAll('a[href^="tel:"]').forEach(phoneLink => {
+            phoneLink.addEventListener('click', function() {
+                this.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    this.style.transform = '';
+                }, 200);
+            });
+        });
+        
+        // Add current year to copyright if needed
+        document.addEventListener('DOMContentLoaded', function() {
+            const yearSpan = document.getElementById('currentYear');
+            if(yearSpan) {
+                yearSpan.textContent = new Date().getFullYear();
+            }
+        });
+    </script>
+</body>
+</html>
