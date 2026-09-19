@@ -8,6 +8,7 @@ events.facebook.com
 facebookads.g.doubleclick.net
 
 # TikTok Tracking Domains
+ads-api.tiktok.com
 ads.tiktok.com
 analytics.tiktok.com
 log.byteoversea.com
