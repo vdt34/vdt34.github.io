@@ -22,10 +22,6 @@ sp.zalo.me
 
 # Shopee Tracking Domains
 deo.shopeemobile.com
-cv.shopee.vn
-cf.shopee.vn
-video.shopee.com
-streaming.shopee.sg
 
 # Google Tracking Domains (Safe to block, not search-related)
 www.googleadservices.com
