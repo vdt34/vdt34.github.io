@@ -253,17 +253,27 @@ if [ "$MODE" = "FULL" ]; then
 
     echo ">> [8/8] Dang day va cai dat AI Box Plus DLNA moi..."
     adb -s "$SERIAL" push "$APK_AI" /data/local/tmp/AIBoxPlus_DLNA.apk
-    adb -s "$SERIAL" shell "/system/bin/pm install /data/local/tmp/AIBoxPlus_DLNA.apk"
+    adb -s "$SERIAL" shell "/system/bin/pm install -r /data/local/tmp/AIBoxPlus_DLNA.apk"
     adb -s "$SERIAL" shell "rm -f /data/local/tmp/AIBoxPlus_DLNA.apk"
 
-    adb -s "$SERIAL" shell "am start -n info.dourok.voicebot/.java.activities.MainActivity" >/dev/null 2>&1 || true
+    echo ""
+    echo ">> [KHOI DONG LAI] Dang khoi dong lai loa de kich hoat toan bo phan cung..."
+    echo "   (De nap EchoService port 8080, DLNA, AirPlay va he thong den led)"
+    adb -s "$SERIAL" reboot >/dev/null 2>&1 || true
 
     echo ""
     echo "=========================================================="
     echo "     [HOAN TAT] CAI DAT LOA PHICOMM R1 THANH CONG!        "
     echo "=========================================================="
-    echo "Loa da khoi chay AI Box Plus voi day du tinh nang!"
-    echo "Neu dang o WiFi phat cua loa (192.168.43.1), hay dung Safari tren iPhone"
+    echo "Loa dang khoi dong lai trong 25-30 giay."
+    echo "Sau khi khoi dong xong, toan bo tinh nang:"
+    echo "  - Port 8080 (Dieu khien den vien, den nen, EQ, am thanh)"
+    echo "  - Port 8081 (Web Control)"
+    echo "  - Port 8082 (AI Box Plus & Chat)"
+    echo "  - DLNA / AirPlay"
+    echo "se hoat dong 100% tron tru va muot ma!"
+    echo ""
+    echo "Neu dang o WiFi phat cua loa (192.168.43.1), hay dung Safari"
     echo "truy cap vao: http://192.168.43.1:8081/ de ket noi WiFi nha cho loa."
 fi
 
