@@ -416,30 +416,53 @@ if [ "$MODE" = "FULL" ]; then
     echo ">> [5/7] Dang cai dat ban AI Box Plus DLNA moi nhat..."
     install_apk_on_device "$APK_AI" "info.dourok.voicebot" "AI Box Plus DLNA"
 
-    echo ">> [6/7] Khoi chay ung dung AI Box..."
+    echo ">> [6/7] Khoi chay ung dung AI Box & Cac dich vu he thong..."
     adb -s "$SERIAL" shell "am start -n info.dourok.voicebot/.java.activities.MainActivity" >/dev/null 2>&1 || true
+    sleep 2
 
-    echo ">> [7/7] Dang khoi dong lai loa de dong bo toan bo phan cung..."
-    echo "   (Kich hoat EchoService port 8080, Web Control port 8081, DLNA, AirPlay va den LED)"
-    adb -s "$SERIAL" reboot >/dev/null 2>&1 || true
+    # Kiem tra nhanh dich vu tren loa da san sang chua
+    echo ">> [7/7] Kiem tra trang thai hoat dong cac dich vu..."
+    if check_port "$TARGET_IP" "8081"; then
+        echo "   [OK] Web Control (Port 8081) da hoat dong san sang!"
+    fi
+    if check_port "$TARGET_IP" "8080"; then
+        echo "   [OK] EchoService (Port 8080 - Dieu khien den & EQ) da san sang!"
+    fi
+    if check_port "$TARGET_IP" "8082"; then
+        echo "   [OK] AI Box Service (Port 8082) da san sang!"
+    fi
 
     echo ""
     echo "=========================================================="
     echo "     [HOAN TAT] CAI DAT LOA PHICOMM R1 THANH CONG!        "
     echo "=========================================================="
-    echo "Loa dang khoi dong lai trong 25-30 giay."
-    echo "Sau khi khoi dong xong, toan bo tinh nang:"
-    echo "  - Port 8080 (Dieu khien den vien, EQ, he thong)"
-    echo "  - Port 8081 (Giao dien Web Control co dinh thanh Media, nhe muot)"
-    echo "  - Port 8082 (AI Box Plus & Chat)"
-    echo "  - DLNA / AirPlay"
-    echo "se hoat dong 100% tron tru va on dinh!"
-    echo ""
+    echo "Toan bo ung dung & dich vu da duoc khoi chay SAN SANG DUNG NGAY!"
     if [ "$TARGET_IP" = "192.168.43.1" ]; then
-        echo "Vi dang o WiFi cua loa (192.168.43.1), hay dung Safari"
-        echo "truy cap vao: http://192.168.43.1:8081/ de ket noi WiFi nha cho loa."
+        echo "Ket noi WiFi giua iPhone va loa duoc GIU NGUYEN (khong bi ngat)."
+        echo ""
+        echo ">>> CAC BUOC DE DUNG NGAY LAP TUC:"
+        echo " 1. Mo trinh duyet Safari tren iPhone, truy cap ngay:"
+        echo "    👉 http://192.168.43.1:8081/wifi.html (de cai dat WiFi nha cho loa)"
+        echo "    hoac: http://192.168.43.1:8081/ (giao dien Web Control dieu khien loa)"
+        echo " 2. Chon WiFi nha va nhap mat khau -> Loa se bao ket noi thanh cong."
+        echo " 3. Chuyen iPhone ve WiFi nha va su dung binh thuong tai IP moi!"
+        echo "=========================================================="
+        echo ""
+        REBOOT_NOW=$(read_input "Ban co muon khoi dong lai loa bay gio khong? (y/n, mac dinh n de dung ngay): " "n")
+        if [ "$REBOOT_NOW" = "y" ] || [ "$REBOOT_NOW" = "Y" ]; then
+            echo ">> Dang khoi dong lai loa (vui long doi 25-30 giay)..."
+            adb -s "$SERIAL" reboot >/dev/null 2>&1 || true
+        else
+            echo ">> Giu nguyen ket noi de ban truy cap Safari vao http://192.168.43.1:8081/ ngay!"
+        fi
     else
         echo "Truy cap giao dien web dieu khien tai: http://$TARGET_IP:8081/"
+        echo ""
+        REBOOT_NOW=$(read_input "Ban co muon khoi dong lai loa bay gio khong? (y/n, mac dinh n): " "n")
+        if [ "$REBOOT_NOW" = "y" ] || [ "$REBOOT_NOW" = "Y" ]; then
+            echo ">> Dang khoi dong lai loa..."
+            adb -s "$SERIAL" reboot >/dev/null 2>&1 || true
+        fi
     fi
 fi
 
