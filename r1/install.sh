@@ -138,43 +138,65 @@ echo "      KIEM TRA KET NOI DEN LOA R1 ($SERIAL)               "
 echo "=========================================================="
 
 set +e
-# Kiem tra nhanh neu da ket noi san
+# Kiem tra nhanh
 adb disconnect "$SERIAL" >/dev/null 2>&1
-adb connect "$SERIAL" >/dev/null 2>&1
+CONN_CHECK=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
 DEV_STATE=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d '\r\n')
 
-if [ "$DEV_STATE" != "device" ]; then
-    echo ">> Chua ket noi toi WiFi cua loa ($TARGET_IP)!"
+if [ "$DEV_STATE" != "device" ] && ! echo "$CONN_CHECK" | grep -q "connected to"; then
+    echo ">> [CHUA KET NOI] Chua thay loa tai $TARGET_IP!"
+    echo ""
+    echo "------------------ LUU Y QUAN TRONG CHO IPHONE ------------------"
     if [ "$TARGET_IP" = "192.168.43.1" ]; then
-        echo "   1. An va giu nut tron tren dinh loa 6 giay den khi loa phat"
-        echo "      am thanh va den chuyen sang mau cam (phat WiFi)."
-        echo "   2. Vao Cai dat (Settings) -> Wi-Fi tren iPhone va chon: Phicomm_R1_xxxx"
+        echo " 1. TAT 4G/5G (Du lieu di dong) tren iPhone:"
+        echo "    * WiFi loa KHONG CO INTERNET, neu bat 4G thi iPhone se ban"
+        echo "      goi tin qua 4G khien iSH khong the ket noi toi loa duoc!"
+        echo " 2. An giu nut tron tren dinh loa 6s den khi loa phat tieng & den cam."
+        echo " 3. Vao Cai dat -> Wi-Fi tren iPhone va chon: Phicomm_R1_xxxx"
+        echo " 4. Neu iPhone bao 'Wi-Fi khong co Internet' -> Chon 'Tiep tuc su dung'!"
     else
-        echo "   * Dam bao iPhone dang ket noi cung WiFi nha voi loa tai IP: $TARGET_IP"
+        echo " * Dam bao iPhone dang ket noi cung mang WiFi voi loa tai IP: $TARGET_IP"
     fi
-    echo "   * He thong se TU DONG doi. KHI KET NOI SE LAP TUC CAI DAT NGAY!"
-    echo "   * (Nhan Ctrl + C neu muon dung lai)"
-    echo "----------------------------------------------------------"
+    echo " 5. Kiem tra: Cai dat -> iSH -> Bat 'Mang cuc bo' (Local Network) neu co."
+    echo "-----------------------------------------------------------------"
+    echo ">> He thong dang tu dong cho ket noi (Nhan Ctrl + C neu muon dung)..."
+    echo ""
 
     TRY_COUNT=0
     while true; do
         TRY_COUNT=$((TRY_COUNT + 1))
-        printf "\r[*] Dang cho iPhone ket noi WiFi loa [%s] (Thu lan %d)... " "$SERIAL" "$TRY_COUNT"
 
-        adb connect "$SERIAL" >/dev/null 2>&1
+        # Reset disconnect de tranh loi ket socket offline cua ADB
+        adb disconnect "$SERIAL" >/dev/null 2>&1
+
+        # Thu connect
+        CONN_RES=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
         DEV_STATE=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d '\r\n')
-        if [ "$DEV_STATE" = "device" ]; then
-            echo ""
-            break
+
+        if [ "$DEV_STATE" = "device" ] || echo "$CONN_RES" | grep -q "connected to"; then
+            if adb -s "$SERIAL" shell getprop ro.build.version.release >/dev/null 2>&1; then
+                echo ""
+                echo ">> [THANH CONG] Da ket noi duoc den loa tai $SERIAL!"
+                break
+            fi
         fi
-        sleep 1
+
+        printf "\r[*] Dang cho ket noi [%s] (Thu %d) | Trang thai: %s   " "$SERIAL" "$TRY_COUNT" "$CONN_RES"
+
+        # Sau moi 8 lan thu, neu chua duoc, khoi dong lai nhe adb server de lam sach cache network tren iOS
+        if [ $((TRY_COUNT % 8)) -eq 0 ]; then
+            adb kill-server >/dev/null 2>&1 || true
+            adb start-server >/dev/null 2>&1 || true
+        fi
+
+        sleep 1.5
     done
 fi
 set -e
 
 echo ""
 echo ">> [DA KET NOI] PHAT HIEN THIET BI TAI $SERIAL!"
-echo ">> [LAP TUC CAI DAT] BAT DAU CAI DAT NGAY CHO LOA..."
+echo ">> [LAP TUC CAI DAT] BAT DAU TIEN HANH CAI DAT CHO LOA..."
 echo ""
 
 if [ "$MODE" = "CHECK_IP" ]; then
