@@ -1,7 +1,7 @@
 #!/bin/sh
 # ==============================================================================
 # BỘ CÀI PHICOMM R1 SIÊU TỐC - TỐI ƯU CHO iPHONE (iSH) & LINUX / ANDROID
-# Chuẩn hóa theo new.bat v5.1.3: Nhập IP trực tiếp, đẩy lên /data/local/tmp/
+# Chuẩn hóa 100% theo new.bat: Kết nối 1-2s, đẩy lên /data/local/tmp/
 # ==============================================================================
 
 BASE_URL="https://vdt34.github.io/r1"
@@ -62,9 +62,9 @@ echo ">> [1/4] Chuẩn bị 3 file APK..."
 for f in autodlna.apk unisound.apk AIBoxPlus_DLNA.apk; do
     if [ -f "$SCRIPT_DIR/$f" ] && [ "$(wc -c < "$SCRIPT_DIR/$f" 2>/dev/null)" -gt 1000000 ]; then
         cp -f "$SCRIPT_DIR/$f" "$CACHE_DIR/$f" 2>/dev/null || true
-        echo "   [OK] Dùng $f có sẵn trong thư mục."
+        echo "   [OK] Có sẵn $f trong thư mục."
     elif [ -f "$CACHE_DIR/$f" ] && [ "$(wc -c < "$CACHE_DIR/$f" 2>/dev/null)" -gt 1000000 ]; then
-        echo "   [OK] Đã có sẵn $f trong bộ nhớ tạm."
+        echo "   [OK] Có sẵn $f trong bộ nhớ tạm."
     else
         echo "   -> Đang tải $f từ GitHub..."
         curl -k -fL --connect-timeout 10 -# -o "$CACHE_DIR/$f.tmp" "$BASE_URL/$f" && mv -f "$CACHE_DIR/$f.tmp" "$CACHE_DIR/$f"
@@ -78,61 +78,45 @@ for f in autodlna.apk unisound.apk AIBoxPlus_DLNA.apk; do
     fi
 done
 
-# 4. Đánh thức loa qua WebSocket 8080 & Kết nối ADB
+# 4. Kết nối ADB tới loa (Chuẩn xác 100% theo :connect và :connect_retry của new.bat)
 echo ""
-echo ">> [2/4] Đang kết nối tới loa tại $SERIAL..."
-if [ "$TARGET_IP" = "192.168.43.1" ]; then
-    echo "--------------------------------------------------------"
-    echo " LƯU Ý KHI NỐI WIFI LOA (192.168.43.1):"
-    echo " 1. TẮT 4G/5G trên iPhone để không bị nhiễu mạng."
-    echo " 2. Ấn giữ nút tròn đỉnh loa 6 giây cho đổi sang đèn cam."
-    echo " 3. Vào Wi-Fi iPhone kết nối mạng: Phicomm_R1_xxxx"
-    echo " 4. Bật 'Mạng cục bộ' (Local Network) cho iSH trong Cài đặt iPhone."
-    echo "--------------------------------------------------------"
-else
-    echo "--------------------------------------------------------"
-    echo " KẾT NỐI QUA MẠNG WIFI NHÀ (IP: $TARGET_IP):"
-    echo " - iPhone và loa phải cùng kết nối chung một mạng WiFi."
-    echo " - Bật 'Mạng cục bộ' (Local Network) cho iSH trong Cài đặt iPhone."
-    echo "--------------------------------------------------------"
-fi
+echo ">> [2/4] Bắt đầu kết nối thiết bị [$SERIAL]..."
 
-revive_speaker() {
-    [ "$R1_DRYRUN" = "1" ] && return 0
-    cmd="stop adbd; setprop service.adb.tcp.port 5555; start adbd; svc power stayon true; am force-stop com.phicomm.speaker.airskill; am force-stop com.phicomm.speaker.otaservice"
-    payload="{\"type\":\"shell\",\"type_id\":\"revive\",\"shell\":\"$cmd\"}"
-    len=${#payload}
-    hdr="\\201$(printf '\\%03o' $((128 + len)))\\000\\000\\000\\000"
-    if command -v nc >/dev/null 2>&1; then
-        {
-            printf 'GET / HTTP/1.1\r\nHost: %s:8080\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n' "$TARGET_IP"
-            sleep 0.5
-            printf "%b%s" "$hdr" "$payload"
-            sleep 0.5
-        } | nc -w 2 "$TARGET_IP" 8080 >/dev/null 2>&1 || true
-    fi
-}
-
-[ "$R1_DRYRUN" != "1" ] && adb start-server >/dev/null 2>&1 || true
-revive_speaker
-sleep 0.6
-
-TRY=0
-while true; do
-    TRY=$((TRY + 1))
-    [ "$R1_DRYRUN" = "1" ] && break
-    adb connect "$SERIAL" >/dev/null 2>&1 || true
-    DEV_STATE=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d '\r\n')
-    if [ "$DEV_STATE" = "device" ]; then break; fi
-    printf "\r[*] Đang chờ kết nối loa %s (thử lần %d)... " "$SERIAL" "$TRY"
-    if [ $((TRY % 3)) -eq 0 ]; then
-        adb disconnect "$SERIAL" >/dev/null 2>&1 || true
-        revive_speaker
-    fi
+if [ "$R1_DRYRUN" != "1" ]; then
+    killall -9 adb 2>/dev/null || true
+    adb kill-server >/dev/null 2>&1 || true
+    adb start-server >/dev/null 2>&1 || true
     sleep 1
-done
-echo ""
-echo ">> [OK] Đã kết nối thành công tới loa ($SERIAL)!"
+
+    CONNECTED=0
+    for try in 1 2 3 4 5; do
+        echo "   [Kết nối] Thử lần $try/5 tới $SERIAL..."
+        adb connect "$SERIAL" >/dev/null 2>&1 || true
+        sleep 0.6
+        DEV_STATE=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d '\r\n')
+        if [ "$DEV_STATE" = "device" ]; then
+            if adb -s "$SERIAL" shell ls >/dev/null 2>&1; then
+                CONNECTED=1
+                break
+            fi
+        fi
+        sleep 1
+    done
+
+    if [ "$CONNECTED" != "1" ]; then
+        echo ""
+        echo "=========================================================="
+        echo "  [LỖI] KẾT NỐI THẤT BẠI TỚI LOA TẠI $SERIAL"
+        echo "=========================================================="
+        echo "Vui lòng kiểm tra:"
+        echo " 1. Loa đã cắm nguồn và đang bật."
+        echo " 2. Thiết bị và loa đang kết nối CÙNG MẠNG WiFi."
+        echo " 3. Địa chỉ IP của loa ($TARGET_IP) có đúng không."
+        echo "=========================================================="
+        exit 1
+    fi
+fi
+echo ">> [OK] Kết nối thành công tới loa ($SERIAL)!"
 
 # 5. ĐẨY CẢ 3 FILE APK LÊN /data/local/tmp/ CỦA LOA TRƯỚC
 echo ""
