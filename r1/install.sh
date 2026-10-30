@@ -1,13 +1,12 @@
 #!/bin/sh
 # ==============================================================================
 # BỘ CÀI PHICOMM R1 SIÊU TỐC - TỐI ƯU CHO iPHONE (iSH) & LINUX / ANDROID
-# Chuẩn hóa 100% theo new.bat: Kết nối 1-2s, đẩy lên /data/local/tmp/
+# Tự động xóa sạch file cũ, luôn tải bản mới nhất từ GitHub
 # ==============================================================================
 
 BASE_URL="https://vdt34.github.io/r1"
 CACHE_DIR="/tmp/r1_cache"
 SCRIPT_DIR=$(cd "$(dirname -- "$0")" 2>/dev/null && pwd)
-mkdir -p "$CACHE_DIR"
 
 clear
 echo "=========================================================="
@@ -56,26 +55,29 @@ SERIAL="$TARGET_IP:5555"
 echo ""
 echo ">> Sẽ kết nối tới IP: $TARGET_IP"
 
-# 3. Chuẩn bị 3 file APK
+# 3. Xóa sạch file cũ trên iSH và tải toàn bộ bản APK mới nhất từ GitHub
 echo ""
-echo ">> [1/4] Chuẩn bị 3 file APK..."
+echo ">> [1/4] Đang dọn sạch file cũ & tải toàn bộ APK mới nhất từ GitHub..."
+rm -rf "$CACHE_DIR" 2>/dev/null || true
+mkdir -p "$CACHE_DIR"
+
+TS=$(date +%s 2>/dev/null || echo "1")
 for f in autodlna.apk unisound.apk AIBoxPlus_DLNA.apk; do
-    if [ -f "$SCRIPT_DIR/$f" ] && [ "$(wc -c < "$SCRIPT_DIR/$f" 2>/dev/null)" -gt 1000000 ]; then
+    if [ "$R1_DRYRUN" = "1" ] && [ -f "$SCRIPT_DIR/$f" ]; then
         cp -f "$SCRIPT_DIR/$f" "$CACHE_DIR/$f" 2>/dev/null || true
-        echo "   [OK] Có sẵn $f trong thư mục."
-    elif [ -f "$CACHE_DIR/$f" ] && [ "$(wc -c < "$CACHE_DIR/$f" 2>/dev/null)" -gt 1000000 ]; then
-        echo "   [OK] Có sẵn $f trong bộ nhớ tạm."
+        echo "   [OK] (DryRun) Dùng file $f có sẵn."
     else
-        echo "   -> Đang tải $f từ GitHub..."
-        curl -k -fL --connect-timeout 10 -# -o "$CACHE_DIR/$f.tmp" "$BASE_URL/$f" && mv -f "$CACHE_DIR/$f.tmp" "$CACHE_DIR/$f"
+        echo "   -> Đang tải bản mới nhất: $f..."
+        curl -k -fL --connect-timeout 15 -# -o "$CACHE_DIR/$f.tmp" "$BASE_URL/$f?t=$TS" && mv -f "$CACHE_DIR/$f.tmp" "$CACHE_DIR/$f"
     fi
 
     if [ ! -f "$CACHE_DIR/$f" ] || [ "$(wc -c < "$CACHE_DIR/$f" 2>/dev/null)" -lt 1000000 ]; then
         echo ""
-        echo "[LỖI] Không tìm thấy file $f!"
+        echo "[LỖI] Không tải được file $f từ GitHub!"
         echo "Nếu đang nối WiFi loa (không có mạng), hãy chuyển về WiFi nhà tải xong rồi chạy lại."
         exit 1
     fi
+    echo "   [OK] Đã tải bản mới nhất $f thành công."
 done
 
 # 4. Kết nối ADB tới loa (Chuẩn xác 100% theo :connect và :connect_retry của new.bat)
@@ -118,16 +120,20 @@ if [ "$R1_DRYRUN" != "1" ]; then
 fi
 echo ">> [OK] Kết nối thành công tới loa ($SERIAL)!"
 
-# 5. ĐẨY CẢ 3 FILE APK LÊN /data/local/tmp/ CỦA LOA TRƯỚC
+# 5. DỌN SẠCH THƯ MỤC TẠM TRÊN LOA VÀ ĐẨY CẢ 3 FILE APK MỚI LÊN
 echo ""
-echo ">> [3/4] Đang đẩy toàn bộ file APK lên bộ nhớ tạm (/data/local/tmp/)..."
+echo ">> [3/4] Đang dọn sạch bộ nhớ tạm của loa & nạp 3 file APK mới lên (/data/local/tmp/)..."
+if [ "$R1_DRYRUN" != "1" ]; then
+    adb -s "$SERIAL" shell "rm -rf /data/local/tmp/* 2>/dev/null" >/dev/null 2>&1
+fi
+
 for f in autodlna.apk unisound.apk AIBoxPlus_DLNA.apk; do
     echo "   -> Nạp $f..."
     if [ "$R1_DRYRUN" != "1" ]; then
         adb -s "$SERIAL" push "$CACHE_DIR/$f" "/data/local/tmp/$f" >/dev/null 2>&1
     fi
 done
-echo ">> [OK] Đã đưa trọn vẹn 3 file lên loa!"
+echo ">> [OK] Đã đưa trọn vẹn 3 file mới lên loa!"
 
 # 6. THỰC THI CHUỖI LỆNH CÀI ĐẶT CHUẨN XÁC THEO NEW.BAT
 echo ""
@@ -201,6 +207,9 @@ else
     echo "   -> [DRY-RUN] Đã thực thi chuỗi lệnh new.bat chuẩn xác!"
     LAN_IP=""
 fi
+
+# 7. DỌN DẸP SẠCH FILE TẠM TRÊN iSH ĐỂ LẦN SAU KHÔNG BỊ DÍNH FILE CŨ
+rm -rf "$CACHE_DIR" 2>/dev/null || true
 
 echo ""
 echo "=========================================================="

@@ -1,6 +1,6 @@
-# ==============================================================================
+﻿# ==============================================================================
 # BO CAI PHICOMM R1 SIEU TOC CHO WINDOWS (POWERSHELL)
-# Chuan hoa 100% theo new.bat: Ket noi 1-2s, day len /data/local/tmp/
+# Tu dong xoa sach file cu, luon tai ban moi nhat tu GitHub
 # ==============================================================================
 try { chcp 65001 >$null } catch {}
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
@@ -78,30 +78,36 @@ $Serial = "$($TargetIp):5555"
 Write-Host ""
 Write-Host ">> Se ket noi toi IP: $TargetIp" -ForegroundColor Cyan
 
-# 3. Chuan bi 3 file APK
+# 3. Xoa sach file cu & tai toan bo 3 file APK moi nhat tu GitHub
 $Apks = @("autodlna.apk", "unisound.apk", "AIBoxPlus_DLNA.apk")
 Write-Host ""
-Write-Host ">> [1/4] Chuan bi 3 file APK..." -ForegroundColor Cyan
-$Missing = $false
-foreach ($f in $Apks) {
-    $localFile = Join-Path $ScriptDir $f
-    $cacheFile = Join-Path $TempDir $f
+Write-Host ">> [1/4] Dang don sach file cu & tai toan bo 3 file APK moi nhat tu GitHub..." -ForegroundColor Cyan
 
-    if ((Test-Path $localFile) -and (Get-Item $localFile).Length -gt 1000000) {
+# Xoa cac file APK cu trong cache de khong bi dung ban cu
+foreach ($f in $Apks) {
+    $oldFile = Join-Path $TempDir $f
+    if (Test-Path $oldFile) { Remove-Item $oldFile -Force -ErrorAction SilentlyContinue }
+}
+
+$Missing = $false
+$UnixTs = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+foreach ($f in $Apks) {
+    $cacheFile = Join-Path $TempDir $f
+    $localFile = Join-Path $ScriptDir $f
+
+    if ($DryRun -and (Test-Path $localFile)) {
         Copy-Item $localFile $cacheFile -Force
-        Write-Host "   [OK] Co san $f trong thu muc." -ForegroundColor Green
-    } elseif ((Test-Path $cacheFile) -and (Get-Item $cacheFile).Length -gt 1000000) {
-        Write-Host "   [OK] Co san $f trong bo nho tam." -ForegroundColor Green
+        Write-Host "   [OK] (DryRun) Dung file $f co san." -ForegroundColor Green
     } else {
-        Write-Host "   -> Dang tai $f tu GitHub..." -ForegroundColor Yellow
+        Write-Host "   -> Dang tai ban moi nhat: $f..." -ForegroundColor Yellow
         try {
             $old = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
-            Invoke-WebRequest -Uri "$BaseUrl/$f" -OutFile "$cacheFile.tmp" -TimeoutSec 45
+            Invoke-WebRequest -Uri "$BaseUrl/$f`?t=$UnixTs" -OutFile "$cacheFile.tmp" -TimeoutSec 45
             Move-Item "$cacheFile.tmp" $cacheFile -Force
             $ProgressPreference = $old
-            Write-Host "   [OK] Da tai xong $f." -ForegroundColor Green
+            Write-Host "   [OK] Da tai ban moi nhat $f thanh cong." -ForegroundColor Green
         } catch {
-            Write-Host "   [LOI] Khong tai duoc $f!" -ForegroundColor Red
+            Write-Host "   [LOI] Khong tai duoc $f tu GitHub!" -ForegroundColor Red
             $Missing = $true
         }
     }
@@ -112,7 +118,7 @@ if ($Missing) {
     Write-Host "==========================================================" -ForegroundColor Red
     Write-Host "  [LOI THIEU FILE CAI DAT DO CHUA CO INTERNET]" -ForegroundColor Red
     Write-Host "==========================================================" -ForegroundColor Red
-    Write-Host "Vui long kiem tra ket noi mang de tai du 3 file APK." -ForegroundColor Yellow
+    Write-Host "Vui long kiem tra ket noi mang de tai du 3 file APK moi." -ForegroundColor Yellow
     Read-Host "Nhan Enter de thoat"
     return
 }
@@ -161,16 +167,20 @@ if (-not $DryRun -and $env:R1_DRYRUN -ne "1") {
 }
 Write-Host ">> [OK] Ket noi thanh cong toi loa ($Serial)!" -ForegroundColor Green
 
-# 5. DAY HET CA 3 FILE APK LEN /data/local/tmp/ CUA LOA TRUOC
+# 5. DON SACH THU MUC TAM TREN LOA VA DAY CA 3 FILE APK MOI LEN
 Write-Host ""
-Write-Host ">> [3/4] Dang day toan bo file APK len bo nho tam (/data/local/tmp/)..." -ForegroundColor Cyan
+Write-Host ">> [3/4] Dang don sach bo nho tam tren loa & nap 3 file APK moi len (/data/local/tmp/)..." -ForegroundColor Cyan
+if (-not $DryRun -and $env:R1_DRYRUN -ne "1") {
+    adb -s $Serial shell "rm -rf /data/local/tmp/* 2>/dev/null" 2>$null | Out-Null
+}
+
 foreach ($f in $Apks) {
     Write-Host "   -> Nap $f..." -ForegroundColor White
     if (-not $DryRun -and $env:R1_DRYRUN -ne "1") {
         adb -s $Serial push (Join-Path $TempDir $f) "/data/local/tmp/$f" 2>$null | Out-Null
     }
 }
-Write-Host ">> [OK] Da dua tron ven 3 file len loa!" -ForegroundColor Green
+Write-Host ">> [OK] Da dua tron ven 3 file moi len loa!" -ForegroundColor Green
 
 # 6. THUC THI CHUOI LENH CAI DAT CHUAN XAC THEO NEW.BAT
 Write-Host ""
@@ -210,6 +220,12 @@ if (-not $DryRun -and $env:R1_DRYRUN -ne "1") {
 } else {
     Write-Host "   -> [DRY-RUN] Da thuc thi chuoi lenh new.bat chuan xac!" -ForegroundColor Yellow
     $SpeakerLanIp = ""
+}
+
+# 7. Don dep file tam tren may de lan sau luon tai moi
+foreach ($f in $Apks) {
+    $tmpFile = Join-Path $TempDir $f
+    if (Test-Path $tmpFile) { Remove-Item $tmpFile -Force -ErrorAction SilentlyContinue }
 }
 
 Write-Host ""
