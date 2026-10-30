@@ -1,14 +1,20 @@
 #!/bin/sh
+# ==============================================================================
 # Script Cai Dat & Cap Nhat Phicomm R1 tren iPhone qua iSH (Alpine Linux) / Linux
 # Nguon APK: https://vdt34.github.io/r1/
+# Phien ban: Refactored Production Build (An toan, Modular, De debug)
+# ==============================================================================
 
+# ------------------------------------------------------------------------------
+# 1. CAU HINH CO BAN & THU MUC TAM
+# ------------------------------------------------------------------------------
 BASE_URL="https://vdt34.github.io/r1"
 TEMP_DIR="/tmp/r1_install"
 APK_DLNA="autodlna.apk"
 APK_UNI="unisound.apk"
 APK_AI="AIBoxPlus_DLNA.apk"
 
-# Xoa sach toan bo cache tam va file APK cu de luon luon tai va cai ban moi nhat
+# Luon xoa sach cache tam cu o dau moi phien chay de dam bao tai file moi nhat
 rm -rf "$TEMP_DIR" /tmp/r1_scan_* 2>/dev/null || true
 mkdir -p "$TEMP_DIR"
 
@@ -18,7 +24,9 @@ echo "    KHOI TAO MOI TRUONG CAI DAT PHICOMM R1 TREN iSH"
 echo "=========================================================="
 echo ""
 
-# 1. Tu dong kiem tra va cai dat cong cu tren iSH neu chua co
+# ------------------------------------------------------------------------------
+# 2. KIEM TRA VA CAI DAT CONG CU NEN (iSH / Alpine / Debian / Ubuntu)
+# ------------------------------------------------------------------------------
 NEED_INSTALL=""
 if ! command -v adb >/dev/null 2>&1; then
     NEED_INSTALL="$NEED_INSTALL android-tools"
@@ -35,19 +43,65 @@ if [ -n "$NEED_INSTALL" ]; then
         echo ">> Phat hien chua co:$NEED_INSTALL. Dang tu dong cai dat tren iSH..."
         apk update >/dev/null 2>&1 || true
         apk add --no-cache $NEED_INSTALL || true
-        echo ">> [OK] Da cai dat xong cac cong cu can thiet tren iSH!"
     elif command -v apt-get >/dev/null 2>&1; then
         echo ">> Dang cai dat cac cong cu qua apt..."
         apt-get update -y >/dev/null 2>&1 || true
         apt-get install -y android-tools-adb curl netcat-openbsd >/dev/null 2>&1 || true
-    else
-        echo ">> [Luu y] Khong tim thay trinh quan ly goi. Hay dam bao da cai adb, curl, nc."
     fi
-else
-    echo ">> [OK] Cac cong cu (adb, curl, nc) da co san. San sang tiep tuc."
 fi
 
-# Ham tu dong phat hien dai mang hien tai cua thiet bi (khong dung eval)
+# Kiem tra lai sau khi thu cai dat
+if ! command -v adb >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1; then
+    echo ">> [LOI] Thieu cong cu can thiet (adb hoac curl)."
+    echo "   Vui long chay lenh sau tren iSH de cai dat roi thu lai:"
+    echo "   apk update && apk add android-tools curl"
+    exit 1
+fi
+echo ">> [OK] Cac cong cu (adb, curl, nc) da san sang."
+
+# ------------------------------------------------------------------------------
+# 3. ADB HELPER FUNCTIONS (Tach rieng de quan ly tap trung va de debug)
+# ------------------------------------------------------------------------------
+# Chay lenh adb truc tiep toi thiet bi SERIAL
+adb_cmd() {
+    adb -s "$SERIAL" "$@"
+}
+
+# Chay lenh shell tren Android, tu dong loai bo ky tu \r cua Windows/Android
+adb_shell() {
+    adb -s "$SERIAL" shell "$@" | tr -d '\r'
+}
+
+# Kiem tra xem mot package co thuc su duoc cai tren thiet bi hay khong
+is_package_installed() {
+    TARGET_PKG="$1"
+    adb_shell "pm list packages" 2>/dev/null | grep -q "^package:$TARGET_PKG$"
+}
+
+# ------------------------------------------------------------------------------
+# 4. HAM NHAP LIEU AN TOAN (Khong dung eval, chong Shell Injection 100%)
+# ------------------------------------------------------------------------------
+# Doc mot dong tu ban phim terminal, ket qua luu vao bien toan cuc USER_INPUT
+read_terminal_line() {
+    PROMPT_MSG="$1"
+    DEF_VAL="$2"
+    printf "%s" "$PROMPT_MSG"
+    USER_INPUT=""
+    if [ -t 0 ]; then
+        read USER_INPUT 2>/dev/null || USER_INPUT=""
+    elif (exec </dev/tty) 2>/dev/null; then
+        read USER_INPUT </dev/tty 2>/dev/null || USER_INPUT=""
+    else
+        read USER_INPUT 2>/dev/null || USER_INPUT=""
+    fi
+    USER_INPUT=$(echo "$USER_INPUT" | tr -d ' \r\n\t')
+    [ -z "$USER_INPUT" ] && USER_INPUT="$DEF_VAL"
+}
+
+# ------------------------------------------------------------------------------
+# 5. MANG & TIM KIEM IP LOA TRONG LAN
+# ------------------------------------------------------------------------------
+# Phat hien dai mang hien tai cua thiet bi
 detect_subnet() {
     SUB=$(ip route 2>/dev/null | grep -E 'default|src' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
     if [ -z "$SUB" ]; then
@@ -57,43 +111,43 @@ detect_subnet() {
     echo "$SUB"
 }
 
-# Ham kiem tra cong ket noi
+# Kiem tra cong ket noi mo hay dong
 check_port() {
-    IP="$1"
-    PORT="$2"
+    HOST_IP="$1"
+    PORT_NUM="$2"
     if command -v nc >/dev/null 2>&1; then
-        nc -w 1 "$IP" "$PORT" </dev/null >/dev/null 2>&1
+        nc -w 1 "$HOST_IP" "$PORT_NUM" </dev/null >/dev/null 2>&1
         return $?
     elif command -v timeout >/dev/null 2>&1; then
-        timeout 1 bash -c "exec 3<>/dev/tcp/$IP/$PORT" 2>/dev/null
+        timeout 1 bash -c "exec 3<>/dev/tcp/$HOST_IP/$PORT_NUM" 2>/dev/null
         return $?
     else
         return 1
     fi
 }
 
-# Ham quet mang LAN tim loa R1 (kiem tra port 5555 song song theo batch)
+# Quet mang LAN tim loa R1 mo cong ADB 5555
 scan_lan_for_r1() {
     PREFIX="$1"
     [ -z "$PREFIX" ] && PREFIX=$(detect_subnet)
-    
+
     echo ""
     echo ">> Dang quet nhanh dai mang ${PREFIX}.1 -> 254 de tim loa R1..."
-    echo "   (Kiem tra port ADB 5555 qua ket noi song song)..."
-    
+    echo "   (Kiem tra port ADB 5555 theo luong song song)..."
+
     SCAN_TMP="/tmp/r1_scan_$$"
     mkdir -p "$SCAN_TMP"
-    
+
     IDX=1
     while [ $IDX -le 254 ]; do
         BATCH_END=$((IDX + 29))
         [ $BATCH_END -gt 254 ] && BATCH_END=254
-        
+
         for i in $(seq $IDX $BATCH_END); do
             (
-                TARGET="${PREFIX}.${i}"
-                if check_port "$TARGET" "5555"; then
-                    echo "$TARGET" > "$SCAN_TMP/$i"
+                TARGET_HOST="${PREFIX}.${i}"
+                if check_port "$TARGET_HOST" "5555"; then
+                    echo "$TARGET_HOST" > "$SCAN_TMP/$i"
                 fi
                 exit 0
             ) &
@@ -103,7 +157,7 @@ scan_lan_for_r1() {
         IDX=$((BATCH_END + 1))
     done
     echo ""
-    
+
     FOUND_COUNT=0
     FIRST_FOUND_IP=""
     for f in "$SCAN_TMP"/*; do
@@ -115,14 +169,14 @@ scan_lan_for_r1() {
         fi
     done
     rm -rf "$SCAN_TMP"
-    
+
     if [ $FOUND_COUNT -eq 0 ]; then
         echo ">> Khong tim thay thiet bi nao mo cong 5555 trong dai mang ${PREFIX}.x."
-        echo "   (Hay dam bao loa da bat nguon va dien thoai dang bat Wi-Fi cung lop mang)."
+        echo "   (Hay dam bao loa da bat nguon va iPhone dang bat Wi-Fi cung mang)."
     fi
 }
 
-# Ham ho tro nguoi dung tim hoac nhap thu cong IP (hoan toan khong dung eval)
+# Ho tro nguoi dung tim hoac nhap thu cong IP
 prompt_for_target_ip() {
     SUGGESTED=""
     echo ""
@@ -132,31 +186,17 @@ prompt_for_target_ip() {
     echo "  [1] Tu dong quet mang WiFi de tim IP loa (Khuyen dung)"
     echo "  [2] Nhap dia chi IP truc tiep thu cong"
     echo ""
-    
+
     IP_OPT=""
     while [ "$IP_OPT" != "1" ] && [ "$IP_OPT" != "2" ]; do
-        printf "Chon phuong thuc tim IP (1 hoac 2): "
-        if (exec </dev/tty) 2>/dev/null; then
-            read IP_OPT </dev/tty 2>/dev/null || read IP_OPT 2>/dev/null || true
-        else
-            read IP_OPT 2>/dev/null || true
-        fi
-        IP_OPT=$(echo "$IP_OPT" | tr -d ' \r\n\t')
-        [ -z "$IP_OPT" ] && IP_OPT="1"
+        read_terminal_line "Chon phuong thuc tim IP (1 hoac 2, mac dinh 1): " "1"
+        IP_OPT="$USER_INPUT"
     done
 
     if [ "$IP_OPT" = "1" ]; then
         CUR_SUB=$(detect_subnet)
-        printf "Dai mang can quet [mac dinh: %s]: " "$CUR_SUB"
-        if (exec </dev/tty) 2>/dev/null; then
-            read USER_SUB </dev/tty 2>/dev/null || read USER_SUB 2>/dev/null || true
-        else
-            read USER_SUB 2>/dev/null || true
-        fi
-        USER_SUB=$(echo "$USER_SUB" | tr -d ' \r\n\t')
-        [ -z "$USER_SUB" ] && USER_SUB="$CUR_SUB"
-
-        scan_lan_for_r1 "$USER_SUB"
+        read_terminal_line "Dai mang can quet [mac dinh: $CUR_SUB]: " "$CUR_SUB"
+        scan_lan_for_r1 "$USER_INPUT"
         if [ -n "$FIRST_FOUND_IP" ]; then
             SUGGESTED="$FIRST_FOUND_IP"
         fi
@@ -166,25 +206,98 @@ prompt_for_target_ip() {
     TARGET_IP=""
     while [ -z "$TARGET_IP" ]; do
         if [ -n "$SUGGESTED" ]; then
-            printf "Nhap dia chi IP cua loa [Enter de chon %s]: " "$SUGGESTED"
+            read_terminal_line "Nhap dia chi IP cua loa [Enter de chon $SUGGESTED]: " "$SUGGESTED"
         else
-            printf "Nhap dia chi IP cua loa (VD: 192.168.1.15): "
+            read_terminal_line "Nhap dia chi IP cua loa (VD: 192.168.1.15): " ""
         fi
-        if (exec </dev/tty) 2>/dev/null; then
-            read TARGET_IP </dev/tty 2>/dev/null || read TARGET_IP 2>/dev/null || true
-        else
-            read TARGET_IP 2>/dev/null || true
-        fi
-        TARGET_IP=$(echo "$TARGET_IP" | tr -d ' \r\n\t')
-        if [ -z "$TARGET_IP" ] && [ -n "$SUGGESTED" ]; then
-            TARGET_IP="$SUGGESTED"
-        elif [ -z "$TARGET_IP" ]; then
-            echo ">> Vui long go dia chi IP cua loa (vi du: 192.168.1.47)!"
+        TARGET_IP="$USER_INPUT"
+        if [ -z "$TARGET_IP" ]; then
+            echo ">> Vui long go dia chi IP cua loa!"
         fi
     done
     echo ">> [XAC NHAN] Dia chi IP lua chon: $TARGET_IP"
 }
 
+# ------------------------------------------------------------------------------
+# 6. TAI FILE APK TU GITHUB (Xoa sach cache cu, luon tai ban moi nhat)
+# ------------------------------------------------------------------------------
+download_file() {
+    FILE="$1"
+    cd "$TEMP_DIR"
+    rm -f "$FILE" "$FILE.tmp"
+    echo ">> Dang tai ban moi nhat $FILE tu GitHub ($BASE_URL)..."
+    if curl -k -L -# -f -o "$FILE.tmp" "$BASE_URL/$FILE"; then
+        mv "$FILE.tmp" "$FILE"
+        echo ">> [OK] Da tai $FILE moi nhat thanh cong."
+        return 0
+    else
+        echo ">> [LOI] Khong the tai $FILE tu GitHub. Vui long kiem tra lai ket noi Internet!"
+        rm -f "$FILE.tmp"
+        return 1
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# 7. CAI DAT APK AN TOAN CO KIEM TRA KET QUA & MA THOAT
+# ------------------------------------------------------------------------------
+install_apk_on_device() {
+    LOCAL_APK="$1"
+    REMOTE_TMP="/data/local/tmp/$(basename "$LOCAL_APK")"
+    PKG_NAME="$2"
+    DESC="$3"
+
+    if [ ! -f "$TEMP_DIR/$LOCAL_APK" ] || [ ! -s "$TEMP_DIR/$LOCAL_APK" ]; then
+        echo ">> [LOI] File $LOCAL_APK khong ton tai hoac bi rong trong bo nho tam!"
+        return 1
+    fi
+
+    echo ">> [1/2] Dang day $DESC len loa..."
+    PUSH_OUT=$(adb_cmd push "$TEMP_DIR/$LOCAL_APK" "$REMOTE_TMP" 2>&1)
+    if [ $? -ne 0 ] || echo "$PUSH_OUT" | grep -qi "failed"; then
+        echo ">> [LOI] adb push that bai: $PUSH_OUT"
+        return 1
+    fi
+
+    echo ">> [2/2] Dang cai dat $DESC vao he thong..."
+    INSTALL_OUT=$(adb_shell "pm install -r $REMOTE_TMP" 2>&1)
+
+    # Xu ly truong hop xung dot chu ky ung dung (keystore khac nhau)
+    if echo "$INSTALL_OUT" | grep -q "INSTALL_FAILED_UPDATE_INCOMPATIBLE"; then
+        echo "   [!] Phat hien chu ky cu khac nhau, dang go ban cu de cai de..."
+        if [ -n "$PKG_NAME" ]; then
+            adb_shell "pm uninstall $PKG_NAME" >/dev/null 2>&1
+        fi
+        INSTALL_OUT=$(adb_shell "pm install $REMOTE_TMP" 2>&1)
+    fi
+
+    # Luon don dep file apk tam sau khi cai xong
+    adb_shell "rm -f $REMOTE_TMP" >/dev/null 2>&1
+
+    # Kiem tra chuoi Success tu pm install
+    if ! echo "$INSTALL_OUT" | grep -qi "Success"; then
+        echo ">> [THAT BAI] Khong the cai dat $DESC!"
+        echo "   Chi tiet loi: $INSTALL_OUT"
+        return 1
+    fi
+
+    # Kiem tra thuc te package da xuat hien trong he thong hay chua
+    if [ -n "$PKG_NAME" ]; then
+        if is_package_installed "$PKG_NAME"; then
+            echo "   [OK] Da xac nhan $DESC ($PKG_NAME) da cai dat thanh cong tren he thong!"
+            return 0
+        else
+            echo ">> [CANH BAO] pm install bao Success nhung he thong chua nhan dien duoc $PKG_NAME!"
+            return 1
+        fi
+    fi
+
+    echo "   [OK] Cai dat $DESC thanh cong!"
+    return 0
+}
+
+# ------------------------------------------------------------------------------
+# 8. XU LY THAM SO DONG LENH HOAC MENU TUONG TAC
+# ------------------------------------------------------------------------------
 ARG1="$1"
 ARG2="$2"
 TARGET_IP="192.168.43.1"
@@ -216,14 +329,8 @@ else
 
     CHOICE=""
     while [ -z "$CHOICE" ]; do
-        printf "Nhap lua chon cua ban (1-6): "
-        if (exec </dev/tty) 2>/dev/null; then
-            read CHOICE </dev/tty 2>/dev/null || read CHOICE 2>/dev/null || true
-        else
-            read CHOICE 2>/dev/null || true
-        fi
-
-        CHOICE=$(echo "$CHOICE" | tr -d ' \r\n\t')
+        read_terminal_line "Nhap lua chon cua ban (1-6): " ""
+        CHOICE="$USER_INPUT"
 
         case "$CHOICE" in
             1)
@@ -240,15 +347,8 @@ else
                 ;;
             4)
                 CUR_SUB=$(detect_subnet)
-                printf "Dai mang can quet [mac dinh: %s]: " "$CUR_SUB"
-                if (exec </dev/tty) 2>/dev/null; then
-                    read USER_SUB </dev/tty 2>/dev/null || read USER_SUB 2>/dev/null || true
-                else
-                    read USER_SUB 2>/dev/null || true
-                fi
-                USER_SUB=$(echo "$USER_SUB" | tr -d ' \r\n\t')
-                [ -z "$USER_SUB" ] && USER_SUB="$CUR_SUB"
-                scan_lan_for_r1 "$USER_SUB"
+                read_terminal_line "Dai mang can quet [mac dinh: $CUR_SUB]: " "$CUR_SUB"
+                scan_lan_for_r1 "$USER_INPUT"
                 exit 0
                 ;;
             5)
@@ -260,48 +360,35 @@ else
                 exit 0
                 ;;
             *)
-                echo ">> Vui long go mot so tu 1 den 6 (VD: 1 de cai sach full):"
+                echo ">> Vui long go mot so tu 1 den 6 (VD: 1 de cai full):"
                 CHOICE=""
                 ;;
         esac
     done
 fi
 
-# 2. Chi tai cac file APK can thiet cho che do duoc chon (xoa sach file cu, luon tai ban moi nhat)
-mkdir -p "$TEMP_DIR"
-cd "$TEMP_DIR"
-
-download_file() {
-    FILE="$1"
-    rm -f "$FILE" "$FILE.tmp"
-    echo ">> Dang tai ban moi nhat $FILE tu GitHub ($BASE_URL)..."
-    if curl -k -L -# -f -o "$FILE.tmp" "$BASE_URL/$FILE"; then
-        mv "$FILE.tmp" "$FILE"
-        echo ">> [OK] Da tai $FILE moi nhat thanh cong."
-    else
-        echo ">> [LOI] Khong the tai $FILE tu GitHub. Kiem tra lai ket noi Internet!"
-        rm -f "$FILE.tmp"
-        return 1
-    fi
-}
-
+# ------------------------------------------------------------------------------
+# 9. TAI CAC FILE APK THEO CHE DO DUOC CHON
+# ------------------------------------------------------------------------------
 if [ "$MODE" = "FULL" ]; then
     echo ""
     echo "=========================================================="
     echo "      TAI CAC FILE APK CAI DAT PHICOMM R1                 "
     echo "=========================================================="
-    download_file "$APK_AI" || exit 1
-    download_file "$APK_DLNA" || exit 1
-    download_file "$APK_UNI" || exit 1
+    if ! download_file "$APK_AI"; then exit 1; fi
+    if ! download_file "$APK_DLNA"; then exit 1; fi
+    if ! download_file "$APK_UNI"; then exit 1; fi
 elif [ "$MODE" = "UPDATE_ONLY" ]; then
     echo ""
     echo "=========================================================="
     echo "     TAI BAN CAP NHAT AI BOX PLUS DLNA MOI NHAT           "
     echo "=========================================================="
-    download_file "$APK_AI" || exit 1
+    if ! download_file "$APK_AI"; then exit 1; fi
 fi
 
-# 3. Kiem tra va cho ket noi den loa R1
+# ------------------------------------------------------------------------------
+# 10. KIEM TRA VA CHO KET NOI DEN LOA R1 QUA ADB
+# ------------------------------------------------------------------------------
 SERIAL="$TARGET_IP:5555"
 
 echo ""
@@ -309,9 +396,9 @@ echo "=========================================================="
 echo "      KIEM TRA KET NOI DEN LOA R1 ($SERIAL)               "
 echo "=========================================================="
 
-adb disconnect "$SERIAL" >/dev/null 2>&1
-CONN_CHECK=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
-DEV_STATE=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d '\r\n')
+adb_cmd disconnect >/dev/null 2>&1
+CONN_CHECK=$(adb_cmd connect 2>&1 | tr -d '\r\n')
+DEV_STATE=$(adb_cmd get-state 2>/dev/null | tr -d '\r\n')
 
 if [ "$DEV_STATE" != "device" ] && ! echo "$CONN_CHECK" | grep -q "connected to"; then
     echo ">> [CHUA KET NOI] Chua thay loa tai $SERIAL!"
@@ -339,12 +426,12 @@ if [ "$DEV_STATE" != "device" ] && ! echo "$CONN_CHECK" | grep -q "connected to"
     while true; do
         TRY_COUNT=$((TRY_COUNT + 1))
 
-        adb disconnect "$SERIAL" >/dev/null 2>&1
-        CONN_RES=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
-        DEV_STATE=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d '\r\n')
+        adb_cmd disconnect >/dev/null 2>&1
+        CONN_RES=$(adb_cmd connect 2>&1 | tr -d '\r\n')
+        DEV_STATE=$(adb_cmd get-state 2>/dev/null | tr -d '\r\n')
 
         if [ "$DEV_STATE" = "device" ] || echo "$CONN_RES" | grep -q "connected to"; then
-            if adb -s "$SERIAL" shell getprop ro.build.version.release >/dev/null 2>&1; then
+            if adb_shell "getprop ro.build.version.release" >/dev/null 2>&1; then
                 echo ""
                 echo ">> [THANH CONG] Da ket noi duoc den loa tai $SERIAL!"
                 break
@@ -355,24 +442,11 @@ if [ "$DEV_STATE" != "device" ] && ! echo "$CONN_CHECK" | grep -q "connected to"
 
         if [ $((TRY_COUNT % 12)) -eq 0 ]; then
             echo ""
-            printf ">> Loa chua phan hoi tai %s. Ban co muon doi sang IP khac? (y/n, mac dinh n): " "$TARGET_IP"
-            if (exec </dev/tty) 2>/dev/null; then
-                read RETRY_CHOICE </dev/tty 2>/dev/null || read RETRY_CHOICE 2>/dev/null || true
-            else
-                read RETRY_CHOICE 2>/dev/null || true
-            fi
-            RETRY_CHOICE=$(echo "$RETRY_CHOICE" | tr -d ' \r\n\t')
-
-            if [ "$RETRY_CHOICE" = "y" ] || [ "$RETRY_CHOICE" = "Y" ]; then
-                printf "Nhap dia chi IP moi: "
-                if (exec </dev/tty) 2>/dev/null; then
-                    read NEW_IP </dev/tty 2>/dev/null || read NEW_IP 2>/dev/null || true
-                else
-                    read NEW_IP 2>/dev/null || true
-                fi
-                NEW_IP=$(echo "$NEW_IP" | tr -d ' \r\n\t')
-                if [ -n "$NEW_IP" ]; then
-                    TARGET_IP="$NEW_IP"
+            read_terminal_line ">> Loa chua phan hoi tai $TARGET_IP. Ban co muon doi sang IP khac? (y/n, mac dinh n): " "n"
+            if [ "$USER_INPUT" = "y" ] || [ "$USER_INPUT" = "Y" ]; then
+                read_terminal_line "Nhap dia chi IP moi: " ""
+                if [ -n "$USER_INPUT" ]; then
+                    TARGET_IP="$USER_INPUT"
                     SERIAL="$TARGET_IP:5555"
                     TRY_COUNT=0
                     echo ">> Da doi muc tieu sang: $SERIAL"
@@ -389,55 +463,17 @@ fi
 echo ""
 echo ">> [DA KET NOI] THIET BI SAN SANG TAI $SERIAL!"
 
-# Ham cai dat an toan co kiem tra ma thoat (exit code) chinh xac 100%
-install_apk_on_device() {
-    LOCAL_APK="$1"
-    REMOTE_TMP="/data/local/tmp/$(basename "$LOCAL_APK")"
-    PKG_NAME="$2"
-    DESC="$3"
-    
-    if [ ! -f "$LOCAL_APK" ] || [ ! -s "$LOCAL_APK" ]; then
-        echo ">> [LOI] Khong tim thay file $LOCAL_APK tren bo nho tam!"
-        return 1
-    fi
-    
-    echo ">> Dang day $DESC len loa..."
-    PUSH_OUT=$(adb -s "$SERIAL" push "$LOCAL_APK" "$REMOTE_TMP" 2>&1)
-    if [ $? -ne 0 ] || echo "$PUSH_OUT" | grep -qi "failed"; then
-        echo ">> [LOI] Day $DESC len loa that bai: $PUSH_OUT"
-        return 1
-    fi
-    
-    echo ">> Dang cai dat $DESC..."
-    INSTALL_OUT=$(adb -s "$SERIAL" shell "/system/bin/pm install -r $REMOTE_TMP" 2>&1 | tr -d '\r')
-    
-    if echo "$INSTALL_OUT" | grep -q "INSTALL_FAILED_UPDATE_INCOMPATIBLE"; then
-        echo "   [!] Phat hien chu ky ung dung khac nhau, dang go ban cu de cai ban moi..."
-        [ -n "$PKG_NAME" ] && adb -s "$SERIAL" shell "/system/bin/pm uninstall $PKG_NAME" >/dev/null 2>&1 || true
-        INSTALL_OUT=$(adb -s "$SERIAL" shell "/system/bin/pm install $REMOTE_TMP" 2>&1 | tr -d '\r')
-    fi
-    
-    adb -s "$SERIAL" shell "rm -f $REMOTE_TMP" >/dev/null 2>&1 || true
-
-    if echo "$INSTALL_OUT" | grep -qi "Success"; then
-        echo "   [OK] Cai dat $DESC thanh cong!"
-        return 0
-    else
-        echo ">> [THAT BAI] Khong the cai dat $DESC!"
-        echo "   Chi tiet loi: $INSTALL_OUT"
-        return 1
-    fi
-}
-
-# 4. Che do xem thong tin IP WiFi cua loa
+# ------------------------------------------------------------------------------
+# 11. THUC THI CHE DO DOC THONG TIN IP WIFI CUA LOA
+# ------------------------------------------------------------------------------
 if [ "$MODE" = "READ_AP_IP" ]; then
     echo "=========================================================="
     echo "           THONG TIN KET NOI & IP CUA LOA R1              "
     echo "=========================================================="
-    WLAN_IP=$(adb -s "$SERIAL" shell getprop dhcp.wlan0.ipaddress 2>/dev/null | tr -d '\r\n')
-    DEV_NAME=$(adb -s "$SERIAL" shell getprop net.hostname 2>/dev/null | tr -d '\r\n')
-    DEV_MAC=$(adb -s "$SERIAL" shell cat /sys/class/net/wlan0/address 2>/dev/null | tr -d '\r\n')
-    
+    WLAN_IP=$(adb_shell "getprop dhcp.wlan0.ipaddress" 2>/dev/null)
+    DEV_NAME=$(adb_shell "getprop net.hostname" 2>/dev/null)
+    DEV_MAC=$(adb_shell "cat /sys/class/net/wlan0/address" 2>/dev/null)
+
     echo "Ten thiet bi       : $DEV_NAME"
     echo "Dia chi MAC WiFi   : $DEV_MAC"
     if [ -n "$WLAN_IP" ]; then
@@ -450,56 +486,67 @@ if [ "$MODE" = "READ_AP_IP" ]; then
     exit 0
 fi
 
-# 5. Che do cai dat day du (AutoDLNA + Unisound + AIBoxPlus DLNA)
+# ------------------------------------------------------------------------------
+# 12. THUC THI CHE DO CAI DAT DAY DU (FULL)
+# ------------------------------------------------------------------------------
 if [ "$MODE" = "FULL" ]; then
     echo "=========================================================="
     echo "  BAT DAU CAI DAT: Auto DLNA + Unisound + AI Box Tieng Viet"
     echo "=========================================================="
     echo ""
-    echo ">> [1/7] Dang don dep bo nho dem va tat cac tien trinh rac..."
-    adb -s "$SERIAL" shell "rm -f /sdcard/otaprop.txt /sdcard/incremental*.zip" >/dev/null 2>&1 || true
-    adb -s "$SERIAL" shell "rm -rf /data/local/tmp/*" >/dev/null 2>&1 || true
-    adb -s "$SERIAL" shell "/system/bin/pm clear com.phicomm.speaker.otaservice" >/dev/null 2>&1 || true
-    adb -s "$SERIAL" shell "settings put secure install_non_market_apps 1" >/dev/null 2>&1 || true
 
-    # Kiem tra goi ton tai truoc khi an
-    INSTALLED_PKGS=$(adb -s "$SERIAL" shell "pm list packages" 2>/dev/null | tr -d '\r')
+    # 1. Don dep bo nho dem va tat cac tien trinh rac
+    echo ">> [1/7] Dang don dep bo nho dem va kiem tra cac service tren loa..."
+    adb_shell "rm -f /sdcard/otaprop.txt /sdcard/incremental*.zip" >/dev/null 2>&1
+    adb_shell "rm -rf /data/local/tmp/*" >/dev/null 2>&1
+    adb_shell "settings put secure install_non_market_apps 1" >/dev/null 2>&1
+
+    # Chi an cac goi neu package do thuc su ton tai tren thiet bi
     for p in com.phicomm.speaker.airskill com.phicomm.speaker.exceptionreporter com.phicomm.speaker.systemtool com.phicomm.speaker.otaservice com.phicomm.speaker.productiontest com.phicomm.speaker.bugreport; do
-        if echo "$INSTALLED_PKGS" | grep -q "$p"; then
-            adb -s "$SERIAL" shell "/system/bin/pm hide $p" >/dev/null 2>&1 || true
+        if is_package_installed "$p"; then
+            adb_shell "pm hide $p" >/dev/null 2>&1
         fi
     done
 
+    # 2. Cai dat AutoDLNA
     echo ">> [2/7] Dang cai dat AutoDLNA..."
     if ! install_apk_on_device "$APK_DLNA" "com.phicomm.speaker.player" "AutoDLNA"; then
         echo ">> [DUNG LAI] Cai dat AutoDLNA that bai! Khong the tiep tuc."
         exit 1
     fi
 
+    # 3. Cai dat Unisound
     echo ">> [3/7] Dang cai dat Unisound..."
     if ! install_apk_on_device "$APK_UNI" "com.phicomm.speaker.device" "Unisound"; then
         echo ">> [DUNG LAI] Cai dat Unisound that bai! Khong the tiep tuc."
         exit 1
     fi
 
+    # 4. Khoi chay service he thong
     echo ">> [4/7] Khoi chay service he thong..."
-    adb -s "$SERIAL" shell "/system/bin/pm unhide com.phicomm.speaker.device" >/dev/null 2>&1 || true
-    adb -s "$SERIAL" shell "/system/bin/pm unhide com.phicomm.speaker.ijetty" >/dev/null 2>&1 || true
-    adb -s "$SERIAL" shell "/system/bin/pm unhide com.phicomm.speaker.netctl" >/dev/null 2>&1 || true
-    adb -s "$SERIAL" shell "am startservice com.phicomm.speaker.player/.EchoService" >/dev/null 2>&1 || true
-    adb -s "$SERIAL" shell "am start com.phicomm.speaker.device/.ui.MainActivity" >/dev/null 2>&1 || true
+    for p in com.phicomm.speaker.device com.phicomm.speaker.ijetty com.phicomm.speaker.netctl; do
+        if is_package_installed "$p"; then
+            adb_shell "pm unhide $p" >/dev/null 2>&1
+        fi
+    done
 
+    # Kich hoat EchoService tren cong 8080 va giao dien nen
+    adb_shell "am startservice com.phicomm.speaker.player/.EchoService" >/dev/null 2>&1
+    adb_shell "am start com.phicomm.speaker.device/.ui.MainActivity" >/dev/null 2>&1
+
+    # 5. Cai dat AI Box Plus DLNA moi nhat
     echo ">> [5/7] Dang cai dat ban AI Box Plus DLNA moi nhat..."
     if ! install_apk_on_device "$APK_AI" "info.dourok.voicebot" "AI Box Plus DLNA"; then
         echo ">> [DUNG LAI] Cai dat AI Box Plus that bai! Khong the tiep tuc."
         exit 1
     fi
 
+    # 6. Khoi chay ung dung AI Box
     echo ">> [6/7] Khoi chay ung dung AI Box & Cac dich vu he thong..."
-    adb -s "$SERIAL" shell "am start -n info.dourok.voicebot/.java.activities.MainActivity" >/dev/null 2>&1 || true
+    adb_shell "am start -n info.dourok.voicebot/.java.activities.MainActivity" >/dev/null 2>&1
     sleep 2
 
-    # Kiem tra nhanh dich vu tren loa da san sang chua
+    # 7. Kiem tra trang thai thuc te cac cong dich vu
     echo ">> [7/7] Kiem tra trang thai hoat dong cac dich vu..."
     if check_port "$TARGET_IP" "8081"; then
         echo "   [OK] Web Control (Port 8081) da hoat dong san sang!"
@@ -529,39 +576,27 @@ if [ "$MODE" = "FULL" ]; then
         echo " 3. Chuyen iPhone ve WiFi nha va su dung binh thuong tai IP moi!"
         echo "=========================================================="
         echo ""
-        printf "Ban co muon khoi dong lai loa bay gio khong? (y/n, mac dinh n de dung ngay): "
-        if (exec </dev/tty) 2>/dev/null; then
-            read REBOOT_NOW </dev/tty 2>/dev/null || read REBOOT_NOW 2>/dev/null || true
-        else
-            read REBOOT_NOW 2>/dev/null || true
-        fi
-        REBOOT_NOW=$(echo "$REBOOT_NOW" | tr -d ' \r\n\t')
-
-        if [ "$REBOOT_NOW" = "y" ] || [ "$REBOOT_NOW" = "Y" ]; then
+        read_terminal_line "Ban co muon khoi dong lai loa bay gio khong? (y/n, mac dinh n de dung ngay): " "n"
+        if [ "$USER_INPUT" = "y" ] || [ "$USER_INPUT" = "Y" ]; then
             echo ">> Dang khoi dong lai loa (vui long doi 25-30 giay)..."
-            adb -s "$SERIAL" reboot >/dev/null 2>&1 || true
+            adb_cmd reboot >/dev/null 2>&1
         else
             echo ">> Giu nguyen ket noi de ban truy cap Safari vao http://192.168.43.1:8081/ ngay!"
         fi
     else
         echo "Truy cap giao dien web dieu khien tai: http://$TARGET_IP:8081/"
         echo ""
-        printf "Ban co muon khoi dong lai loa bay gio khong? (y/n, mac dinh n): "
-        if (exec </dev/tty) 2>/dev/null; then
-            read REBOOT_NOW </dev/tty 2>/dev/null || read REBOOT_NOW 2>/dev/null || true
-        else
-            read REBOOT_NOW 2>/dev/null || true
-        fi
-        REBOOT_NOW=$(echo "$REBOOT_NOW" | tr -d ' \r\n\t')
-
-        if [ "$REBOOT_NOW" = "y" ] || [ "$REBOOT_NOW" = "Y" ]; then
+        read_terminal_line "Ban co muon khoi dong lai loa bay gio khong? (y/n, mac dinh n): " "n"
+        if [ "$USER_INPUT" = "y" ] || [ "$USER_INPUT" = "Y" ]; then
             echo ">> Dang khoi dong lai loa..."
-            adb -s "$SERIAL" reboot >/dev/null 2>&1 || true
+            adb_cmd reboot >/dev/null 2>&1
         fi
     fi
 fi
 
-# 6. Che do cap nhat nhanh AI Box Plus DLNA (Giu nguyen cau hinh cu)
+# ------------------------------------------------------------------------------
+# 13. THUC THI CHE DO CAP NHAT NHANH (UPDATE_ONLY)
+# ------------------------------------------------------------------------------
 if [ "$MODE" = "UPDATE_ONLY" ]; then
     echo "=========================================================="
     echo "  CAP NHAT NHANH AI BOX PLUS DLNA (GIU NGUYEN CAI DAT)    "
@@ -574,7 +609,7 @@ if [ "$MODE" = "UPDATE_ONLY" ]; then
     fi
 
     echo ">> Khoi chay ung dung AI Box..."
-    adb -s "$SERIAL" shell "am start -n info.dourok.voicebot/.java.activities.MainActivity" >/dev/null 2>&1 || true
+    adb_shell "am start -n info.dourok.voicebot/.java.activities.MainActivity" >/dev/null 2>&1
 
     echo ""
     echo "=========================================================="
