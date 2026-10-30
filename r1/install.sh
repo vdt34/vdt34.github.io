@@ -46,19 +46,27 @@ else
     echo ">> [OK] Cac cong cu (adb, curl, nc) da co san. San sang tiep tuc."
 fi
 
-# Ham nhap lieu an toan tu Terminal hoac Stdin
-read_input() {
-    PROMPT="$1"
-    DEF_VAL="$2"
-    printf "%s" "$PROMPT" >&2
-    VAL=""
-    if (exec </dev/tty) 2>/dev/null; then
-        read VAL </dev/tty 2>/dev/null || VAL=""
+# Ham nhap lieu an toan tu terminal/keyboard truc tiep tren tien trinh chinh
+prompt_var() {
+    PROMPT_TEXT="$1"
+    TARGET_VAR="$2"
+    DEFAULT_VALUE="$3"
+
+    printf "%s" "$PROMPT_TEXT"
+    TEMP_INPUT=""
+    if [ -t 0 ]; then
+        read TEMP_INPUT 2>/dev/null || TEMP_INPUT=""
+    elif (exec </dev/tty) 2>/dev/null; then
+        read TEMP_INPUT </dev/tty 2>/dev/null || TEMP_INPUT=""
     else
-        read VAL 2>/dev/null || VAL=""
+        read TEMP_INPUT 2>/dev/null || TEMP_INPUT=""
     fi
-    [ -z "$VAL" ] && VAL="$DEF_VAL"
-    echo "$VAL"
+
+    if [ -z "$TEMP_INPUT" ]; then
+        eval "$TARGET_VAR=\"$DEFAULT_VALUE\""
+    else
+        eval "$TARGET_VAR=\"$TEMP_INPUT\""
+    fi
 }
 
 # Ham tu dong phat hien dai mang hien tai cua thiet bi
@@ -146,11 +154,11 @@ prompt_for_target_ip() {
     echo "  [1] Tu dong quet mang WiFi de tim IP loa (Khuyen dung)"
     echo "  [2] Nhap dia chi IP truc tiep thu cong"
     echo ""
-    IP_OPT=$(read_input "Chon phuong thuc tim IP (1-2, mac dinh 1): " "1")
+    prompt_var "Chon phuong thuc tim IP (1-2, mac dinh 1): " "IP_OPT" "1"
 
     if [ "$IP_OPT" = "1" ]; then
         CUR_SUB=$(detect_subnet)
-        USER_SUB=$(read_input "Dai mang can quet [mac dinh: $CUR_SUB]: " "$CUR_SUB")
+        prompt_var "Dai mang can quet [mac dinh: $CUR_SUB]: " "USER_SUB" "$CUR_SUB"
         scan_lan_for_r1 "$USER_SUB"
         if [ -n "$FIRST_FOUND_IP" ]; then
             SUGGESTED="$FIRST_FOUND_IP"
@@ -159,9 +167,9 @@ prompt_for_target_ip() {
 
     echo ""
     if [ -n "$SUGGESTED" ]; then
-        TARGET_IP=$(read_input "Nhap dia chi IP cua loa [Enter de chon $SUGGESTED]: " "$SUGGESTED")
+        prompt_var "Nhap dia chi IP cua loa [Enter de chon $SUGGESTED]: " "TARGET_IP" "$SUGGESTED"
     else
-        TARGET_IP=$(read_input "Nhap dia chi IP cua loa (VD: 192.168.1.15): " "192.168.43.1")
+        prompt_var "Nhap dia chi IP cua loa (VD: 192.168.1.15): " "TARGET_IP" "192.168.43.1"
     fi
     echo ">> [XAC NHAN] Dia chi IP lua chon: $TARGET_IP"
 }
@@ -190,7 +198,7 @@ else
     echo "  [5] Xem IP loa duoc cap khi dang ket noi WiFi loa (192.168.43.1)"
     echo "  [6] Thoat"
     echo ""
-    CHOICE=$(read_input "Nhap lua chon cua ban (1-6, mac dinh 1): " "1")
+    prompt_var "Nhap lua chon cua ban (1-6, mac dinh 1): " "CHOICE" "1"
 
     case "$CHOICE" in
         1)
@@ -207,7 +215,7 @@ else
             ;;
         4)
             CUR_SUB=$(detect_subnet)
-            USER_SUB=$(read_input "Dai mang can quet [mac dinh: $CUR_SUB]: " "$CUR_SUB")
+            prompt_var "Dai mang can quet [mac dinh: $CUR_SUB]: " "USER_SUB" "$CUR_SUB"
             scan_lan_for_r1 "$USER_SUB"
             exit 0
             ;;
@@ -317,9 +325,9 @@ if [ "$DEV_STATE" != "device" ] && ! echo "$CONN_CHECK" | grep -q "connected to"
 
         if [ $((TRY_COUNT % 12)) -eq 0 ]; then
             echo ""
-            RETRY_CHOICE=$(read_input ">> Loa chua phan hoi tai $TARGET_IP. Ban co muon doi sang IP khac? (y/n, mac dinh n): " "n")
+            prompt_var ">> Loa chua phan hoi tai $TARGET_IP. Ban co muon doi sang IP khac? (y/n, mac dinh n): " "RETRY_CHOICE" "n"
             if [ "$RETRY_CHOICE" = "y" ] || [ "$RETRY_CHOICE" = "Y" ]; then
-                NEW_IP=$(read_input "Nhap dia chi IP moi: " "")
+                prompt_var "Nhap dia chi IP moi: " "NEW_IP" ""
                 if [ -n "$NEW_IP" ]; then
                     TARGET_IP="$NEW_IP"
                     SERIAL="$TARGET_IP:5555"
@@ -462,7 +470,7 @@ if [ "$MODE" = "FULL" ]; then
         echo " 3. Chuyen iPhone ve WiFi nha va su dung binh thuong tai IP moi!"
         echo "=========================================================="
         echo ""
-        REBOOT_NOW=$(read_input "Ban co muon khoi dong lai loa bay gio khong? (y/n, mac dinh n de dung ngay): " "n")
+        prompt_var "Ban co muon khoi dong lai loa bay gio khong? (y/n, mac dinh n de dung ngay): " "REBOOT_NOW" "n"
         if [ "$REBOOT_NOW" = "y" ] || [ "$REBOOT_NOW" = "Y" ]; then
             echo ">> Dang khoi dong lai loa (vui long doi 25-30 giay)..."
             adb -s "$SERIAL" reboot >/dev/null 2>&1 || true
@@ -472,7 +480,7 @@ if [ "$MODE" = "FULL" ]; then
     else
         echo "Truy cap giao dien web dieu khien tai: http://$TARGET_IP:8081/"
         echo ""
-        REBOOT_NOW=$(read_input "Ban co muon khoi dong lai loa bay gio khong? (y/n, mac dinh n): " "n")
+        prompt_var "Ban co muon khoi dong lai loa bay gio khong? (y/n, mac dinh n): " "REBOOT_NOW" "n"
         if [ "$REBOOT_NOW" = "y" ] || [ "$REBOOT_NOW" = "Y" ]; then
             echo ">> Dang khoi dong lai loa..."
             adb -s "$SERIAL" reboot >/dev/null 2>&1 || true
