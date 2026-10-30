@@ -1,32 +1,29 @@
 ﻿# ==============================================================================
 # BỘ CÀI PHICOMM R1 SIÊU TỐC CHO WINDOWS (POWERSHELL)
-# Không cảnh báo, không sao lưu rườm rà - Đẩy toàn bộ lên temp của loa rồi cài!
+# Chuẩn hóa theo new.bat v5.1.3: Nhập IP trực tiếp, đẩy lên /data/local/tmp/
 # ==============================================================================
-[CmdletBinding()]
-param(
-    [string]$Ip = "",
-    [switch]$Yes,
-    [switch]$DryRun
-)
+if (-not (Test-Path variable:Ip)) { $Ip = "" }
+if (-not (Test-Path variable:Yes)) { $Yes = $false }
+if (-not (Test-Path variable:DryRun)) { $DryRun = $false }
+if ($args.Count -gt 0) {
+    foreach ($a in $args) {
+        if ($a -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}') { $Ip = $a }
+        elseif ($a -eq "-Yes" -or $a -eq "-y") { $Yes = $true }
+        elseif ($a -eq "-DryRun") { $DryRun = $true }
+    }
+}
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-if (-not $ScriptDir) { $ScriptDir = Get-Location }
+$ScriptDir = if ($MyInvocation.MyCommand.Path) { Split-Path -Parent $MyInvocation.MyCommand.Path } else { (Get-Location).Path }
 $TempDir = Join-Path $env:TEMP "r1_cache"
 New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
 $BaseUrl = "https://vdt34.github.io/r1"
 
-$Apks = @(
-    @{ File = "autodlna.apk";       Pkg = "com.phicomm.speaker.player"; Desc = "AutoDLNA" }
-    @{ File = "unisound.apk";       Pkg = "com.phicomm.speaker.device"; Desc = "Unisound" }
-    @{ File = "AIBoxPlus_DLNA.apk"; Pkg = "info.dourok.voicebot";       Desc = "AI Box Plus DLNA" }
-)
-
 Clear-Host
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "      BỘ CÀI ĐẶT PHICOMM R1 SIÊU TỐC (WINDOWS)" -ForegroundColor Yellow
+Write-Host "     CÀI ĐẶT AUTODLNA + UNISOUND + AI TIẾNG VIỆT (R1)" -ForegroundColor Yellow
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -59,17 +56,18 @@ if (-not (Ensure-Adb)) {
     return
 }
 
-# 2. Xác định IP mục tiêu của loa
+# 2. Nhập IP của loa (Chuẩn new.bat: Enter lấy 192.168.43.1, hoặc gõ IP WiFi nhà)
 $TargetIp = $Ip
 if (-not $TargetIp) {
-    Write-Host "Chọn cách kết nối:" -ForegroundColor White
-    Write-Host "  [1] Cài qua WiFi loa phát ra (192.168.43.1) [Khuyên dùng]" -ForegroundColor Cyan
-    Write-Host "  [2] Cài qua WiFi nhà (Nhập IP của loa)" -ForegroundColor White
+    Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
+    Write-Host "                     NHẬP IP CỦA LOA                      " -ForegroundColor Yellow
+    Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
+    Write-Host " - Nếu đang kết nối WiFi của loa: Nhấn [Enter] để dùng 192.168.43.1" -ForegroundColor Gray
+    Write-Host " - Nếu loa đã nối WiFi nhà: Nhập địa chỉ IP của loa (VD: 192.168.1.94)" -ForegroundColor Gray
     Write-Host ""
-    $c = Read-Host "Lựa chọn của bạn (1-2, mặc định 1)"
-    if ($c -eq "2") {
-        $u = Read-Host "Nhập IP của loa (Ví dụ: 192.168.1.94)"
-        $TargetIp = if ($u -and $u.Trim()) { $u.Trim().Replace(":5555", "") } else { "192.168.1.94" }
+    $u = Read-Host "Nhập IP của loa (Enter để dùng mặc định 192.168.43.1)"
+    if ($u -and $u.Trim()) {
+        $TargetIp = $u.Trim().Replace(":5555", "")
     } else {
         $TargetIp = "192.168.43.1"
     }
@@ -77,12 +75,15 @@ if (-not $TargetIp) {
 $TargetIp = $TargetIp.Trim().Replace(":5555", "")
 $Serial = "$($TargetIp):5555"
 
-# 3. Chuẩn bị sẵn 3 file APK (ưu tiên có sẵn ở thư mục, nếu thiếu mới tải)
 Write-Host ""
-Write-Host ">> [1/4] Chuẩn bị toàn bộ 3 file APK..." -ForegroundColor Cyan
+Write-Host ">> Sẽ kết nối tới IP: $TargetIp" -ForegroundColor Cyan
+
+# 3. Chuẩn bị sẵn 3 file APK
+$Apks = @("autodlna.apk", "unisound.apk", "AIBoxPlus_DLNA.apk")
+Write-Host ""
+Write-Host ">> [1/4] Chuẩn bị 3 file APK..." -ForegroundColor Cyan
 $Missing = $false
-foreach ($app in $Apks) {
-    $f = $app.File
+foreach ($f in $Apks) {
     $localFile = Join-Path $ScriptDir $f
     $cacheFile = Join-Path $TempDir $f
 
@@ -111,23 +112,14 @@ if ($Missing) {
     Write-Host "==========================================================" -ForegroundColor Red
     Write-Host "  [LỖI THIẾU FILE CÀI ĐẶT DO CHƯA CÓ INTERNET]" -ForegroundColor Red
     Write-Host "==========================================================" -ForegroundColor Red
-    Write-Host "Nếu đang nối WiFi của loa (không có Internet), hãy đổi máy tính"
-    Write-Host "về WiFi nhà chạy lại script để tải sẵn file vào máy trước."
-    Write-Host "==========================================================" -ForegroundColor Red
+    Write-Host "Vui lòng kiểm tra lại kết nối mạng để tải đủ 3 file APK." -ForegroundColor Yellow
     Read-Host "Nhấn Enter để thoát"
     return
 }
 
-# 4. Đánh thức và kết nối ADB tới loa
+# 4. Đánh thức loa qua WebSocket 8080 & Kết nối ADB
 Write-Host ""
 Write-Host ">> [2/4] Đang kết nối tới loa tại $Serial..." -ForegroundColor Cyan
-if ($TargetIp -eq "192.168.43.1") {
-    Write-Host "--------------------------------------------------------" -ForegroundColor Yellow
-    Write-Host " 1. Ấn giữ nút tròn đỉnh loa 6 giây cho đến khi đổi đèn cam." -ForegroundColor White
-    Write-Host " 2. Chọn WiFi trên máy tính: Phicomm_R1_xxxx" -ForegroundColor White
-    Write-Host " 3. Windows báo 'No Internet' -> Vẫn giữ nguyên kết nối!" -ForegroundColor White
-    Write-Host "--------------------------------------------------------" -ForegroundColor Yellow
-}
 
 function Revive-Speaker($IpAddr) {
     if ($DryRun -or $env:R1_DRYRUN -eq "1") { return }
@@ -147,6 +139,8 @@ function Revive-Speaker($IpAddr) {
 }
 
 if (-not $DryRun -and $env:R1_DRYRUN -ne "1") {
+    # Reset adb theo chuẩn new.bat
+    adb kill-server 2>$null | Out-Null
     adb start-server 2>$null | Out-Null
     Revive-Speaker $TargetIp
     Start-Sleep -Milliseconds 600
@@ -155,8 +149,8 @@ if (-not $DryRun -and $env:R1_DRYRUN -ne "1") {
     while ($true) {
         $try++
         $res = (adb connect $Serial 2>&1 | Out-String).Trim()
-        $devs = (adb devices 2>$null | Out-String)
-        if ($devs -match [regex]::Escape($Serial) + "\s+device") { break }
+        $state = (adb -s $Serial get-state 2>$null | Out-String).Trim()
+        if ($state -eq "device") { break }
 
         Write-Host -NoNewline "`r[*] Đang chờ kết nối [$Serial] (lần $try)... "
         if ($try % 3 -eq 0 -or $res -match "already connected") {
@@ -169,69 +163,79 @@ if (-not $DryRun -and $env:R1_DRYRUN -ne "1") {
 }
 Write-Host ">> [OK] Đã kết nối thành công tới loa ($Serial)!" -ForegroundColor Green
 
-# 5. ĐẨY HẾT 3 FILE LÊN BỘ NHỚ TẠM CỦA LOA TRƯỚC (/sdcard/)
+# 5. ĐẨY HẾT CẢ 3 FILE APK LÊN /data/local/tmp/ CỦA LOA TRƯỚC
 Write-Host ""
-Write-Host ">> [3/4] Đang đẩy toàn bộ 3 file APK lên bộ nhớ loa (/sdcard/)..." -ForegroundColor Cyan
-foreach ($app in $Apks) {
-    $f = $app.File
-    Write-Host "   -> Đẩy $f..." -ForegroundColor White
+Write-Host ">> [3/4] Đang đẩy toàn bộ file APK lên bộ nhớ tạm (/data/local/tmp/)..." -ForegroundColor Cyan
+foreach ($f in $Apks) {
+    Write-Host "   -> Nạp $f..." -ForegroundColor White
     if (-not $DryRun -and $env:R1_DRYRUN -ne "1") {
-        adb -s $Serial push (Join-Path $TempDir $f) "/sdcard/$f" 2>$null | Out-Null
+        adb -s $Serial push (Join-Path $TempDir $f) "/data/local/tmp/$f" 2>$null | Out-Null
     }
 }
 Write-Host ">> [OK] Đã đưa trọn vẹn 3 file lên loa!" -ForegroundColor Green
 
-# 6. DỌN DẸP, CÀI ĐẶT VÀ KHỞI CHẠY TOÀN BỘ
+# 6. THỰC THI CHUỖI LỆNH CÀI ĐẶT CHUẨN XÁC THEO NEW.BAT
 Write-Host ""
-Write-Host ">> [4/4] Bắt đầu cài đặt và kích hoạt hệ thống..." -ForegroundColor Cyan
+Write-Host ">> [4/4] Bắt đầu cài đặt hệ thống..." -ForegroundColor Cyan
 
 if (-not $DryRun -and $env:R1_DRYRUN -ne "1") {
-    # 6.1 Dọn tiến trình xung đột
-    $CleanCmd = "svc power stayon true 2>/dev/null; am force-stop info.dourok.voicebot 2>/dev/null; am force-stop com.phicomm.speaker.player 2>/dev/null; am force-stop com.phicomm.speaker.device 2>/dev/null; for p in com.phicomm.speaker.airskill com.phicomm.speaker.otaservice com.phicomm.speaker.exceptionreporter com.phicomm.speaker.systemtool com.phicomm.speaker.productiontest com.phicomm.speaker.bugreport com.phicomm.speaker.remote com.tencent.qqmusic; do pm hide `$p 2>/dev/null; pm disable `$p 2>/dev/null; done; killall -9 shairport dlna mpd 2>/dev/null; settings put secure install_non_market_apps 1 2>/dev/null"
-    adb -s $Serial shell $CleanCmd 2>$null | Out-Null
+    # 6.1 Xóa bộ nhớ đệm trước khi cài đặt & cho phép cài app ngoài
+    Write-Host "   -> Đang dọn dẹp bộ nhớ đệm..." -ForegroundColor White
+    adb -s $Serial shell "rm -f /sdcard/otaprop.txt /sdcard/incremental*.zip 2>/dev/null; /system/bin/pm clear com.phicomm.speaker.otaservice 2>/dev/null; settings put secure install_non_market_apps 1 2>/dev/null" 2>$null | Out-Null
 
-    # 6.2 Cài đặt lần lượt 3 file từ /sdcard/
-    foreach ($app in $Apks) {
-        $f = $app.File
-        $pkg = $app.Pkg
-        $desc = $app.Desc
-        Write-Host "   -> Đang cài đặt $desc..." -ForegroundColor White
+    # 6.2 Tắt các ứng dụng không cần thiết trên loa
+    Write-Host "   -> Tắt các ứng dụng chiếm quyền..." -ForegroundColor White
+    adb -s $Serial shell "/system/bin/pm hide com.phicomm.speaker.airskill 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.exceptionreporter 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.systemtool 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.device 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.otaservice 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.productiontest 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.bugreport 2>/dev/null" 2>$null | Out-Null
 
-        $out = (adb -s $Serial shell "pm install -r /sdcard/$f" 2>&1 | Out-String).Trim()
-        if ($out -match "INSTALL_FAILED_UPDATE_INCOMPATIBLE" -or $out -match "signatures do not match") {
-            adb -s $Serial shell "pm uninstall $pkg" 2>$null | Out-Null
-            $out = (adb -s $Serial shell "pm install /sdcard/$f" 2>&1 | Out-String).Trim()
-        }
-        adb -s $Serial shell "rm -f /sdcard/$f" 2>$null | Out-Null
-    }
+    # 6.3 Cài đặt AutoDLNA + Unisound
+    Write-Host "   -> Cài đặt AutoDLNA + Unisound..." -ForegroundColor White
+    adb -s $Serial shell "/system/bin/pm install -r /data/local/tmp/autodlna.apk; /system/bin/pm install -r /data/local/tmp/unisound.apk; rm -f /data/local/tmp/autodlna.apk /data/local/tmp/unisound.apk" 2>$null | Out-Null
 
-    # 6.3 Khởi chạy dịch vụ, bluetooth, chỉnh đèn led
-    $StartCmd = "for p in com.phicomm.speaker.player com.phicomm.speaker.device com.phicomm.speaker.ijetty com.phicomm.speaker.netctl info.dourok.voicebot; do pm unhide `$p 2>/dev/null; pm enable `$p 2>/dev/null; done; am startservice com.phicomm.speaker.player/.EchoService 2>/dev/null; am start -n com.phicomm.speaker.device/.ui.MainActivity 2>/dev/null; am start -n info.dourok.voicebot/.java.activities.MainActivity 2>/dev/null; settings put global bluetooth_on 1 2>/dev/null; service call bluetooth_manager 6 2>/dev/null; setprop persist.sys.r1_led 0 2>/dev/null; lights_test set 7fffff8000 0 2>/dev/null; lights_test set 7fffff0000 ffffff 2>/dev/null"
-    adb -s $Serial shell $StartCmd 2>$null | Out-Null
+    # 6.4 Khởi động AutoDLNA + Unisound
+    Write-Host "   -> Khởi động AutoDLNA + Unisound..." -ForegroundColor White
+    adb -s $Serial shell "am startservice com.phicomm.speaker.player/.EchoService 2>/dev/null; am start com.phicomm.speaker.device/.ui.MainActivity 2>/dev/null" 2>$null | Out-Null
+    Start-Sleep -Seconds 2
+
+    # 6.5 Khôi phục ứng dụng cần thiết & Cài đặt AI Trợ lý ảo Tiếng Việt
+    Write-Host "   -> Khôi phục ijetty & netctl..." -ForegroundColor White
+    adb -s $Serial shell "/system/bin/pm unhide com.phicomm.speaker.ijetty 2>/dev/null; /system/bin/pm unhide com.phicomm.speaker.netctl 2>/dev/null" 2>$null | Out-Null
+
+    Write-Host "   -> Gỡ bản AI cũ và cài đặt AI Tiếng Việt mới..." -ForegroundColor White
+    adb -s $Serial shell "/system/bin/pm uninstall info.dourok.voicebot 2>/dev/null; /system/bin/pm install -r /data/local/tmp/AIBoxPlus_DLNA.apk; rm -f /data/local/tmp/AIBoxPlus_DLNA.apk" 2>$null | Out-Null
+
+    # 6.6 Khởi động AI Trợ lý ảo Tiếng Việt & cấu hình Bluetooth, LED
+    Write-Host "   -> Khởi động AI Box Plus..." -ForegroundColor White
+    adb -s $Serial shell "am start -n info.dourok.voicebot/.java.activities.MainActivity 2>/dev/null; settings put global bluetooth_on 1 2>/dev/null; service call bluetooth_manager 6 2>/dev/null; setprop persist.sys.r1_led 0 2>/dev/null; lights_test set 7fffff8000 0 2>/dev/null; lights_test set 7fffff0000 ffffff 2>/dev/null" 2>$null | Out-Null
+
+    # Lấy IP WiFi nhà của loa nếu có
+    $SpeakerLanIp = (adb -s $Serial shell "getprop dhcp.wlan0.ipaddress" 2>$null | Out-String).Trim()
 } else {
-    Write-Host "   -> [DRY-RUN] Giả lập cài đặt AutoDLNA, Unisound, AI Box Plus thành công!" -ForegroundColor Yellow
+    Write-Host "   -> [DRY-RUN] Đã thực thi chuỗi lệnh new.bat chuẩn xác!" -ForegroundColor Yellow
+    $SpeakerLanIp = ""
 }
 
 Write-Host ""
 Write-Host "==========================================================" -ForegroundColor Green
-Write-Host "    [HOÀN TẤT] ĐÃ CÀI ĐẶT LOA PHICOMM R1 THÀNH CÔNG!" -ForegroundColor Yellow
+Write-Host "                    CÀI ĐẶT HOÀN TẤT!                     " -ForegroundColor Yellow
 Write-Host "==========================================================" -ForegroundColor Green
 
-if ($TargetIp -eq "192.168.43.1") {
-    Write-Host ">> CÁC BƯỚC CÀI ĐẶT WIFI CHO LOA:" -ForegroundColor Yellow
-    Write-Host " 1. Mở trình duyệt Web (Edge / Chrome) vào:" -ForegroundColor White
+if ($SpeakerLanIp -and $SpeakerLanIp -ne "") {
+    Write-Host ">> IP của loa trong mạng WiFi nhà: $SpeakerLanIp" -ForegroundColor Cyan
+    Write-Host ">> Truy cập bảng điều khiển loa tại: http://$($SpeakerLanIp):8081/" -ForegroundColor White
+    try { Start-Process "http://$($SpeakerLanIp):8081/" } catch {}
+} elseif ($TargetIp -eq "192.168.43.1") {
+    Write-Host ">> BƯỚC TIẾP THEO: CẤU HÌNH WIFI CHO LOA" -ForegroundColor Yellow
+    Write-Host " 1. Mở trình duyệt Web (Chrome / Edge) vào:" -ForegroundColor White
     Write-Host "    👉 http://192.168.43.1:8081/wifi.html" -ForegroundColor Cyan
-    Write-Host " 2. Chọn WiFi nhà bạn, nhập mật khẩu để loa kết nối mạng." -ForegroundColor White
-    Write-Host " 3. Đổi máy tính về lại WiFi nhà và thưởng thức âm nhạc!" -ForegroundColor White
-    Write-Host "==========================================================" -ForegroundColor Green
+    Write-Host " 2. Chọn WiFi nhà bạn, nhập mật khẩu để loa kết nối Internet." -ForegroundColor White
+    Write-Host " 3. Đổi máy tính về lại WiFi nhà và trải nghiệm!" -ForegroundColor White
     try { Start-Process "http://192.168.43.1:8081/wifi.html" } catch {}
 } else {
-    $webUrl = "http://" + $TargetIp + ":8081/"
-    Write-Host "Truy cập giao diện điều khiển loa tại: $webUrl" -ForegroundColor Cyan
-    Write-Host "==========================================================" -ForegroundColor Green
-    try { Start-Process $webUrl } catch {}
+    Write-Host ">> Truy cập bảng điều khiển loa tại: http://$($TargetIp):8081/" -ForegroundColor White
+    try { Start-Process "http://$($TargetIp):8081/" } catch {}
 }
 
+Write-Host "==========================================================" -ForegroundColor Green
 Write-Host ""
 if (-not $Yes) {
     Read-Host "Nhấn Enter để kết thúc"

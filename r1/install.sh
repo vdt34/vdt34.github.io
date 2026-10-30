@@ -1,8 +1,7 @@
 #!/bin/sh
 # ==============================================================================
 # BỘ CÀI PHICOMM R1 SIÊU TỐC - TỐI ƯU CHO iPHONE (iSH) & LINUX / ANDROID
-# Cách dùng trên iPhone: Mở app iSH, dán lệnh:
-# curl -fsSL https://vdt34.github.io/r1/install.sh -o r1.sh && sh r1.sh
+# Chuẩn hóa theo new.bat v5.1.3: Nhập IP trực tiếp, đẩy lên /data/local/tmp/
 # ==============================================================================
 
 BASE_URL="https://vdt34.github.io/r1"
@@ -12,13 +11,13 @@ mkdir -p "$CACHE_DIR"
 
 clear
 echo "=========================================================="
-echo "    BỘ CÀI ĐẶT PHICOMM R1 SIÊU TỐC CHO iPHONE & LINUX"
+echo "     CÀI ĐẶT AUTODLNA + UNISOUND + AI TIẾNG VIỆT (R1)"
 echo "=========================================================="
 echo ""
 
 # 1. Cài nhanh công cụ cần thiết nếu thiếu
 if ! command -v adb >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1; then
-    echo ">> Đang cài công cụ adb & curl..."
+    echo ">> Đang chuẩn bị công cụ adb & curl..."
     if command -v apk >/dev/null 2>&1; then
         apk update >/dev/null 2>&1
         apk add --no-cache android-tools curl netcat-openbsd >/dev/null 2>&1
@@ -34,34 +33,33 @@ fi
 read_val() {
     prompt="$1"
     def="$2"
-    printf "%s" "$prompt"
+    printf "%s" "$prompt" >&2
     val=""
     read -r val 2>/dev/null || val=""
-    val=$(printf '%s' "$val" | tr -d '\r\n')
+    val=$(printf '%s' "$val" | tr -d ' \r\n')
     [ -z "$val" ] && val="$def"
     echo "$val"
 }
 
-# 2. Chọn chế độ cài đặt
-echo "Chọn cách kết nối:"
-echo "  [1] Cài qua WiFi loa phát ra (192.168.43.1) [Khuyên dùng]"
-echo "  [2] Cài qua WiFi nhà (Nhập IP của loa)"
+# 2. Nhập IP của loa (Chuẩn new.bat)
+echo "----------------------------------------------------------"
+echo "                     NHẬP IP CỦA LOA                      "
+echo "----------------------------------------------------------"
+echo " - Nếu đang kết nối WiFi của loa: Nhấn [Enter] để lấy 192.168.43.1"
+echo " - Nếu loa đã nối WiFi nhà: Nhập địa chỉ IP của loa (VD: 192.168.1.94)"
 echo ""
-CHOICE=$(read_val "Lựa chọn của bạn [1-2, mặc định 1]: " "1")
-
-TARGET_IP="192.168.43.1"
-if [ "$CHOICE" = "2" ]; then
-    USER_IP=$(read_val "Nhập IP của loa (Ví dụ: 192.168.1.94): " "192.168.1.94")
-    TARGET_IP=$(echo "$USER_IP" | tr -d ' ' | sed 's/:5555$//')
-    [ -z "$TARGET_IP" ] && TARGET_IP="192.168.1.94"
-fi
+USER_IP=$(read_val "Nhập IP của loa (Enter để dùng mặc định 192.168.43.1): " "192.168.43.1")
+TARGET_IP=$(echo "$USER_IP" | tr -d ' ' | sed 's/:5555$//')
+[ -z "$TARGET_IP" ] && TARGET_IP="192.168.43.1"
 SERIAL="$TARGET_IP:5555"
 
-# 3. Chuẩn bị 3 file APK (ưu tiên thư mục có sẵn, nếu thiếu mới tải)
+echo ""
+echo ">> Sẽ kết nối tới IP: $TARGET_IP"
+
+# 3. Chuẩn bị 3 file APK
 echo ""
 echo ">> [1/4] Chuẩn bị 3 file APK..."
 for f in autodlna.apk unisound.apk AIBoxPlus_DLNA.apk; do
-    # Nếu file đã có ở thư mục hiện tại
     if [ -f "$SCRIPT_DIR/$f" ] && [ "$(wc -c < "$SCRIPT_DIR/$f" 2>/dev/null)" -gt 1000000 ]; then
         cp -f "$SCRIPT_DIR/$f" "$CACHE_DIR/$f" 2>/dev/null || true
         echo "   [OK] Dùng $f có sẵn trong thư mục."
@@ -80,16 +78,22 @@ for f in autodlna.apk unisound.apk AIBoxPlus_DLNA.apk; do
     fi
 done
 
-# 4. Kết nối tới loa (WebSocket revive + ADB)
+# 4. Đánh thức loa qua WebSocket 8080 & Kết nối ADB
 echo ""
 echo ">> [2/4] Đang kết nối tới loa tại $SERIAL..."
 if [ "$TARGET_IP" = "192.168.43.1" ]; then
     echo "--------------------------------------------------------"
-    echo " LƯU Ý CHO iPHONE:"
+    echo " LƯU Ý KHI NỐI WIFI LOA (192.168.43.1):"
     echo " 1. TẮT 4G/5G trên iPhone để không bị nhiễu mạng."
     echo " 2. Ấn giữ nút tròn đỉnh loa 6 giây cho đổi sang đèn cam."
     echo " 3. Vào Wi-Fi iPhone kết nối mạng: Phicomm_R1_xxxx"
     echo " 4. Bật 'Mạng cục bộ' (Local Network) cho iSH trong Cài đặt iPhone."
+    echo "--------------------------------------------------------"
+else
+    echo "--------------------------------------------------------"
+    echo " KẾT NỐI QUA MẠNG WIFI NHÀ (IP: $TARGET_IP):"
+    echo " - iPhone và loa phải cùng kết nối chung một mạng WiFi."
+    echo " - Bật 'Mạng cục bộ' (Local Network) cho iSH trong Cài đặt iPhone."
     echo "--------------------------------------------------------"
 fi
 
@@ -130,60 +134,75 @@ done
 echo ""
 echo ">> [OK] Đã kết nối thành công tới loa ($SERIAL)!"
 
-# 5. ĐẨY HẾT 3 FILE LÊN BỘ NHỚ TẠM CỦA LOA TRƯỚC (/sdcard/)
+# 5. ĐẨY CẢ 3 FILE APK LÊN /data/local/tmp/ CỦA LOA TRƯỚC
 echo ""
-echo ">> [3/4] Đang đẩy toàn bộ 3 file APK lên loa..."
+echo ">> [3/4] Đang đẩy toàn bộ file APK lên bộ nhớ tạm (/data/local/tmp/)..."
 for f in autodlna.apk unisound.apk AIBoxPlus_DLNA.apk; do
     echo "   -> Nạp $f..."
     if [ "$R1_DRYRUN" != "1" ]; then
-        adb -s "$SERIAL" push "$CACHE_DIR/$f" "/sdcard/$f" >/dev/null 2>&1
+        adb -s "$SERIAL" push "$CACHE_DIR/$f" "/data/local/tmp/$f" >/dev/null 2>&1
     fi
 done
-echo ">> [OK] Đã đưa trọn vẹn 3 file lên bộ nhớ loa!"
+echo ">> [OK] Đã đưa trọn vẹn 3 file lên loa!"
 
-# 6. Dọn dẹp, cài đặt lần lượt 3 file và khởi chạy hệ thống
+# 6. THỰC THI CHUỖI LỆNH CÀI ĐẶT CHUẨN XÁC THEO NEW.BAT
 echo ""
-echo ">> [4/4] Bắt đầu cài đặt và kích hoạt hệ thống..."
+echo ">> [4/4] Bắt đầu cài đặt hệ thống..."
 
 if [ "$R1_DRYRUN" != "1" ]; then
-    # Dọn dẹp tiến trình xung đột
+    # 6.1 Xóa bộ nhớ đệm trước khi cài đặt & cho phép cài app ngoài
+    echo "   -> Đang dọn dẹp bộ nhớ đệm..."
     adb -s "$SERIAL" shell "
-        svc power stayon true 2>/dev/null
-        am force-stop info.dourok.voicebot 2>/dev/null
-        am force-stop com.phicomm.speaker.player 2>/dev/null
-        am force-stop com.phicomm.speaker.device 2>/dev/null
-        for p in com.phicomm.speaker.airskill com.phicomm.speaker.otaservice com.phicomm.speaker.exceptionreporter com.phicomm.speaker.systemtool com.phicomm.speaker.productiontest com.phicomm.speaker.bugreport com.phicomm.speaker.remote com.tencent.qqmusic; do
-            pm hide \$p 2>/dev/null
-            pm disable \$p 2>/dev/null
-        done
-        killall -9 shairport dlna mpd 2>/dev/null
+        rm -f /sdcard/otaprop.txt /sdcard/incremental*.zip 2>/dev/null
+        /system/bin/pm clear com.phicomm.speaker.otaservice 2>/dev/null
         settings put secure install_non_market_apps 1 2>/dev/null
     " >/dev/null 2>&1
 
-    # Cài đặt từng app từ /sdcard/
-    for item in "autodlna.apk:com.phicomm.speaker.player:AutoDLNA" \
-                "unisound.apk:com.phicomm.speaker.device:Unisound" \
-                "AIBoxPlus_DLNA.apk:info.dourok.voicebot:AI Box Plus"; do
-        apk_file=$(echo "$item" | cut -d: -f1)
-        pkg_name=$(echo "$item" | cut -d: -f2)
-        desc=$(echo "$item" | cut -d: -f3)
-
-        echo "   -> Đang cài đặt $desc..."
-        out=$(adb -s "$SERIAL" shell "pm install -r /sdcard/$apk_file" 2>&1 | tr -d '\r')
-        if echo "$out" | grep -Eq 'INSTALL_FAILED_UPDATE_INCOMPATIBLE|signatures do not match'; then
-            adb -s "$SERIAL" shell "pm uninstall $pkg_name; pm install /sdcard/$apk_file" >/dev/null 2>&1
-        fi
-        adb -s "$SERIAL" shell "rm -f /sdcard/$apk_file" >/dev/null 2>&1
-    done
-
-    # Mở khóa và khởi chạy toàn bộ dịch vụ
+    # 6.2 Tắt các ứng dụng không cần thiết trên loa
+    echo "   -> Tắt các ứng dụng chiếm quyền..."
     adb -s "$SERIAL" shell "
-        for p in com.phicomm.speaker.player com.phicomm.speaker.device com.phicomm.speaker.ijetty com.phicomm.speaker.netctl info.dourok.voicebot; do
-            pm unhide \$p 2>/dev/null
-            pm enable \$p 2>/dev/null
-        done
+        /system/bin/pm hide com.phicomm.speaker.airskill 2>/dev/null
+        /system/bin/pm hide com.phicomm.speaker.exceptionreporter 2>/dev/null
+        /system/bin/pm hide com.phicomm.speaker.systemtool 2>/dev/null
+        /system/bin/pm hide com.phicomm.speaker.device 2>/dev/null
+        /system/bin/pm hide com.phicomm.speaker.otaservice 2>/dev/null
+        /system/bin/pm hide com.phicomm.speaker.productiontest 2>/dev/null
+        /system/bin/pm hide com.phicomm.speaker.bugreport 2>/dev/null
+    " >/dev/null 2>&1
+
+    # 6.3 Cài đặt AutoDLNA + Unisound
+    echo "   -> Cài đặt AutoDLNA + Unisound..."
+    adb -s "$SERIAL" shell "
+        /system/bin/pm install -r /data/local/tmp/autodlna.apk
+        /system/bin/pm install -r /data/local/tmp/unisound.apk
+        rm -f /data/local/tmp/autodlna.apk /data/local/tmp/unisound.apk
+    " >/dev/null 2>&1
+
+    # 6.4 Khởi động AutoDLNA + Unisound
+    echo "   -> Khởi động AutoDLNA + Unisound..."
+    adb -s "$SERIAL" shell "
         am startservice com.phicomm.speaker.player/.EchoService 2>/dev/null
-        am start -n com.phicomm.speaker.device/.ui.MainActivity 2>/dev/null
+        am start com.phicomm.speaker.device/.ui.MainActivity 2>/dev/null
+    " >/dev/null 2>&1
+    sleep 2
+
+    # 6.5 Khôi phục ứng dụng cần thiết & Cài đặt AI Trợ lý ảo Tiếng Việt
+    echo "   -> Khôi phục ijetty & netctl..."
+    adb -s "$SERIAL" shell "
+        /system/bin/pm unhide com.phicomm.speaker.ijetty 2>/dev/null
+        /system/bin/pm unhide com.phicomm.speaker.netctl 2>/dev/null
+    " >/dev/null 2>&1
+
+    echo "   -> Gỡ bản AI cũ và cài đặt AI Tiếng Việt mới..."
+    adb -s "$SERIAL" shell "
+        /system/bin/pm uninstall info.dourok.voicebot 2>/dev/null
+        /system/bin/pm install -r /data/local/tmp/AIBoxPlus_DLNA.apk
+        rm -f /data/local/tmp/AIBoxPlus_DLNA.apk
+    " >/dev/null 2>&1
+
+    # 6.6 Khởi động AI Trợ lý ảo Tiếng Việt & cấu hình Bluetooth, LED
+    echo "   -> Khởi động AI Box Plus..."
+    adb -s "$SERIAL" shell "
         am start -n info.dourok.voicebot/.java.activities.MainActivity 2>/dev/null
         settings put global bluetooth_on 1 2>/dev/null
         service call bluetooth_manager 6 2>/dev/null
@@ -191,20 +210,30 @@ if [ "$R1_DRYRUN" != "1" ]; then
         lights_test set 7fffff8000 0 2>/dev/null
         lights_test set 7fffff0000 ffffff 2>/dev/null
     " >/dev/null 2>&1
+
+    # Lấy IP WiFi nhà của loa nếu có
+    LAN_IP=$(adb -s "$SERIAL" shell "getprop dhcp.wlan0.ipaddress" 2>/dev/null | tr -d '\r\n')
 else
-    echo "   -> [DRY-RUN] Cài đặt hoàn tất AutoDLNA, Unisound, AI Box Plus!"
+    echo "   -> [DRY-RUN] Đã thực thi chuỗi lệnh new.bat chuẩn xác!"
+    LAN_IP=""
 fi
 
 echo ""
 echo "=========================================================="
-echo "    [HOÀN TẤT] ĐÃ CÀI ĐẶT LOA PHICOMM R1 THÀNH CÔNG!"
+echo "                    CÀI ĐẶT HOÀN TẤT!                     "
 echo "=========================================================="
-if [ "$TARGET_IP" = "192.168.43.1" ]; then
-    echo ">> CÀI ĐẶT WIFI CHO LOA:"
-    echo " 1. Mở Safari trên iPhone, vào: http://192.168.43.1:8081/wifi.html"
-    echo " 2. Chọn WiFi nhà bạn, nhập mật khẩu để loa kết nối mạng."
-    echo " 3. Đổi iPhone về WiFi nhà và thưởng thức âm nhạc!"
+
+if [ -n "$LAN_IP" ]; then
+    echo ">> IP của loa trong mạng WiFi nhà: $LAN_IP"
+    echo ">> Truy cập bảng điều khiển loa tại: http://$LAN_IP:8081/"
+elif [ "$TARGET_IP" = "192.168.43.1" ]; then
+    echo ">> BƯỚC TIẾP THEO: CẤU HÌNH WIFI CHO LOA"
+    echo " 1. Mở Safari trên iPhone vào:"
+    echo "    👉 http://192.168.43.1:8081/wifi.html"
+    echo " 2. Chọn WiFi nhà bạn, nhập mật khẩu để loa kết nối Internet."
+    echo " 3. Đổi iPhone về WiFi nhà và trải nghiệm!"
 else
-    echo ">> Giao diện điều khiển loa: http://$TARGET_IP:8081/"
+    echo ">> Truy cập bảng điều khiển loa tại: http://$TARGET_IP:8081/"
 fi
+
 echo "=========================================================="
