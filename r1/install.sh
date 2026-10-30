@@ -513,6 +513,9 @@ if [ "$MODE" = "FULL" ]; then
     # 10.1 TẮT HẾT TIẾN TRÌNH CHIẾM QUYỀN & XUNG ĐỘT (Gộp 1 phiên shell duy nhất)
     echo ">> [1/5] Tắt toàn bộ tiến trình chiếm quyền, xung đột âm thanh & micro..."
     adb -s "$SERIAL" shell "
+        # 0. Giu loa luon thuc (chong ngu/standby lam dut WiFi AP)
+        svc power stayon true 2>/dev/null
+
         # 1. Buộc dừng (force-stop) các tiến trình cũ đang chiếm âm thanh/micro/cổng mạng
         am force-stop info.dourok.voicebot 2>/dev/null
         am force-stop com.phicomm.speaker.player 2>/dev/null
