@@ -37,6 +37,9 @@ fi
 if ! command -v nc >/dev/null 2>&1; then
     NEED_INSTALL="$NEED_INSTALL netcat-openbsd"
 fi
+if ! command -v python3 >/dev/null 2>&1; then
+    NEED_INSTALL="$NEED_INSTALL python3"
+fi
 
 if [ -n "$NEED_INSTALL" ]; then
     if command -v apk >/dev/null 2>&1; then
@@ -46,7 +49,7 @@ if [ -n "$NEED_INSTALL" ]; then
     elif command -v apt-get >/dev/null 2>&1; then
         echo ">> Dang cai dat cac cong cu qua apt..."
         apt-get update -y >/dev/null 2>&1 || true
-        apt-get install -y android-tools-adb curl netcat-openbsd >/dev/null 2>&1 || true
+        apt-get install -y android-tools-adb curl netcat-openbsd python3 >/dev/null 2>&1 || true
     fi
 fi
 
@@ -131,11 +134,40 @@ detect_subnet() {
     echo "$SUB"
 }
 
-# Kiem tra cong ket noi mo hay dong
+# Kich hoat va giai phong adbd tren loa qua WebSocket firmware (Port 8080)
+restart_speaker_adbd() {
+    SP_IP="$1"
+    [ -z "$SP_IP" ] && return 0
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c "
+import socket, time
+try:
+    s = socket.socket()
+    s.settimeout(1.5)
+    s.connect(('$SP_IP', 8080))
+    s.sendall(b'GET / HTTP/1.1\r\nHost: $SP_IP:8080\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n')
+    s.recv(1024)
+    payload = b'{\"type\":\"shell\",\"type_id\":\"myshell\",\"shell\":\"setprop ctl.restart adbd; setprop service.adb.tcp.port 5555\"}'
+    s.sendall(bytes([0x81, 0x80 | len(payload), 0, 0, 0, 0]) + payload)
+    time.sleep(0.5)
+    s.close()
+except Exception:
+    pass
+" >/dev/null 2>&1 || true
+    fi
+}
+
+# Kiem tra cong ket noi mo hay dong (Uu tien HTTP cho 8081/8080 de khong khoa port 5555)
 check_port() {
     HOST_IP="$1"
     PORT_NUM="$2"
-    if command -v nc >/dev/null 2>&1; then
+    if [ "$PORT_NUM" = "8081" ] && command -v curl >/dev/null 2>&1; then
+        curl -s -m 1 "http://$HOST_IP:8081/api/status" >/dev/null 2>&1
+        return $?
+    elif [ "$PORT_NUM" = "8080" ] && command -v curl >/dev/null 2>&1; then
+        curl -s -m 1 "http://$HOST_IP:8080/" >/dev/null 2>&1
+        return $?
+    elif command -v nc >/dev/null 2>&1; then
         nc -w 1 "$HOST_IP" "$PORT_NUM" </dev/null >/dev/null 2>&1
         return $?
     elif command -v timeout >/dev/null 2>&1; then
@@ -146,14 +178,14 @@ check_port() {
     fi
 }
 
-# Quet mang LAN tim loa R1 mo cong ADB 5555
+# Quet mang LAN tim loa R1 qua Port Web 8081 hoac Port 8080 (an toan tuyet doi, khong dung nc vao 5555)
 scan_lan_for_r1() {
     PREFIX="$1"
     [ -z "$PREFIX" ] && PREFIX=$(detect_subnet)
 
     echo ""
     echo ">> Dang quet nhanh dai mang ${PREFIX}.1 -> 254 de tim loa R1..."
-    echo "   (Kiem tra port ADB 5555 theo luong song song)..."
+    echo "   (Kiem tra dich vu Port 8081 / Port 8080 theo luong song song)..."
 
     SCAN_TMP="/tmp/r1_scan_$$"
     mkdir -p "$SCAN_TMP"
@@ -166,7 +198,7 @@ scan_lan_for_r1() {
         for i in $(seq $IDX $BATCH_END); do
             (
                 TARGET_HOST="${PREFIX}.${i}"
-                if check_port "$TARGET_HOST" "5555"; then
+                if check_port "$TARGET_HOST" "8081" || check_port "$TARGET_HOST" "8080"; then
                     echo "$TARGET_HOST" > "$SCAN_TMP/$i"
                 fi
                 exit 0
@@ -191,8 +223,8 @@ scan_lan_for_r1() {
     rm -rf "$SCAN_TMP"
 
     if [ $FOUND_COUNT -eq 0 ]; then
-        echo ">> Khong tim thay thiet bi nao mo cong 5555 trong dai mang ${PREFIX}.x."
-        echo "   (Hay dam bao loa da bat nguon va iPhone dang bat Wi-Fi cung mang)."
+        echo ">> Khong tim thay loa R1 phan hoi Port 8081/8080 trong dai mang ${PREFIX}.x."
+        echo "   (Hay dam bao loa da bat nguon va dien thoai dang ket noi cung mang Wi-Fi)."
     fi
 }
 
@@ -418,10 +450,16 @@ echo "=========================================================="
 echo "      KIEM TRA KET NOI DEN LOA R1 ($SERIAL)               "
 echo "=========================================================="
 
-adb disconnect "$SERIAL" >/dev/null 2>&1
-sleep 0.5
-CONN_CHECK=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
+# Neu adbd tren loa bi treo boi ket noi cu chua ngat, tu dong gui lenh khoi dong lai adbd qua WebSocket 8080
+restart_speaker_adbd "$TARGET_IP"
 sleep 1
+
+# Khoi dong local adb server
+adb start-server >/dev/null 2>&1
+sleep 1
+
+CONN_CHECK=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
+sleep 2
 DEV_STATE=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d '\r\n')
 
 # Kiem tra ket noi thuc te voi thiet bi
@@ -459,9 +497,9 @@ if [ $IS_CONNECTED -eq 0 ]; then
     while true; do
         TRY_COUNT=$((TRY_COUNT + 1))
 
-        adb disconnect "$SERIAL" >/dev/null 2>&1
+        # Khong goi adb disconnect o day de tranh ngat ket noi dang bat tay TCP
         CONN_RES=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
-        sleep 1
+        sleep 2
         DEV_STATE=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d '\r\n')
 
         if [ "$DEV_STATE" = "device" ] || echo "$CONN_RES" | grep -qi "connected"; then
@@ -474,30 +512,25 @@ if [ $IS_CONNECTED -eq 0 ]; then
 
         printf "\r[*] Dang cho ket noi [%s] (Thu %d) | Trang thai: %s   " "$SERIAL" "$TRY_COUNT" "$CONN_RES"
 
-        if [ $((TRY_COUNT % 10)) -eq 0 ]; then
+        if [ $((TRY_COUNT % 6)) -eq 0 ]; then
             echo ""
-            # Chan doan cong mang
-            if check_port "$TARGET_IP" 5555; then
-                echo "   [i] Cong 5555 dang MO. Dang khoi dong lai adb daemon..."
-                adb kill-server >/dev/null 2>&1 || true
-                sleep 1
-                adb start-server >/dev/null 2>&1 || true
-            else
-                echo "   [!] Cong 5555 khong phan hoi tai $TARGET_IP."
-                if check_port "$TARGET_IP" 8081; then
-                    echo "   [i] Web AI BOX (port 8081) dang chay, nhung adbd chua mo hoac dang ban."
-                fi
+            echo "   [!] Loa chua phan hoi. Dang giai phong local adb va khoi dong lai adbd tren loa..."
+            restart_speaker_adbd "$TARGET_IP"
+            adb kill-server >/dev/null 2>&1 || true
+            sleep 1
+            adb start-server >/dev/null 2>&1 || true
+            sleep 1
+
+            if check_port "$TARGET_IP" 8081; then
+                echo "   [i] Web AI BOX (Port 8081) dang phan hoi binh thuong tai $TARGET_IP."
             fi
 
-            read_terminal_line ">> Loa chua phan hoi tai $TARGET_IP. Ban co muon doi sang IP khac? (y/n, mac dinh n): " "n"
-            if [ "$USER_INPUT" = "y" ] || [ "$USER_INPUT" = "Y" ]; then
-                read_terminal_line "Nhap dia chi IP moi: " ""
-                if [ -n "$USER_INPUT" ]; then
-                    TARGET_IP=$(echo "$USER_INPUT" | tr -d ' \r\n\t' | sed 's/:5555$//')
-                    SERIAL="$TARGET_IP:5555"
-                    TRY_COUNT=0
-                    echo ">> Da doi muc tieu sang: $SERIAL"
-                fi
+            read_terminal_line ">> Ban co muon doi sang IP khac khong? (Nhap IP moi hoac Enter de doi tiep): " ""
+            if [ -n "$USER_INPUT" ]; then
+                TARGET_IP=$(echo "$USER_INPUT" | tr -d ' \r\n\t' | sed 's/:5555$//')
+                SERIAL="$TARGET_IP:5555"
+                TRY_COUNT=0
+                echo ">> Da doi muc tieu sang: $SERIAL"
             fi
         fi
 
