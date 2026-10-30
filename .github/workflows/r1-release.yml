@@ -1,0 +1,109 @@
+name: Phicomm R1 Installer CI/CD
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'r1/**'
+      - '.github/workflows/r1-release.yml'
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'r1/**'
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: 'Tạo GitHub Release (true/false)'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-test:
+    name: Kiểm tra cú pháp, Manifest và Kiểm thử Dry-Run
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Cài đặt công cụ kiểm tra (shellcheck)
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Kiểm tra cú pháp install.sh bằng shellcheck
+        run: |
+          shellcheck -e SC2034,SC2086,SC2181,SC2001 r1/install.sh
+
+      - name: Kiểm tra tính toàn vẹn Manifest & Checksum (Build-Manifest.ps1)
+        shell: pwsh
+        run: |
+          ./r1/tools/Build-Manifest.ps1 -Check
+
+      - name: Kiểm thử Dry-Run Windows PowerShell (install.ps1)
+        shell: pwsh
+        run: |
+          $env:R1_DRYRUN = '1'
+          ./r1/install.ps1 -Action full -Ip 192.168.43.1 -Yes
+          ./r1/install.ps1 -Action update -Ip 192.168.1.94 -Yes
+          ./r1/install.ps1 -Action repair -Ip 192.168.1.94 -Yes
+          ./r1/install.ps1 -Action verify
+
+      - name: Kiểm thử Dry-Run POSIX Shell (install.sh)
+        run: |
+          export R1_DRYRUN=1
+          sh r1/install.sh full 192.168.43.1 -y
+          sh r1/install.sh update 192.168.1.94 -y
+          sh r1/install.sh repair 192.168.1.94 -y
+          sh r1/install.sh verify
+
+  build-and-release:
+    name: Đóng gói và Phát hành GitHub Release
+    needs: validate-and-test
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.publish_release == 'true'
+    steps:
+      - name: Checkout mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Đóng gói bộ cài đặt Release ZIP
+        shell: pwsh
+        run: |
+          ./r1/tools/Package-Release.ps1
+
+      - name: Đọc phiên bản hiện tại
+        id: get_ver
+        run: |
+          VER=$(tr -d ' \r\n' < r1/VERSION)
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+
+      - name: Phát hành GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Phicomm R1 Installer v${{ steps.get_ver.outputs.version }}"
+          tag_name: ${{ github.ref_name }}
+          files: |
+            r1/dist/*.zip
+            r1/dist/*.sha256
+            r1/manifest.txt
+            r1/SHA256SUMS
+          body: |
+            ## 🚀 Bộ cài đặt Phicomm R1 Installer v${{ steps.get_ver.outputs.version }}
+            
+            Hỗ trợ máy tính Windows và điện thoại iPhone / Android / Linux.
+
+            ### Cách sử dụng nhanh:
+            - **Windows (PowerShell):**
+              ```powershell
+              powershell -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((irm https://vdt34.github.io/r1/install.ps1)))"
+              ```
+            - **iPhone (iSH Shell) / Linux:**
+              ```sh
+              curl -fsSL https://vdt34.github.io/r1/install.sh -o r1.sh && sh r1.sh
+              ```
+
+            Xem chi tiết hướng dẫn tại: https://vdt34.github.io/r1/
+          draft: false
+          prerelease: false

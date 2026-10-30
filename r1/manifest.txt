@@ -1,0 +1,6 @@
+# Phicomm R1 Installer manifest - TU DONG SINH boi tools/Build-Manifest.ps1, khong sua tay
+# version=2.0.0
+# id|file|package|versionCode|sha256|size|type|order|desc
+autodlna|autodlna.apk|com.phicomm.speaker.player|0|db6def7f253fc1413fa1feec8674fd0a50f35fbb366da0a70f2144536f879bba|7262014|dex|1|AutoDLNA (Web Control & nhac)
+unisound|unisound.apk|com.phicomm.speaker.device|0|5f2634bd68ea4b948d2058d16da6c2d281e7170ce1e29723dbfbef002b449c84|33308151|dex|2|Unisound (phan cung & he thong)
+aibox|AIBoxPlus_DLNA.apk|info.dourok.voicebot|4|7e5234c9a462c21cfa52622e5fe01b431713b351c9da53cd71e4e1418ca7552b|16055989|apk|3|AI Box Plus DLNA (tro ly tieng Viet)
