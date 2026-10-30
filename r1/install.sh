@@ -62,9 +62,29 @@ echo ">> [OK] Cac cong cu (adb, curl, nc) da san sang."
 # ------------------------------------------------------------------------------
 # 3. ADB HELPER FUNCTIONS (Tach rieng de quan ly tap trung va de debug)
 # ------------------------------------------------------------------------------
-# Chay lenh adb truc tiep toi thiet bi SERIAL
+# Chay lenh adb thong minh (tu dong xu ly connect/disconnect khong kem -s)
 adb_cmd() {
-    adb -s "$SERIAL" "$@"
+    case "$1" in
+        connect)
+            shift
+            if [ -n "$1" ]; then
+                adb connect "$@"
+            else
+                adb connect "$SERIAL"
+            fi
+            ;;
+        disconnect)
+            shift
+            if [ -n "$1" ]; then
+                adb disconnect "$@"
+            else
+                adb disconnect "$SERIAL"
+            fi
+            ;;
+        *)
+            adb -s "$SERIAL" "$@"
+            ;;
+    esac
 }
 
 # Chay lenh shell tren Android, tu dong loai bo ky tu \r cua Windows/Android
@@ -210,7 +230,7 @@ prompt_for_target_ip() {
         else
             read_terminal_line "Nhap dia chi IP cua loa (VD: 192.168.1.15): " ""
         fi
-        TARGET_IP="$USER_INPUT"
+        TARGET_IP=$(echo "$USER_INPUT" | tr -d ' \r\n\t' | sed 's/:5555$//')
         if [ -z "$TARGET_IP" ]; then
             echo ">> Vui long go dia chi IP cua loa!"
         fi
@@ -304,12 +324,12 @@ TARGET_IP="192.168.43.1"
 MODE="FULL"
 
 if [ -n "$ARG1" ] && [ "$ARG1" != "menu" ] && [ "$ARG1" != "-m" ] && [ "$ARG1" != "update" ]; then
-    TARGET_IP="$ARG1"
+    TARGET_IP=$(echo "$ARG1" | tr -d ' \r\n\t' | sed 's/:5555$//')
     MODE="FULL"
 elif [ "$ARG1" = "update" ]; then
     MODE="UPDATE_ONLY"
     if [ -n "$ARG2" ]; then
-        TARGET_IP="$ARG2"
+        TARGET_IP=$(echo "$ARG2" | tr -d ' \r\n\t' | sed 's/:5555$//')
     else
         prompt_for_target_ip
     fi
@@ -389,6 +409,8 @@ fi
 # ------------------------------------------------------------------------------
 # 10. KIEM TRA VA CHO KET NOI DEN LOA R1 QUA ADB
 # ------------------------------------------------------------------------------
+# Chuan hoa TARGET_IP (xoa khoang trang, bo port :5555 neu go kem)
+TARGET_IP=$(echo "$TARGET_IP" | tr -d ' \r\n\t' | sed 's/:5555$//')
 SERIAL="$TARGET_IP:5555"
 
 echo ""
@@ -396,12 +418,23 @@ echo "=========================================================="
 echo "      KIEM TRA KET NOI DEN LOA R1 ($SERIAL)               "
 echo "=========================================================="
 
-adb_cmd disconnect >/dev/null 2>&1
-CONN_CHECK=$(adb_cmd connect 2>&1 | tr -d '\r\n')
-DEV_STATE=$(adb_cmd get-state 2>/dev/null | tr -d '\r\n')
+adb disconnect "$SERIAL" >/dev/null 2>&1
+sleep 0.5
+CONN_CHECK=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
+sleep 1
+DEV_STATE=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d '\r\n')
 
-if [ "$DEV_STATE" != "device" ] && ! echo "$CONN_CHECK" | grep -q "connected to"; then
+# Kiem tra ket noi thuc te voi thiet bi
+IS_CONNECTED=0
+if [ "$DEV_STATE" = "device" ] || echo "$CONN_CHECK" | grep -qi "connected"; then
+    if adb_shell "getprop ro.build.version.release" >/dev/null 2>&1; then
+        IS_CONNECTED=1
+    fi
+fi
+
+if [ $IS_CONNECTED -eq 0 ]; then
     echo ">> [CHUA KET NOI] Chua thay loa tai $SERIAL!"
+    echo "   (Trang thai ADB: $CONN_CHECK)"
     echo ""
     echo "------------------ LUU Y QUAN TRONG CHO IPHONE ------------------"
     if [ "$TARGET_IP" = "192.168.43.1" ]; then
@@ -413,11 +446,11 @@ if [ "$DEV_STATE" != "device" ] && ! echo "$CONN_CHECK" | grep -q "connected to"
         echo " 4. Neu iPhone bao 'Wi-Fi khong co Internet' -> Chon 'Tiep tuc su dung'!"
         echo " 5. LUU Y: Neu loa da ket noi WiFi nha, hay chon Muc [2] hoac [3]!"
     else
-        echo " 1. Dam bao iPhone dang bat Wi-Fi va ket noi cung mang voi loa."
+        echo " 1. Dam bao iPhone dang bat Wi-Fi va ket noi CUNG MANG voi loa."
         echo " 2. Kiem tra dia chi IP cua loa ($TARGET_IP) da dung chua."
         echo " 3. Kiem tra loa da duoc bat nguon va khoi dong xong."
     fi
-    echo " 6. Kiem tra: Cai dat -> iSH -> Bat 'Mang cuc bo' (Local Network)."
+    echo " 4. Kiem tra: Cai dat iPhone -> iSH -> Bat 'Mang cuc bo' (Local Network)."
     echo "-----------------------------------------------------------------"
     echo ">> He thong dang tu dong cho ket noi (Nhan Ctrl + C neu muon dung)..."
     echo ""
@@ -426,11 +459,12 @@ if [ "$DEV_STATE" != "device" ] && ! echo "$CONN_CHECK" | grep -q "connected to"
     while true; do
         TRY_COUNT=$((TRY_COUNT + 1))
 
-        adb_cmd disconnect >/dev/null 2>&1
-        CONN_RES=$(adb_cmd connect 2>&1 | tr -d '\r\n')
-        DEV_STATE=$(adb_cmd get-state 2>/dev/null | tr -d '\r\n')
+        adb disconnect "$SERIAL" >/dev/null 2>&1
+        CONN_RES=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
+        sleep 1
+        DEV_STATE=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d '\r\n')
 
-        if [ "$DEV_STATE" = "device" ] || echo "$CONN_RES" | grep -q "connected to"; then
+        if [ "$DEV_STATE" = "device" ] || echo "$CONN_RES" | grep -qi "connected"; then
             if adb_shell "getprop ro.build.version.release" >/dev/null 2>&1; then
                 echo ""
                 echo ">> [THANH CONG] Da ket noi duoc den loa tai $SERIAL!"
@@ -440,23 +474,34 @@ if [ "$DEV_STATE" != "device" ] && ! echo "$CONN_CHECK" | grep -q "connected to"
 
         printf "\r[*] Dang cho ket noi [%s] (Thu %d) | Trang thai: %s   " "$SERIAL" "$TRY_COUNT" "$CONN_RES"
 
-        if [ $((TRY_COUNT % 12)) -eq 0 ]; then
+        if [ $((TRY_COUNT % 10)) -eq 0 ]; then
             echo ""
+            # Chan doan cong mang
+            if check_port "$TARGET_IP" 5555; then
+                echo "   [i] Cong 5555 dang MO. Dang khoi dong lai adb daemon..."
+                adb kill-server >/dev/null 2>&1 || true
+                sleep 1
+                adb start-server >/dev/null 2>&1 || true
+            else
+                echo "   [!] Cong 5555 khong phan hoi tai $TARGET_IP."
+                if check_port "$TARGET_IP" 8081; then
+                    echo "   [i] Web AI BOX (port 8081) dang chay, nhung adbd chua mo hoac dang ban."
+                fi
+            fi
+
             read_terminal_line ">> Loa chua phan hoi tai $TARGET_IP. Ban co muon doi sang IP khac? (y/n, mac dinh n): " "n"
             if [ "$USER_INPUT" = "y" ] || [ "$USER_INPUT" = "Y" ]; then
                 read_terminal_line "Nhap dia chi IP moi: " ""
                 if [ -n "$USER_INPUT" ]; then
-                    TARGET_IP="$USER_INPUT"
+                    TARGET_IP=$(echo "$USER_INPUT" | tr -d ' \r\n\t' | sed 's/:5555$//')
                     SERIAL="$TARGET_IP:5555"
                     TRY_COUNT=0
                     echo ">> Da doi muc tieu sang: $SERIAL"
                 fi
             fi
-            adb kill-server >/dev/null 2>&1 || true
-            adb start-server >/dev/null 2>&1 || true
         fi
 
-        sleep 1.5
+        sleep 1
     done
 fi
 
