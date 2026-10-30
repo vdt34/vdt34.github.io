@@ -74,7 +74,14 @@ read_val() {
 # ------------------------------------------------------------------------------
 # 2. XÓA FILE CŨ & TẢI 3 FILE APK MỚI NHẤT TỪ GITHUB (KHI CÒN ĐANG CÓ MẠNG)
 # ------------------------------------------------------------------------------
-echo ">> [1/4] Đang dọn sạch file cũ & tải toàn bộ APK mới nhất từ GitHub..."
+echo ">> [1/4] Đang dọn sạch toàn bộ file .sh cũ, cache & tải APK mới nhất..."
+# Quét & xóa sạch các file script .sh cũ từng tải về (tránh chạy nhầm bản cũ)
+CUR_SCRIPT=$(basename "$0" 2>/dev/null || echo "")
+for old_sh in ./r1.sh ./r1*.sh ./install.sh /tmp/r1*.sh /tmp/install*.sh; do
+    if [ -f "$old_sh" ] && [ "$(basename "$old_sh")" != "$CUR_SCRIPT" ]; then
+        rm -f "$old_sh" 2>/dev/null || true
+    fi
+done
 rm -rf "$CACHE_DIR" 2>/dev/null || true
 mkdir -p "$CACHE_DIR"
 
@@ -346,9 +353,12 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# 7. DỌN SẠCH FILE TẠM TRÊN iSH ĐỂ LẦN SAU KHÔNG BỊ DÍNH FILE CŨ
+# 7. DỌN SẠCH FILE TẠM & FILE SCRIPT .SH TRÊN iSH ĐỂ LẦN SAU KHÔNG BỊ DÍNH FILE CŨ
 # ------------------------------------------------------------------------------
 rm -rf "$CACHE_DIR" 2>/dev/null || true
+for tmp_sh in ./r1.sh ./r1*.sh /tmp/r1*.sh /tmp/install*.sh; do
+    [ -f "$tmp_sh" ] && rm -f "$tmp_sh" 2>/dev/null || true
+done
 
 echo ""
 echo "=========================================================="

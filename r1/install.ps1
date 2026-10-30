@@ -1,4 +1,4 @@
-﻿# ==============================================================================
+# ==============================================================================
 # BO CAI PHICOMM R1 SIEU TOC CHO WINDOWS (POWERSHELL)
 # Tu dong xoa sach file cu, luon tai ban moi nhat tu GitHub
 # ==============================================================================
@@ -83,11 +83,13 @@ $Apks = @("autodlna.apk", "unisound.apk", "AIBoxPlus_DLNA.apk")
 Write-Host ""
 Write-Host ">> [1/4] Dang don sach file cu & tai toan bo 3 file APK moi nhat tu GitHub..." -ForegroundColor Cyan
 
-# Xoa cac file APK cu trong cache de khong bi dung ban cu
+# Xoa cac file APK cu va script cu trong cache de khong bi dung ban cu
 foreach ($f in $Apks) {
     $oldFile = Join-Path $TempDir $f
     if (Test-Path $oldFile) { Remove-Item $oldFile -Force -ErrorAction SilentlyContinue }
 }
+Get-ChildItem -Path $TempDir -Filter "*.ps1" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+Get-ChildItem -Path $TempDir -Filter "*.cmd" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 
 $Missing = $false
 $UnixTs = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
