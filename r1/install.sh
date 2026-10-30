@@ -11,6 +11,23 @@ APK_DLNA="autodlna.apk"
 APK_UNI="unisound.apk"
 APK_AI="AIBoxPlus_DLNA.apk"
 
+# Tu dong luu script thanh file cuc bo de khong bi dut doan khi chuyen mang WiFi loa (192.168.43.1)
+if [ "$R1_EXEC_LOCAL" != "1" ]; then
+    SELF_TMP="/tmp/r1_install_exec.sh"
+    case "$0" in
+        sh|-sh|bash|-bash|*/sh|*/bash|"")
+            if command -v curl >/dev/null 2>&1; then
+                curl -k -sL "$BASE_URL/install.sh" -o "$SELF_TMP" 2>/dev/null || true
+                if [ -f "$SELF_TMP" ] && [ -s "$SELF_TMP" ]; then
+                    export R1_EXEC_LOCAL=1
+                    exec sh "$SELF_TMP" "$@"
+                    exit 0
+                fi
+            fi
+            ;;
+    esac
+fi
+
 clear
 echo "=========================================================="
 echo "    KHỞI TẠO MÔI TRƯỜNG CÀI ĐẶT PHICOMM R1 TỰ ĐỘNG"
@@ -552,12 +569,11 @@ if [ "$MODE" = "FULL" ]; then
         # Khởi chạy ứng dụng AI Box Plus DLNA
         am start -n info.dourok.voicebot/.java.activities.MainActivity 2>/dev/null
 
-        # Tự động cấu hình ngay sau khi cài: BẬT DLNA, AirPlay, Bluetooth & Đèn RGB; TẮT Đèn viền & Đèn chờ
+        # Tu dong cau hinh ngay sau khi cai: BAT DLNA, AirPlay, Bluetooth & Den RGB; TAT Den vien & Den cho
         settings put global bluetooth_on 1 2>/dev/null
         service call bluetooth_manager 6 2>/dev/null
         mkdir -p /data/data/info.dourok.voicebot/shared_prefs 2>/dev/null
-        echo '<?xml version="1.0" encoding="utf-8" standalone="yes" ?><map><boolean name="led_enabled" value="false" /></map>' > /data/data/info.dourok.voicebot/shared_prefs/led_controller_prefs.xml 2>/dev/null
-        chmod 660 /data/data/info.dourok.voicebot/shared_prefs/led_controller_prefs.xml 2>/dev/null
+        setprop persist.sys.r1_led 0 2>/dev/null
         lights_test set 7fffff8000 0 2>/dev/null
         lights_test set 7fffff0000 ffffff 2>/dev/null
     " >/dev/null 2>&1
@@ -642,12 +658,11 @@ if [ "$MODE" = "UPDATE_ONLY" ]; then
         pm enable info.dourok.voicebot 2>/dev/null
         am start -n info.dourok.voicebot/.java.activities.MainActivity 2>/dev/null
 
-        # Tự động cấu hình ngay sau khi cập nhật: BẬT DLNA, AirPlay, Bluetooth & Đèn RGB; TẮT Đèn viền & Đèn chờ
+        # Tu dong cau hinh ngay sau khi cap nhat: BAT DLNA, AirPlay, Bluetooth & Den RGB; TAT Den vien & Den cho
         settings put global bluetooth_on 1 2>/dev/null
         service call bluetooth_manager 6 2>/dev/null
         mkdir -p /data/data/info.dourok.voicebot/shared_prefs 2>/dev/null
-        echo '<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\" ?><map><boolean name=\"led_enabled\" value=\"false\" /></map>' > /data/data/info.dourok.voicebot/shared_prefs/led_controller_prefs.xml 2>/dev/null
-        chmod 660 /data/data/info.dourok.voicebot/shared_prefs/led_controller_prefs.xml 2>/dev/null
+        setprop persist.sys.r1_led 0 2>/dev/null
         lights_test set 7fffff8000 0 2>/dev/null
         lights_test set 7fffff0000 ffffff 2>/dev/null
     " >/dev/null 2>&1
