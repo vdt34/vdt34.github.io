@@ -11,6 +11,10 @@ APK_DLNA="autodlna.apk"
 APK_UNI="unisound.apk"
 APK_AI="AIBoxPlus_DLNA.apk"
 
+# Xoa sach toan bo cache tam va file APK cu de luon luon tai va cai ban moi nhat
+rm -rf "$TEMP_DIR" /tmp/r1_scan_* 2>/dev/null || true
+mkdir -p "$TEMP_DIR"
+
 clear
 echo "=========================================================="
 echo "    KHOI TAO MOI TRUONG CAI DAT PHICOMM R1 TREN iSH"
@@ -154,11 +158,30 @@ prompt_for_target_ip() {
     echo "  [1] Tu dong quet mang WiFi de tim IP loa (Khuyen dung)"
     echo "  [2] Nhap dia chi IP truc tiep thu cong"
     echo ""
-    prompt_var "Chon phuong thuc tim IP (1-2, mac dinh 1): " "IP_OPT" "1"
+    
+    IP_OPT=""
+    while [ "$IP_OPT" != "1" ] && [ "$IP_OPT" != "2" ]; do
+        printf "Chon phuong thuc tim IP (1 hoac 2): "
+        if (exec </dev/tty) 2>/dev/null; then
+            read IP_OPT </dev/tty 2>/dev/null || read IP_OPT 2>/dev/null || true
+        else
+            read IP_OPT 2>/dev/null || true
+        fi
+        IP_OPT=$(echo "$IP_OPT" | tr -d ' \r\n\t')
+        [ -z "$IP_OPT" ] && IP_OPT="1"
+    done
 
     if [ "$IP_OPT" = "1" ]; then
         CUR_SUB=$(detect_subnet)
-        prompt_var "Dai mang can quet [mac dinh: $CUR_SUB]: " "USER_SUB" "$CUR_SUB"
+        printf "Dai mang can quet [mac dinh: %s]: " "$CUR_SUB"
+        if (exec </dev/tty) 2>/dev/null; then
+            read USER_SUB </dev/tty 2>/dev/null || read USER_SUB 2>/dev/null || true
+        else
+            read USER_SUB 2>/dev/null || true
+        fi
+        USER_SUB=$(echo "$USER_SUB" | tr -d ' \r\n\t')
+        [ -z "$USER_SUB" ] && USER_SUB="$CUR_SUB"
+
         scan_lan_for_r1 "$USER_SUB"
         if [ -n "$FIRST_FOUND_IP" ]; then
             SUGGESTED="$FIRST_FOUND_IP"
@@ -166,11 +189,25 @@ prompt_for_target_ip() {
     fi
 
     echo ""
-    if [ -n "$SUGGESTED" ]; then
-        prompt_var "Nhap dia chi IP cua loa [Enter de chon $SUGGESTED]: " "TARGET_IP" "$SUGGESTED"
-    else
-        prompt_var "Nhap dia chi IP cua loa (VD: 192.168.1.15): " "TARGET_IP" "192.168.43.1"
-    fi
+    TARGET_IP=""
+    while [ -z "$TARGET_IP" ]; do
+        if [ -n "$SUGGESTED" ]; then
+            printf "Nhap dia chi IP cua loa [Enter de chon %s]: " "$SUGGESTED"
+        else
+            printf "Nhap dia chi IP cua loa (VD: 192.168.1.15): "
+        fi
+        if (exec </dev/tty) 2>/dev/null; then
+            read TARGET_IP </dev/tty 2>/dev/null || read TARGET_IP 2>/dev/null || true
+        else
+            read TARGET_IP 2>/dev/null || true
+        fi
+        TARGET_IP=$(echo "$TARGET_IP" | tr -d ' \r\n\t')
+        if [ -z "$TARGET_IP" ] && [ -n "$SUGGESTED" ]; then
+            TARGET_IP="$SUGGESTED"
+        elif [ -z "$TARGET_IP" ]; then
+            echo ">> Vui long go dia chi IP cua loa (vi du: 192.168.1.47)!"
+        fi
+    done
     echo ">> [XAC NHAN] Dia chi IP lua chon: $TARGET_IP"
 }
 
@@ -190,6 +227,9 @@ elif [ "$ARG1" = "update" ]; then
         prompt_for_target_ip
     fi
 else
+    echo "=========================================================="
+    echo "              BANG DIEU KHIEN PHICOMM R1                  "
+    echo "=========================================================="
     echo "Chon thao tac ban muon thuc hien:"
     echo "  [1] Cai dat day du qua che do phat WiFi cua loa (IP: 192.168.43.1)"
     echo "  [2] Cai dat day du qua mang WiFi nha (Tu dong tim IP hoac nhap thu cong)"
@@ -197,61 +237,70 @@ else
     echo "  [4] Quet & tim dia chi IP cua loa trong mang WiFi"
     echo "  [5] Xem IP loa duoc cap khi dang ket noi WiFi loa (192.168.43.1)"
     echo "  [6] Thoat"
+    echo "=========================================================="
     echo ""
-    prompt_var "Nhap lua chon cua ban (1-6, mac dinh 1): " "CHOICE" "1"
 
-    case "$CHOICE" in
-        1)
-            TARGET_IP="192.168.43.1"
-            MODE="FULL"
-            ;;
-        2)
-            prompt_for_target_ip
-            MODE="FULL"
-            ;;
-        3)
-            prompt_for_target_ip
-            MODE="UPDATE_ONLY"
-            ;;
-        4)
-            CUR_SUB=$(detect_subnet)
-            prompt_var "Dai mang can quet [mac dinh: $CUR_SUB]: " "USER_SUB" "$CUR_SUB"
-            scan_lan_for_r1 "$USER_SUB"
-            exit 0
-            ;;
-        5)
-            TARGET_IP="192.168.43.1"
-            MODE="READ_AP_IP"
-            ;;
-        6)
-            echo "Thoat chuong trinh."
-            exit 0
-            ;;
-        *)
-            TARGET_IP="192.168.43.1"
-            MODE="FULL"
-            ;;
-    esac
+    CHOICE=""
+    while [ -z "$CHOICE" ]; do
+        printf "Nhap lua chon cua ban (1-6): "
+        if (exec </dev/tty) 2>/dev/null; then
+            read CHOICE </dev/tty 2>/dev/null || read CHOICE 2>/dev/null || true
+        else
+            read CHOICE 2>/dev/null || true
+        fi
+
+        CHOICE=$(echo "$CHOICE" | tr -d ' \r\n\t')
+
+        case "$CHOICE" in
+            1)
+                TARGET_IP="192.168.43.1"
+                MODE="FULL"
+                ;;
+            2)
+                prompt_for_target_ip
+                MODE="FULL"
+                ;;
+            3)
+                prompt_for_target_ip
+                MODE="UPDATE_ONLY"
+                ;;
+            4)
+                CUR_SUB=$(detect_subnet)
+                prompt_var "Dai mang can quet [mac dinh: $CUR_SUB]: " "USER_SUB" "$CUR_SUB"
+                scan_lan_for_r1 "$USER_SUB"
+                exit 0
+                ;;
+            5)
+                TARGET_IP="192.168.43.1"
+                MODE="READ_AP_IP"
+                ;;
+            6)
+                echo "Thoat chuong trinh."
+                exit 0
+                ;;
+            *)
+                echo ">> Vui long go mot so tu 1 den 6 (VD: 1 de cai sach full):"
+                CHOICE=""
+                ;;
+        esac
+    done
 fi
 
-# 2. Chi tai cac file APK can thiet cho che do duoc chon (Tiet kiem bang thong va bo nho)
+# 2. Chi tai cac file APK can thiet cho che do duoc chon (xoa sach file cu, luon tai ban moi nhat)
 mkdir -p "$TEMP_DIR"
 cd "$TEMP_DIR"
 
 download_file() {
     FILE="$1"
-    if [ -f "$FILE" ] && [ -s "$FILE" ]; then
-        echo ">> File $FILE da co trong cache (/tmp). Bo qua tai lai."
+    # Xoa bo file cu trong cache de tranh dung lai ban loi cu
+    rm -f "$FILE" "$FILE.tmp"
+    echo ">> Dang tai ban moi nhat $FILE tu GitHub ($BASE_URL)..."
+    if curl -k -L -# -f -o "$FILE.tmp" "$BASE_URL/$FILE"; then
+        mv "$FILE.tmp" "$FILE"
+        echo ">> [OK] Da tai $FILE moi nhat thanh cong."
     else
-        echo ">> Dang tai $FILE tu GitHub ($BASE_URL)..."
+        echo ">> [LOI] Khong the tai $FILE tu GitHub. Kiem tra lai ket noi Internet!"
         rm -f "$FILE.tmp"
-        if curl -k -L -# -f -o "$FILE.tmp" "$BASE_URL/$FILE"; then
-            mv "$FILE.tmp" "$FILE"
-            echo ">> [OK] Da tai $FILE thanh cong."
-        else
-            echo ">> [CANH BAO] Khong the tai $FILE tu GitHub. Kiem tra lai ket noi Internet!"
-            rm -f "$FILE.tmp"
-        fi
     fi
 }
 
