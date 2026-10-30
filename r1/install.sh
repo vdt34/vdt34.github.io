@@ -2,7 +2,8 @@
 # Script Cai Dat & Cap Nhat Phicomm R1 tren iPhone qua iSH (Alpine Linux) / Linux
 # Nguon APK: https://vdt34.github.io/r1/
 
-set -e
+# Khong su dung set -e de tranh script bi crash dot ngot tren iSH / Alpine Linux
+# set -e da duoc go bo hoan toan
 
 BASE_URL="https://vdt34.github.io/r1"
 TEMP_DIR="/tmp/r1_install"
@@ -32,7 +33,7 @@ if [ -n "$NEED_INSTALL" ]; then
     if command -v apk >/dev/null 2>&1; then
         echo ">> Phat hien chua co:$NEED_INSTALL. Dang tu dong cai dat tren iSH..."
         apk update >/dev/null 2>&1 || true
-        apk add --no-cache $NEED_INSTALL
+        apk add --no-cache $NEED_INSTALL || true
         echo ">> [OK] Da cai dat xong cac cong cu can thiet tren iSH!"
     elif command -v apt-get >/dev/null 2>&1; then
         echo ">> Dang cai dat cac cong cu qua apt..."
@@ -108,9 +109,10 @@ scan_lan_for_r1() {
                 if check_port "$TARGET" "5555"; then
                     echo "$TARGET" > "$SCAN_TMP/$i"
                 fi
+                exit 0
             ) &
         done
-        wait
+        wait || true
         printf "\r[*] Tien do quet: %d/254 IP..." "$BATCH_END"
         IDX=$((BATCH_END + 1))
     done
@@ -234,9 +236,14 @@ download_file() {
         echo ">> File $FILE da co trong cache (/tmp). Bo qua tai lai."
     else
         echo ">> Dang tai $FILE tu GitHub ($BASE_URL)..."
-        curl -k -L -# -o "$FILE.tmp" "$BASE_URL/$FILE"
-        mv "$FILE.tmp" "$FILE"
-        echo ">> [OK] Da tai $FILE thanh cong."
+        rm -f "$FILE.tmp"
+        if curl -k -L -# -f -o "$FILE.tmp" "$BASE_URL/$FILE"; then
+            mv "$FILE.tmp" "$FILE"
+            echo ">> [OK] Da tai $FILE thanh cong."
+        else
+            echo ">> [CANH BAO] Khong the tai $FILE tu GitHub. Kiem tra lai ket noi Internet!"
+            rm -f "$FILE.tmp"
+        fi
     fi
 }
 
@@ -264,7 +271,7 @@ echo "=========================================================="
 echo "      KIEM TRA KET NOI DEN LOA R1 ($SERIAL)               "
 echo "=========================================================="
 
-set +e
+
 adb disconnect "$SERIAL" >/dev/null 2>&1
 CONN_CHECK=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
 DEV_STATE=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d '\r\n')
@@ -327,7 +334,8 @@ if [ "$DEV_STATE" != "device" ] && ! echo "$CONN_CHECK" | grep -q "connected to"
         sleep 1.5
     done
 fi
-set -e
+# Khong su dung set -e de tranh script bi crash dot ngot tren iSH / Alpine Linux
+# set -e da duoc go bo hoan toan
 
 echo ""
 echo ">> [DA KET NOI] THIET BI SAN SANG TAI $SERIAL!"
@@ -339,8 +347,13 @@ install_apk_on_device() {
     PKG_NAME="$2"
     DESC="$3"
     
+    if [ ! -f "$LOCAL_APK" ] || [ ! -s "$LOCAL_APK" ]; then
+        echo ">> [LOI] Khong tim thay file $LOCAL_APK tren bo nho tam!"
+        return 1
+    fi
+    
     echo ">> Dang day $DESC len loa..."
-    adb -s "$SERIAL" push "$LOCAL_APK" "$REMOTE_TMP" >/dev/null 2>&1
+    adb -s "$SERIAL" push "$LOCAL_APK" "$REMOTE_TMP" >/dev/null 2>&1 || true
     
     echo ">> Dang cai dat $DESC..."
     INSTALL_OUT=$(adb -s "$SERIAL" shell "/system/bin/pm install -r $REMOTE_TMP" 2>&1 | tr -d '\r')
@@ -358,6 +371,7 @@ install_apk_on_device() {
     fi
     
     adb -s "$SERIAL" shell "rm -f $REMOTE_TMP" >/dev/null 2>&1 || true
+    return 0
 }
 
 # 4. Che do xem thong tin IP WiFi cua loa
