@@ -376,6 +376,9 @@ echo "=========================================================="
 echo "      KIỂM TRA KẾT NỐI ĐẾN LOA R1 ($SERIAL)               "
 echo "=========================================================="
 
+# Khoi dong va lam sach adb server truoc
+adb kill-server >/dev/null 2>&1 || true
+sleep 0.5
 adb start-server >/dev/null 2>&1 || true
 
 if [ "$TARGET_IP" = "192.168.43.1" ]; then
@@ -402,29 +405,32 @@ TRY_COUNT=0
 while true; do
     TRY_COUNT=$((TRY_COUNT + 1))
 
-    # Kiểm tra cổng 5555 trước để không làm nghẽn hàng đợi socket của ADB
-    PORT_ACTIVE=0
-    if check_port "$TARGET_IP" "5555"; then
-        PORT_ACTIVE=1
-    fi
+    # Ket noi truc tiep ADB toi loa
+    CONN_OUT=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
+    DEV_STATE=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d '\r\n')
 
-    # Khi cổng 5555 mở hoặc định kỳ mỗi 3 lần lặp
-    if [ "$PORT_ACTIVE" = "1" ] || [ $((TRY_COUNT % 3)) -eq 0 ]; then
-        adb connect "$SERIAL" >/dev/null 2>&1
-        DEV_STATE=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d '\r\n')
-        if [ "$DEV_STATE" = "device" ]; then
-            if adb -s "$SERIAL" shell getprop ro.build.version.release >/dev/null 2>&1; then
-                echo ""
-                echo ">> [KẾT NỐI THÀNH CÔNG] Đã nhận diện loa Phicomm R1 tại $SERIAL!"
-                break
-            fi
+    # Neu thiet bi bao device hoac connected to
+    if [ "$DEV_STATE" = "device" ] || echo "$CONN_OUT" | grep -q "connected to"; then
+        # Kiem tra quyen thuc thi lenh tren loa (ho tro ca device phan hoi cham)
+        if adb -s "$SERIAL" shell "echo r1_ok" 2>/dev/null | grep -q "r1_ok"; then
+            echo ""
+            echo ">> [KẾT NỐI THÀNH CÔNG] Đã nhận diện loa Phicomm R1 tại $SERIAL!"
+            break
         fi
     fi
 
-    printf "\r[*] Đang chờ kết nối [%s] (Lần thử %d)...   " "$SERIAL" "$TRY_COUNT"
+    printf "\r[*] Đang chờ kết nối [%s] (Lần thử %d) | %s   " "$SERIAL" "$TRY_COUNT" "$CONN_OUT"
 
-    # Nếu sau 15 lần thử (~12 giây) ở chế độ WiFi nhà mà chưa thấy, hỏi đổi IP
-    if [ $((TRY_COUNT % 15)) -eq 0 ]; then
+    # Sau moi 6 lan thu (~6s), reset socket de giai phong port bi ket boi scan_lan
+    if [ $((TRY_COUNT % 6)) -eq 0 ]; then
+        adb disconnect "$SERIAL" >/dev/null 2>&1 || true
+        adb kill-server >/dev/null 2>&1 || true
+        sleep 0.5
+        adb start-server >/dev/null 2>&1 || true
+    fi
+
+    # Nếu sau 18 lần thử ở chế độ WiFi nhà mà chưa thấy, hỏi đổi IP
+    if [ $((TRY_COUNT % 18)) -eq 0 ]; then
         if [ "$TARGET_IP" != "192.168.43.1" ]; then
             echo ""
             RETRY_CHOICE=$(read_input ">> Chưa thấy loa tại $TARGET_IP. Bạn có muốn đổi IP khác? (y/n, mặc định n): " "n")
@@ -438,11 +444,9 @@ while true; do
                 fi
             fi
         fi
-        adb kill-server >/dev/null 2>&1 || true
-        adb start-server >/dev/null 2>&1 || true
     fi
 
-    sleep 0.8
+    sleep 1
 done
 
 echo ""
