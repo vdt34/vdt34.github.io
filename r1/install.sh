@@ -352,21 +352,43 @@ fi
 echo ">> He thong dang tu dong cho ket noi (Nhan Ctrl + C neu muon dung)..."
 echo ""
 
-# Ham kiem tra loa da san sang nhan lenh ADB chua
+# Ham kiem tra loa da ket noi va san sang chua
 is_r1_ready() {
-    adb -s "$SERIAL" shell "getprop ro.build.version.release" >/dev/null 2>&1
+    # 1. Kiem tra trang thai thiet bi tren adb
+    DEV_STATE=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d '\r\n')
+    if [ "$DEV_STATE" = "device" ]; then
+        return 0
+    fi
+    # 2. Hoac kiem tra qua lenh adb devices
+    if adb devices 2>/dev/null | grep "$SERIAL" | grep -v "offline" | grep -q "device"; then
+        return 0
+    fi
+    # 3. Hoac kiem tra thu thi shell nhanh
+    if adb -s "$SERIAL" shell "echo 1" 2>/dev/null | grep -q "1"; then
+        return 0
+    fi
+    return 1
 }
 
-# Thu ket noi lan dau
-adb connect "$SERIAL" >/dev/null 2>&1 || true
+# Ket noi thu lan dau
+CONN_INIT=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
+sleep 1
 
 if ! is_r1_ready; then
+    # Neu bao already connected ma get-state khong phai device (socket ma tren adb daemon)
+    if echo "$CONN_INIT" | grep -q "already connected"; then
+        echo ">> Phat hien socket cu dang giu, dang lam sach ket noi..."
+        adb disconnect "$SERIAL" >/dev/null 2>&1 || true
+        adb kill-server >/dev/null 2>&1 || true
+        sleep 1
+        adb start-server >/dev/null 2>&1 || true
+        adb connect "$SERIAL" >/dev/null 2>&1 || true
+        sleep 1
+    fi
+
     TRY_COUNT=0
     while true; do
         TRY_COUNT=$((TRY_COUNT + 1))
-
-        # Goi connect toi loa (TUYET DOI khong disconnect giua chung de khong lam dut bat tay TCP)
-        CONN_RES=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
 
         if is_r1_ready; then
             echo ""
@@ -374,10 +396,27 @@ if ! is_r1_ready; then
             break
         fi
 
-        printf "\r[*] Dang cho ket noi [%s] (Thu %d) | %s   " "$SERIAL" "$TRY_COUNT" "$CONN_RES"
+        CONN_RES=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
+        DEV_STATE=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d '\r\n')
 
-        # Dinh ky sau moi 8 lan thu, neu bi ket adb socket tren may, restart nhe adb server
-        if [ $((TRY_COUNT % 8)) -eq 0 ]; then
+        if is_r1_ready; then
+            echo ""
+            echo ">> [THANH CONG] Da ket noi duoc den loa tai $SERIAL!"
+            break
+        fi
+
+        printf "\r[*] Dang cho ket noi [%s] (Thu %d) | Trang thai: %s   " "$SERIAL" "$TRY_COUNT" "$CONN_RES"
+
+        # Neu bi ket 'already connected' hoac sau moi 6 lan thu (~7s), lam sach adb server de bat tay lai
+        if echo "$CONN_RES" | grep -q "already connected" || [ $((TRY_COUNT % 6)) -eq 0 ]; then
+            adb disconnect "$SERIAL" >/dev/null 2>&1 || true
+            adb kill-server >/dev/null 2>&1 || true
+            sleep 0.8
+            adb start-server >/dev/null 2>&1 || true
+        fi
+
+        # Sau 18 lan thu (~20s) o che do WiFi nha ma chua duoc, hoi nguoi dung
+        if [ $((TRY_COUNT % 18)) -eq 0 ]; then
             if [ "$TARGET_IP" != "192.168.43.1" ]; then
                 echo ""
                 RETRY_CHOICE=$(read_input ">> Chua thay loa tai $TARGET_IP. Ban co muon doi IP khac? (y/n, mac dinh n): " "n")
@@ -391,9 +430,6 @@ if ! is_r1_ready; then
                     fi
                 fi
             fi
-            adb kill-server >/dev/null 2>&1 || true
-            sleep 0.5
-            adb start-server >/dev/null 2>&1 || true
         fi
 
         sleep 1.2
