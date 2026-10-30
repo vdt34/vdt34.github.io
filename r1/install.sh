@@ -551,6 +551,15 @@ if [ "$MODE" = "FULL" ]; then
         am start -n com.phicomm.speaker.device/.ui.MainActivity 2>/dev/null
         # Khởi chạy ứng dụng AI Box Plus DLNA
         am start -n info.dourok.voicebot/.java.activities.MainActivity 2>/dev/null
+
+        # Tự động cấu hình ngay sau khi cài: BẬT DLNA, AirPlay, Bluetooth & Đèn RGB; TẮT Đèn viền & Đèn chờ
+        settings put global bluetooth_on 1 2>/dev/null
+        service call bluetooth_manager 6 2>/dev/null
+        mkdir -p /data/data/info.dourok.voicebot/shared_prefs 2>/dev/null
+        echo '<?xml version="1.0" encoding="utf-8" standalone="yes" ?><map><boolean name="led_enabled" value="false" /></map>' > /data/data/info.dourok.voicebot/shared_prefs/led_controller_prefs.xml 2>/dev/null
+        chmod 660 /data/data/info.dourok.voicebot/shared_prefs/led_controller_prefs.xml 2>/dev/null
+        lights_test set 7fffff8000 0 2>/dev/null
+        lights_test set 7fffff0000 ffffff 2>/dev/null
     " >/dev/null 2>&1
 
     sleep 1
@@ -632,6 +641,15 @@ if [ "$MODE" = "UPDATE_ONLY" ]; then
         pm unhide info.dourok.voicebot 2>/dev/null
         pm enable info.dourok.voicebot 2>/dev/null
         am start -n info.dourok.voicebot/.java.activities.MainActivity 2>/dev/null
+
+        # Tự động cấu hình ngay sau khi cập nhật: BẬT DLNA, AirPlay, Bluetooth & Đèn RGB; TẮT Đèn viền & Đèn chờ
+        settings put global bluetooth_on 1 2>/dev/null
+        service call bluetooth_manager 6 2>/dev/null
+        mkdir -p /data/data/info.dourok.voicebot/shared_prefs 2>/dev/null
+        echo '<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\" ?><map><boolean name=\"led_enabled\" value=\"false\" /></map>' > /data/data/info.dourok.voicebot/shared_prefs/led_controller_prefs.xml 2>/dev/null
+        chmod 660 /data/data/info.dourok.voicebot/shared_prefs/led_controller_prefs.xml 2>/dev/null
+        lights_test set 7fffff8000 0 2>/dev/null
+        lights_test set 7fffff0000 ffffff 2>/dev/null
     " >/dev/null 2>&1
 
     sleep 1
