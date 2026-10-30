@@ -1,6 +1,6 @@
 ﻿# ==============================================================================
 # BỘ CÀI PHICOMM R1 SIÊU TỐC CHO WINDOWS (POWERSHELL)
-# Chuẩn hóa theo new.bat v5.1.3: Nhập IP trực tiếp, đẩy lên /data/local/tmp/
+# Chuẩn hóa 100% theo new.bat v5.1.3: Kết nối nhanh 1-2s, đẩy lên /data/local/tmp/
 # ==============================================================================
 if (-not (Test-Path variable:Ip)) { $Ip = "" }
 if (-not (Test-Path variable:Yes)) { $Yes = $false }
@@ -117,51 +117,49 @@ if ($Missing) {
     return
 }
 
-# 4. Đánh thức loa qua WebSocket 8080 & Kết nối ADB
+# 4. Kết nối ADB tới loa (Chuẩn xác 100% theo :connect và :connect_retry của new.bat)
 Write-Host ""
-Write-Host ">> [2/4] Đang kết nối tới loa tại $Serial..." -ForegroundColor Cyan
-
-function Revive-Speaker($IpAddr) {
-    if ($DryRun -or $env:R1_DRYRUN -eq "1") { return }
-    try {
-        $ws = New-Object System.Net.WebSockets.ClientWebSocket
-        $ct = [System.Threading.CancellationToken]::None
-        $t = $ws.ConnectAsync([Uri]"ws://$($IpAddr):8080", $ct)
-        if ($t.Wait(2000) -and $ws.State -eq [System.Net.WebSockets.WebSocketState]::Open) {
-            $cmd = "stop adbd; setprop service.adb.tcp.port 5555; start adbd; svc power stayon true; am force-stop com.phicomm.speaker.airskill; am force-stop com.phicomm.speaker.otaservice"
-            $json = '{"type":"shell","type_id":"revive","shell":"' + $cmd + '"}'
-            $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
-            $seg = New-Object System.ArraySegment[byte] -ArgumentList @(,$bytes)
-            $ws.SendAsync($seg, [System.Net.WebSockets.WebSocketMessageType]::Text, $true, $ct).Wait(2000) | Out-Null
-            $ws.CloseAsync([System.Net.WebSockets.WebSocketCloseStatus]::NormalClosure, "", $ct).Wait(1000) | Out-Null
-        }
-    } catch {}
-}
+Write-Host ">> [2/4] Bắt đầu kết nối thiết bị [$Serial]..." -ForegroundColor Cyan
 
 if (-not $DryRun -and $env:R1_DRYRUN -ne "1") {
-    # Reset adb theo chuẩn new.bat
+    # Reset adb chuẩn new.bat (:adb_reset)
+    Stop-Process -Name adb -Force -ErrorAction SilentlyContinue
     adb kill-server 2>$null | Out-Null
     adb start-server 2>$null | Out-Null
-    Revive-Speaker $TargetIp
-    Start-Sleep -Milliseconds 600
+    Start-Sleep -Seconds 1
 
-    $try = 0
-    while ($true) {
-        $try++
-        $res = (adb connect $Serial 2>&1 | Out-String).Trim()
+    $connected = $false
+    for ($try = 1; $try -le 5; $try++) {
+        Write-Host "   [Kết nối] Thử lần $try/5 tới $Serial..." -ForegroundColor Yellow
+        adb connect $Serial 2>$null | Out-Null
+        Start-Sleep -Milliseconds 600
+
         $state = (adb -s $Serial get-state 2>$null | Out-String).Trim()
-        if ($state -eq "device") { break }
-
-        Write-Host -NoNewline "`r[*] Đang chờ kết nối [$Serial] (lần $try)... "
-        if ($try % 3 -eq 0 -or $res -match "already connected") {
-            adb disconnect $Serial 2>$null | Out-Null
-            Revive-Speaker $TargetIp
+        if ($state -eq "device") {
+            adb -s $Serial shell ls 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                $connected = $true
+                break
+            }
         }
-        Start-Sleep -Milliseconds 1000
+        Start-Sleep -Seconds 1
     }
-    Write-Host ""
+
+    if (-not $connected) {
+        Write-Host ""
+        Write-Host "==========================================================" -ForegroundColor Red
+        Write-Host "  [LỖI] KẾT NỐI THẤT BẠI TỚI LOA TẠI $Serial" -ForegroundColor Red
+        Write-Host "==========================================================" -ForegroundColor Red
+        Write-Host "Vui lòng kiểm tra:" -ForegroundColor Yellow
+        Write-Host " 1. Loa đã cắm nguồn và đang bật." -ForegroundColor White
+        Write-Host " 2. Máy tính và loa đang kết nối CÙNG MẠNG WiFi." -ForegroundColor White
+        Write-Host " 3. Địa chỉ IP của loa ($TargetIp) có đúng không." -ForegroundColor White
+        Write-Host "==========================================================" -ForegroundColor Red
+        Read-Host "Nhấn Enter để thoát"
+        return
+    }
 }
-Write-Host ">> [OK] Đã kết nối thành công tới loa ($Serial)!" -ForegroundColor Green
+Write-Host ">> [OK] Kết nối thành công tới loa ($Serial)!" -ForegroundColor Green
 
 # 5. ĐẨY HẾT CẢ 3 FILE APK LÊN /data/local/tmp/ CỦA LOA TRƯỚC
 Write-Host ""
