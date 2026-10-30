@@ -1,8 +1,8 @@
 #!/bin/sh
 # ==============================================================================
-# Script Cài Đặt & Cập Nhật Loa Phicomm R1 (Bản Siêu Tốc & Tự Động Hóa 2026)
-# Nguồn APK: https://vdt34.github.io/r1/
-# Tương thích: iPhone iSH (Alpine), Android Termux, macOS, Linux (Ubuntu/Debian)
+# Script Cai Dat & Cap Nhat Phicomm R1 tren iPhone qua iSH / Android / Linux
+# Nguon APK: https://vdt34.github.io/r1/
+# Phien ban: 2026 Sieu Ket Noi (On dinh - Bat tay ngay lap tuc)
 # ==============================================================================
 
 BASE_URL="https://vdt34.github.io/r1"
@@ -30,12 +30,12 @@ fi
 
 clear
 echo "=========================================================="
-echo "    KHỞI TẠO MÔI TRƯỜNG CÀI ĐẶT PHICOMM R1 TỰ ĐỘNG"
+echo "    KHOI TAO MOI TRUONG CAI DAT PHICOMM R1 TU DONG"
 echo "=========================================================="
 echo ""
 
 # ------------------------------------------------------------------------------
-# 1. TỰ ĐỘNG KIỂM TRA VÀ CÀI ĐẶT CÔNG CỤ CẦN THIẾT TRÊN MỌI HỆ ĐIỀU HÀNH
+# 1. TU DONG KIEM TRA VA CAI DAT CONG CU NEN
 # ------------------------------------------------------------------------------
 NEED_INSTALL=""
 if ! command -v adb >/dev/null 2>&1; then
@@ -44,43 +44,30 @@ fi
 if ! command -v curl >/dev/null 2>&1; then
     NEED_INSTALL="$NEED_INSTALL curl"
 fi
-if ! command -v nc >/dev/null 2>&1; then
-    NEED_INSTALL="$NEED_INSTALL nc"
-fi
 
 if [ -n "$NEED_INSTALL" ]; then
-    echo ">> Phát hiện máy chưa có:$NEED_INSTALL. Đang tự động cài đặt..."
+    echo ">> Phat hien thieu:$NEED_INSTALL. Dang tu dong cai dat..."
     if command -v apk >/dev/null 2>&1; then
-        # iSH (Alpine Linux trên iPhone/iPad)
         apk update >/dev/null 2>&1 || true
-        apk add --no-cache android-tools curl netcat-openbsd >/dev/null 2>&1 || true
+        apk add --no-cache android-tools curl >/dev/null 2>&1 || true
     elif command -v pkg >/dev/null 2>&1; then
-        # Termux trên Android
         pkg update -y >/dev/null 2>&1 || true
-        pkg install -y android-tools curl netcat-openbsd >/dev/null 2>&1 || true
+        pkg install -y android-tools curl >/dev/null 2>&1 || true
     elif command -v apt-get >/dev/null 2>&1; then
-        # Debian / Ubuntu / Raspberry Pi OS
         apt-get update -y >/dev/null 2>&1 || true
-        apt-get install -y android-tools-adb curl netcat-openbsd >/dev/null 2>&1 || true
-    elif command -v pacman >/dev/null 2>&1; then
-        # Arch Linux
-        pacman -Sy --noconfirm android-tools curl gnu-netcat >/dev/null 2>&1 || true
-    elif command -v dnf >/dev/null 2>&1; then
-        # Fedora / RHEL
-        dnf install -y android-tools curl nc >/dev/null 2>&1 || true
-    elif command -v brew >/dev/null 2>&1; then
-        # macOS Homebrew
-        brew install android-platform-tools curl netcat >/dev/null 2>&1 || true
-    else
-        echo ">> [Lưu ý] Không nhận diện được trình quản lý gói. Vui lòng đảm bảo đã cài: adb, curl, nc."
+        apt-get install -y android-tools-adb curl >/dev/null 2>&1 || true
     fi
-    echo ">> [OK] Đã hoàn tất kiểm tra công cụ nền tảng!"
+fi
+
+if ! command -v adb >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1; then
+    echo ">> [CANH BAO] Khong the tu dong cai adb hoac curl."
+    echo "   Vui long cai dat adb truoc khi tiep tuc."
 else
-    echo ">> [OK] Các công cụ (adb, curl, nc) đã có sẵn trên máy."
+    echo ">> [OK] Cac cong cu (adb, curl) da san sang tren may."
 fi
 
 # ------------------------------------------------------------------------------
-# 2. HÀM NHẬP DỮ LIỆU AN TOÀN (Tương thích cả khi chạy qua pipe: curl ... | sh)
+# 2. HAM NHAP LIEU AN TOAN
 # ------------------------------------------------------------------------------
 read_input() {
     PROMPT_MSG="$1"
@@ -100,7 +87,7 @@ read_input() {
 }
 
 # ------------------------------------------------------------------------------
-# 3. HÀM PHÁT HIỆN DẢI MẠNG VÀ KIỂM TRA CỔNG KẾT NỐI (Đa nền tảng)
+# 3. HAM TU DONG TIM SUB-NET MANG
 # ------------------------------------------------------------------------------
 detect_subnet() {
     SUB=""
@@ -117,29 +104,15 @@ detect_subnet() {
     echo "$SUB"
 }
 
-check_port() {
-    _IP="$1"
-    _PORT="$2"
-    if command -v nc >/dev/null 2>&1; then
-        nc -w 1 -z "$_IP" "$_PORT" >/dev/null 2>&1 && return 0
-        nc -w 1 "$_IP" "$_PORT" </dev/null >/dev/null 2>&1 && return 0
-    fi
-    if command -v timeout >/dev/null 2>&1; then
-        timeout 1 sh -c "exec 3<>/dev/tcp/$_IP/$_PORT" >/dev/null 2>&1 && return 0
-    fi
-    return 1
-}
-
 # ------------------------------------------------------------------------------
-# 4. HÀM QUÉT MẠNG LAN TÌM LOA R1 (Chạy batch song song siêu nhanh)
+# 4. HAM QUET MANG LAN TIM LOA R1
 # ------------------------------------------------------------------------------
 scan_lan_for_r1() {
     PREFIX="$1"
     [ -z "$PREFIX" ] && PREFIX=$(detect_subnet)
     
     echo ""
-    echo ">> Đang quét nhanh dải mạng ${PREFIX}.1 -> 254 để tìm loa Phicomm R1..."
-    echo "   (Kiểm tra cổng ADB 5555 mở qua kết nối song song)..."
+    echo ">> Dang quet nhanh dai mang ${PREFIX}.1 -> 254 de tim loa Phicomm R1..."
     
     SCAN_TMP="/tmp/r1_scan_$$"
     mkdir -p "$SCAN_TMP"
@@ -153,14 +126,16 @@ scan_lan_for_r1() {
         while [ $i -le $BATCH_END ]; do
             (
                 TARGET="${PREFIX}.${i}"
-                if check_port "$TARGET" "5555"; then
-                    echo "$TARGET" > "$SCAN_TMP/$i"
+                if command -v nc >/dev/null 2>&1; then
+                    if nc -w 1 -z "$TARGET" 5555 >/dev/null 2>&1; then
+                        echo "$TARGET" > "$SCAN_TMP/$i"
+                    fi
                 fi
             ) &
             i=$((i + 1))
         done
         wait
-        printf "\r[*] Tiến độ quét: %d/254 IP..." "$BATCH_END"
+        printf "\r[*] Tien do quet: %d/254 IP..." "$BATCH_END"
         IDX=$((BATCH_END + 1))
     done
     echo ""
@@ -171,15 +146,15 @@ scan_lan_for_r1() {
         if [ -f "$f" ]; then
             F_IP=$(cat "$f")
             FOUND_COUNT=$((FOUND_COUNT + 1))
-            echo "   [+] Phát hiện loa R1 [$FOUND_COUNT] tại IP: $F_IP"
+            echo "   [+] Phat hien loa R1 [$FOUND_COUNT] tai IP: $F_IP"
             [ -z "$FIRST_FOUND_IP" ] && FIRST_FOUND_IP="$F_IP"
         fi
     done
     rm -rf "$SCAN_TMP"
     
     if [ $FOUND_COUNT -eq 0 ]; then
-        echo ">> Không tìm thấy thiết bị nào mở cổng 5555 trong dải mạng ${PREFIX}.x."
-        echo "   (Hãy đảm bảo loa đã cắm nguồn và thiết bị đang bật Wi-Fi cùng lớp mạng)."
+        echo ">> Khong tim thay thiet bi nao mo cong 5555 trong dai mang ${PREFIX}.x."
+        echo "   (Hay dam bao loa da cam nguon va thiet bi dang bat Wi-Fi cung lop mang)."
     fi
 }
 
@@ -187,16 +162,16 @@ prompt_for_target_ip() {
     SUGGESTED=""
     echo ""
     echo "----------------------------------------------------------"
-    echo "           TÌM KIẾM & XÁC ĐỊNH IP CỦA LOA R1              "
+    echo "           TIM KIEM & XAC DINH IP CUA LOA R1              "
     echo "----------------------------------------------------------"
-    echo "  [1] Tự động quét mạng WiFi để tìm IP loa (Khuyên dùng)"
-    echo "  [2] Nhập trực tiếp địa chỉ IP loa thủ công"
+    echo "  [1] Tu dong quet mang WiFi de tim IP loa (Khuyen dung)"
+    echo "  [2] Nhap truc tiep dia chi IP loa thu cong"
     echo ""
-    IP_OPT=$(read_input "Chọn phương thức tìm IP (1-2, mặc định 1): " "1")
+    IP_OPT=$(read_input "Chon phuong thuc tim IP (1-2, mac dinh 1): " "1")
 
     if [ "$IP_OPT" = "1" ]; then
         CUR_SUB=$(detect_subnet)
-        USER_SUB=$(read_input "Dải mạng cần quét [mặc định: $CUR_SUB]: " "$CUR_SUB")
+        USER_SUB=$(read_input "Dai mang can quet [mac dinh: $CUR_SUB]: " "$CUR_SUB")
         scan_lan_for_r1 "$USER_SUB"
         if [ -n "$FIRST_FOUND_IP" ]; then
             SUGGESTED="$FIRST_FOUND_IP"
@@ -205,16 +180,16 @@ prompt_for_target_ip() {
 
     echo ""
     if [ -n "$SUGGESTED" ]; then
-        TARGET_IP=$(read_input "Nhập địa chỉ IP của loa [Enter để chọn $SUGGESTED]: " "$SUGGESTED")
+        TARGET_IP=$(read_input "Nhap dia chi IP cua loa [Enter de chon $SUGGESTED]: " "$SUGGESTED")
     else
-        TARGET_IP=$(read_input "Nhập địa chỉ IP của loa (VD: 192.168.1.15): " "192.168.43.1")
+        TARGET_IP=$(read_input "Nhap dia chi IP cua loa (VD: 192.168.1.15): " "192.168.43.1")
     fi
     TARGET_IP=$(echo "$TARGET_IP" | sed 's/:5555$//')
-    echo ">> [XÁC NHẬN] Địa chỉ IP lựa chọn: $TARGET_IP"
+    echo ">> [XAC NHAN] Dia chi IP lua chon: $TARGET_IP"
 }
 
 # ------------------------------------------------------------------------------
-# 5. XỬ LÝ THAM SỐ HOẶC HIỂN THỊ MENU ĐIỀU KHIỂN TIẾNG VIỆT
+# 5. XU LY THAM SO HOAC HIEN THI MENU DIEU KHIEN
 # ------------------------------------------------------------------------------
 ARG1="$1"
 ARG2="$2"
@@ -232,15 +207,15 @@ elif [ "$ARG1" = "update" ]; then
         prompt_for_target_ip
     fi
 else
-    echo "Chọn thao tác bạn muốn thực hiện:"
-    echo "  [1] Cài đặt SIÊU TỐC qua WiFi loa phát ra (IP: 192.168.43.1) [Khuyên dùng]"
-    echo "  [2] Cài đặt đầy đủ qua mạng WiFi nhà (Tự tìm hoặc nhập IP thủ công)"
-    echo "  [3] Chỉ cập nhật bản AI Box Plus DLNA mới nhất (Giữ nguyên cài đặt cũ)"
-    echo "  [4] Quét & tìm địa chỉ IP của loa R1 trong mạng WiFi nhà"
-    echo "  [5] Xem IP WiFi loa nhận được khi đang kết nối WiFi loa (192.168.43.1)"
-    echo "  [6] Thoát"
+    echo "Chon thao tac ban muon thuc hien:"
+    echo "  [1] Cai dat SIEU TOC qua WiFi loa phat ra (IP: 192.168.43.1) [Khuyen dung]"
+    echo "  [2] Cai dat day du qua mang WiFi nha (Tu tim hoac nhap IP thu cong)"
+    echo "  [3] Chi cap nhat ban AI Box Plus DLNA moi nhat (Giu nguyen cai dat cu)"
+    echo "  [4] Quet & tim dia chi IP cua loa R1 trong mang WiFi nha"
+    echo "  [5] Xem IP WiFi loa nhan duoc khi dang ket noi WiFi loa (192.168.43.1)"
+    echo "  [6] Thoat"
     echo ""
-    CHOICE=$(read_input "Nhập lựa chọn của bạn (1-6, mặc định 1): " "1")
+    CHOICE=$(read_input "Nhap lua chon cua ban (1-6, mac dinh 1): " "1")
 
     case "$CHOICE" in
         1)
@@ -257,7 +232,7 @@ else
             ;;
         4)
             CUR_SUB=$(detect_subnet)
-            USER_SUB=$(read_input "Dải mạng cần quét [mặc định: $CUR_SUB]: " "$CUR_SUB")
+            USER_SUB=$(read_input "Dai mang can quet [mac dinh: $CUR_SUB]: " "$CUR_SUB")
             scan_lan_for_r1 "$USER_SUB"
             exit 0
             ;;
@@ -266,7 +241,7 @@ else
             MODE="READ_AP_IP"
             ;;
         6)
-            echo "Thoát chương trình. Tạm biệt!"
+            echo "Thoat chuong trinh. Tam biet!"
             exit 0
             ;;
         *)
@@ -277,64 +252,43 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# 6. QUẢN LÝ BỘ NHỚ ĐỆM & TỰ ĐỘNG XÓA APK CŨ ĐỂ TẢI BẢN MỚI NHẤT
+# 6. QUAN LY BO NHO DEM & TAI FILE APK TU GITHUB
 # ------------------------------------------------------------------------------
 mkdir -p "$TEMP_DIR"
 cd "$TEMP_DIR" || exit 1
 
 echo ""
 echo "=========================================================="
-echo "    QUẢN LÝ TẢI VỀ & CẬP NHẬT FILE APK TỪ GITHUB          "
+echo "    QUAN LY TAI VE & CAP NHAT FILE APK TU GITHUB          "
 echo "=========================================================="
-
-# Kiểm tra xem máy hiện tại có kết nối Internet ra GitHub không
-HAS_INTERNET=0
-if curl -k -s --connect-timeout 4 -I "$BASE_URL/$APK_AI" >/dev/null 2>&1; then
-    HAS_INTERNET=1
-fi
-
-if [ "$HAS_INTERNET" = "1" ]; then
-    # Luôn xóa sạch cache APK cũ để đảm bảo người dùng luôn nhận bản APK cập nhật mới nhất
-    echo ">> [INTERNET OK] Đang xóa cache APK cũ trong $TEMP_DIR để tải bản mới nhất..."
-    rm -f "$TEMP_DIR"/*.apk "$TEMP_DIR"/*.tmp 2>/dev/null || true
-else
-    # Khi máy đang kết nối vào WiFi của Loa (192.168.43.1 không có Internet):
-    # Kiểm tra xem trước đó đã có file APK sẵn chưa
-    if [ -f "$TEMP_DIR/$APK_AI" ] && [ -s "$TEMP_DIR/$APK_AI" ]; then
-        echo ">> [CHẾ ĐỘ NGOẠI TUYẾN] Không có Internet (đang nối WiFi loa 192.168.43.1)."
-        echo "   Phát hiện các file APK đã tải trước đó trong máy -> Sử dụng để flash ngay!"
-    else
-        echo ">> [CẢNH BÁO] Không có kết nối Internet và chưa có file APK trong máy."
-        rm -f "$TEMP_DIR"/*.apk "$TEMP_DIR"/*.tmp 2>/dev/null || true
-    fi
-fi
 
 download_apk() {
     FILE="$1"
     MIN_SZ="$2"
     DESC="$3"
     
-    # Kiểm tra nếu file đã có và dung lượng hợp lệ
+    # 1. Kiem tra neu trong cache da co file day du dung luong
     if [ -f "$FILE" ]; then
         SZ=$(wc -c < "$FILE" 2>/dev/null | tr -d ' \r\n\t')
         if [ -n "$SZ" ] && [ "$SZ" -ge "$MIN_SZ" ]; then
-            echo ">> [ĐÃ CÓ SẴN] $DESC ($FILE) - Kích thước: ${SZ} bytes."
+            echo ">> [DA CO SAN] $DESC ($FILE) - Kich thuoc: ${SZ} bytes."
             return 0
         fi
     fi
     
-    echo ">> Đang tải $DESC từ GitHub ($BASE_URL/$FILE)..."
-    if curl -k -L -f --connect-timeout 15 -# -o "$FILE.tmp" "$BASE_URL/$FILE"; then
+    # 2. Neu chua co, thu tai tu GitHub
+    echo ">> Dang tai $DESC tu GitHub ($BASE_URL/$FILE)..."
+    if curl -k -L -f --connect-timeout 10 -# -o "$FILE.tmp" "$BASE_URL/$FILE"; then
         mv -f "$FILE.tmp" "$FILE"
-        echo ">> [OK] Đã tải xong $DESC thành công."
+        echo ">> [OK] Da tai xong $DESC thanh cong."
         return 0
     else
         rm -f "$FILE.tmp"
         if [ -f "$FILE" ] && [ -s "$FILE" ]; then
-            echo ">> [LƯU Ý] Không thể tải bản mới, giữ lại bản hiện có trong máy."
+            echo ">> [LUU Y] Khong the tai ban moi tu GitHub, su dung ban hien co trong may."
             return 0
         fi
-        echo ">> [LỖI] Không thể tải $DESC! Vui lòng kiểm tra lại kết nối mạng."
+        echo ">> [LOI] Khong the tai $DESC! Vui long kiem tra ket noi Internet."
         return 1
     fi
 }
@@ -351,109 +305,108 @@ fi
 if [ $DOWNLOAD_ERR -ne 0 ]; then
     echo ""
     echo "=========================================================="
-    echo "  [LỖI THIẾU FILE CAI ĐẶT DO CHƯA CÓ INTERNET]"
+    echo "  [LOI THIEU FILE CAI DAT DO CHUA CO INTERNET]"
     echo "=========================================================="
-    echo "Bạn đang kết nối vào WiFi của loa (192.168.43.1 không có mạng)"
-    echo "hoặc mạng Internet bị gián đoạn, nên chưa tải được file APK về máy."
+    echo "Ban dang ket noi vao WiFi cua loa (192.168.43.1 khong co mang)"
+    echo "hoac mang bi gian doan, nen chua co file APK trong may."
     echo ""
-    echo "CÁCH XỬ LÝ NHANH:"
-    echo " 1. Chuyển điện thoại/máy tính về WiFi nhà (hoặc bật 4G/5G)."
-    echo " 2. Chạy lại script này để hệ thống tải trọn vẹn 3 file APK vào máy."
-    echo " 3. Khi máy đã có file, chuyển sang WiFi loa để FLASH SIÊU TỐC!"
+    echo "CACH XU LY:"
+    echo " 1. Chuyen dien thoai ve WiFi nha (hoac bat 4G/5G)."
+    echo " 2. Chay lai script nay de tai tron ven 3 file APK vao may."
+    echo " 3. Khi da co file trong may, ket noi WiFi loa de FLASH SIEU TOC!"
     echo "=========================================================="
     exit 1
 fi
 
-echo ">> [HOÀN TẤT TẢI FILE] Toàn bộ file cài đặt đã sẵn sàng trên máy!"
+echo ">> [HOAN TAT TAI FILE] Toan bo file cai dat da san sang trong may!"
 
 # ------------------------------------------------------------------------------
-# 7. KIỂM TRA KẾT NỐI ĐẾN LOA R1 (TỐI ƯU SIÊU TỐC CHO CHẾ ĐỘ AP 192.168.43.1)
+# 7. KET NOI TOI LOA R1 (CHUAN XAC, ON DINH - BAT TAY NGAY LAP TUC)
 # ------------------------------------------------------------------------------
 SERIAL="$TARGET_IP:5555"
 
 echo ""
 echo "=========================================================="
-echo "      KIỂM TRA KẾT NỐI ĐẾN LOA R1 ($SERIAL)               "
+echo "      KIEM TRA KET NOI DEN LOA R1 ($SERIAL)               "
 echo "=========================================================="
 
-# Khoi dong va lam sach adb server truoc
-adb kill-server >/dev/null 2>&1 || true
-sleep 0.5
+# Khoi dong adb server tren may
 adb start-server >/dev/null 2>&1 || true
 
 if [ "$TARGET_IP" = "192.168.43.1" ]; then
-    echo "------------------ HƯỚNG DẪN KẾT NỐI WIFI LOA (AP) ------------------"
-    echo " 1. TẮT 4G/5G (Dữ liệu di động) trên điện thoại (để không bị lệch gói tin)."
-    echo " 2. Ấn giữ nút tròn trên đỉnh loa 6 giây đến khi loa kêu bíp & đổi đèn cam."
-    echo " 3. Vào Cài đặt -> Wi-Fi trên điện thoại, chọn mạng: Phicomm_R1_xxxx"
-    echo " 4. Nếu điện thoại báo 'Wi-Fi không có Internet' -> Chọn 'Tiếp tục dùng'!"
-    echo " 5. iPhone: Vào Cài đặt máy -> iSH -> Bật 'Mạng cục bộ' (Local Network)."
-    echo "---------------------------------------------------------------------"
-    echo "⚡ HỆ THỐNG SẼ TỰ ĐỘNG BẮT ĐẦU CÀI ĐẶT NGAY KHI PHÁT HIỆN LOA!"
-    echo "   (Quá trình cài đặt chỉ mất ~25 giây, không lo loa bị tắt AP)"
+    echo "------------------ HUONG DAN KET NOI WIFI LOA (AP) ------------------"
+    echo " 1. TAT 4G/5G (Du lieu di dong) tren dien thoai:"
+    echo "    * WiFi loa KHONG CO INTERNET, neu bat 4G thi dien thoai se ban"
+    echo "      goi tin qua 4G khien iSH/Termux khong the ket noi toi loa duoc!"
+    echo " 2. An giu nut tron tren dinh loa 6 giay den khi loa keu bip & doi den cam."
+    echo " 3. Vao Cai dat -> Wi-Fi tren dien thoai, chon mang: Phicomm_R1_xxxx"
+    echo " 4. Neu dien thoai bao 'Wi-Fi khong co Internet' -> Chon 'Tiep tuc dung'!"
+    echo " 5. iPhone: Vao Cai dat may -> iSH -> Bat 'Mang cuc bo' (Local Network)."
     echo "---------------------------------------------------------------------"
 else
-    echo " 1. Đảm bảo thiết bị của bạn đang kết nối cùng mạng WiFi với loa."
-    echo " 2. Địa chỉ IP mục tiêu của loa: $TARGET_IP"
-    echo " 3. Nếu dùng iPhone iSH: Vào Cài đặt máy -> iSH -> Bật 'Mạng cục bộ'."
+    echo " 1. Dam bao dien thoai dang bat Wi-Fi va ket noi cung lop mang voi loa."
+    echo " 2. Dia chi IP muc tieu cua loa: $TARGET_IP"
+    echo " 3. iPhone: Vao Cai dat may -> iSH -> Bat 'Mang cuc bo' (Local Network)."
 fi
 
-echo ">> Đang dò tìm loa liên tục tại $SERIAL (Bấm Ctrl + C nếu muốn dừng)..."
+echo ">> He thong dang tu dong cho ket noi (Nhan Ctrl + C neu muon dung)..."
 echo ""
 
-TRY_COUNT=0
-while true; do
-    TRY_COUNT=$((TRY_COUNT + 1))
+# Ham kiem tra loa da san sang nhan lenh ADB chua
+is_r1_ready() {
+    adb -s "$SERIAL" shell "getprop ro.build.version.release" >/dev/null 2>&1
+}
 
-    # Ket noi truc tiep ADB toi loa
-    CONN_OUT=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
-    DEV_STATE=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d '\r\n')
+# Thu ket noi lan dau
+adb connect "$SERIAL" >/dev/null 2>&1 || true
 
-    # Neu thiet bi bao device hoac connected to
-    if [ "$DEV_STATE" = "device" ] || echo "$CONN_OUT" | grep -q "connected to"; then
-        # Kiem tra quyen thuc thi lenh tren loa (ho tro ca device phan hoi cham)
-        if adb -s "$SERIAL" shell "echo r1_ok" 2>/dev/null | grep -q "r1_ok"; then
+if ! is_r1_ready; then
+    TRY_COUNT=0
+    while true; do
+        TRY_COUNT=$((TRY_COUNT + 1))
+
+        # Goi connect toi loa (TUYET DOI khong disconnect giua chung de khong lam dut bat tay TCP)
+        CONN_RES=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
+
+        if is_r1_ready; then
             echo ""
-            echo ">> [KẾT NỐI THÀNH CÔNG] Đã nhận diện loa Phicomm R1 tại $SERIAL!"
+            echo ">> [THANH CONG] Da ket noi duoc den loa tai $SERIAL!"
             break
         fi
-    fi
 
-    printf "\r[*] Đang chờ kết nối [%s] (Lần thử %d) | %s   " "$SERIAL" "$TRY_COUNT" "$CONN_OUT"
+        printf "\r[*] Dang cho ket noi [%s] (Thu %d) | %s   " "$SERIAL" "$TRY_COUNT" "$CONN_RES"
 
-    # Sau moi 6 lan thu (~6s), reset socket de giai phong port bi ket boi scan_lan
-    if [ $((TRY_COUNT % 6)) -eq 0 ]; then
-        adb disconnect "$SERIAL" >/dev/null 2>&1 || true
-        adb kill-server >/dev/null 2>&1 || true
-        sleep 0.5
-        adb start-server >/dev/null 2>&1 || true
-    fi
-
-    # Nếu sau 18 lần thử ở chế độ WiFi nhà mà chưa thấy, hỏi đổi IP
-    if [ $((TRY_COUNT % 18)) -eq 0 ]; then
-        if [ "$TARGET_IP" != "192.168.43.1" ]; then
-            echo ""
-            RETRY_CHOICE=$(read_input ">> Chưa thấy loa tại $TARGET_IP. Bạn có muốn đổi IP khác? (y/n, mặc định n): " "n")
-            if [ "$RETRY_CHOICE" = "y" ] || [ "$RETRY_CHOICE" = "Y" ]; then
-                NEW_IP=$(read_input "Nhập địa chỉ IP mới: " "")
-                if [ -n "$NEW_IP" ]; then
-                    TARGET_IP=$(echo "$NEW_IP" | sed 's/:5555$//')
-                    SERIAL="$TARGET_IP:5555"
-                    TRY_COUNT=0
-                    echo ">> Đã đổi mục tiêu sang: $SERIAL"
+        # Dinh ky sau moi 8 lan thu, neu bi ket adb socket tren may, restart nhe adb server
+        if [ $((TRY_COUNT % 8)) -eq 0 ]; then
+            if [ "$TARGET_IP" != "192.168.43.1" ]; then
+                echo ""
+                RETRY_CHOICE=$(read_input ">> Chua thay loa tai $TARGET_IP. Ban co muon doi IP khac? (y/n, mac dinh n): " "n")
+                if [ "$RETRY_CHOICE" = "y" ] || [ "$RETRY_CHOICE" = "Y" ]; then
+                    NEW_IP=$(read_input "Nhap dia chi IP moi: " "")
+                    if [ -n "$NEW_IP" ]; then
+                        TARGET_IP=$(echo "$NEW_IP" | sed 's/:5555$//')
+                        SERIAL="$TARGET_IP:5555"
+                        TRY_COUNT=0
+                        echo ">> Da doi muc tieu sang: $SERIAL"
+                    fi
                 fi
             fi
+            adb kill-server >/dev/null 2>&1 || true
+            sleep 0.5
+            adb start-server >/dev/null 2>&1 || true
         fi
-    fi
 
-    sleep 1
-done
+        sleep 1.2
+    done
+else
+    echo ">> [THANH CONG] Da ket noi duoc den loa tai $SERIAL!"
+fi
 
 echo ""
-echo ">> [SẴN SÀNG] BẮT ĐẦU QUÁ TRÌNH CÀI ĐẶT CHO LOA R1..."
+echo ">> [SAN SANG] BAT DAU QUA TRINH CAI DAT CHO LOA R1..."
 
 # ------------------------------------------------------------------------------
-# 8. HÀM CÀI ĐẶT APK AN TOÀN, XỬ LÝ XUNG ĐỘT CHỮ KÝ VÀ TỐI ƯU TỐC ĐỘ
+# 8. HAM CAI DAT APK AN TOAN, XU LY XUNG DOT CHU KY
 # ------------------------------------------------------------------------------
 install_apk_on_device() {
     LOCAL_APK="$1"
@@ -461,66 +414,66 @@ install_apk_on_device() {
     PKG_NAME="$2"
     DESC="$3"
     
-    printf "   -> Đang chuyển %s sang loa... " "$DESC"
+    printf "   -> Dang truyen %s sang loa... " "$DESC"
     adb -s "$SERIAL" push "$LOCAL_APK" "$REMOTE_TMP" >/dev/null 2>&1
-    printf "Đang cài đặt... "
-    INSTALL_OUT=$(adb -s "$SERIAL" shell "/system/bin/pm install -r $REMOTE_TMP" 2>&1 | tr -d '\r')
+    printf "Dang cai dat... "
+    INSTALL_OUT=$(adb -s "$SERIAL" shell "pm install -r $REMOTE_TMP" 2>&1 | tr -d '\r')
     
-    # Nếu bị lỗi khác biệt chữ ký keystore giữa bản cũ và bản mới
+    # Neu bi loi khac biet chu ky ung dung cu
     if echo "$INSTALL_OUT" | grep -q "INSTALL_FAILED_UPDATE_INCOMPATIBLE"; then
-        printf "\n   [!] Khác chữ ký ứng dụng cũ, đang gỡ bản cũ để cài mới... "
-        [ -n "$PKG_NAME" ] && adb -s "$SERIAL" shell "/system/bin/pm uninstall $PKG_NAME" >/dev/null 2>&1 || true
-        INSTALL_OUT=$(adb -s "$SERIAL" shell "/system/bin/pm install $REMOTE_TMP" 2>&1 | tr -d '\r')
+        printf "\n   [!] Khac chu ky cu, dang go ban cu de cai moi... "
+        [ -n "$PKG_NAME" ] && adb -s "$SERIAL" shell "pm uninstall $PKG_NAME" >/dev/null 2>&1 || true
+        INSTALL_OUT=$(adb -s "$SERIAL" shell "pm install $REMOTE_TMP" 2>&1 | tr -d '\r')
     fi
     
     if echo "$INSTALL_OUT" | grep -qi "Success"; then
-        echo "[THÀNH CÔNG]"
+        echo "[THANG CONG]"
     else
-        echo "[LỖI]: $INSTALL_OUT"
+        echo "[LOI]: $INSTALL_OUT"
     fi
     
     adb -s "$SERIAL" shell "rm -f $REMOTE_TMP" >/dev/null 2>&1 || true
 }
 
 # ------------------------------------------------------------------------------
-# 9. CHẾ ĐỘ XEM THÔNG TIN IP WIFI CỦA LOA (ĐANG KẾT NỐI AP 192.168.43.1)
+# 9. CHE DO XEM THONG TIN IP WIFI CUA LOA (192.168.43.1)
 # ------------------------------------------------------------------------------
 if [ "$MODE" = "READ_AP_IP" ]; then
     echo "=========================================================="
-    echo "           THÔNG TIN KẾT NỐI & IP CỦA LOA R1              "
+    echo "           THONG TIN KET NOI & IP CUA LOA R1              "
     echo "=========================================================="
     WLAN_IP=$(adb -s "$SERIAL" shell getprop dhcp.wlan0.ipaddress 2>/dev/null | tr -d '\r\n')
     DEV_NAME=$(adb -s "$SERIAL" shell getprop net.hostname 2>/dev/null | tr -d '\r\n')
     DEV_MAC=$(adb -s "$SERIAL" shell cat /sys/class/net/wlan0/address 2>/dev/null | tr -d '\r\n')
     
-    echo "Tên thiết bị       : $DEV_NAME"
-    echo "Địa chỉ MAC WiFi   : $DEV_MAC"
+    echo "Ten thiet bi       : $DEV_NAME"
+    echo "Dia chi MAC WiFi   : $DEV_MAC"
     if [ -n "$WLAN_IP" ]; then
-        echo ">> IP Loa trong mạng WiFi nhà: $WLAN_IP"
-        echo "   (Bạn có thể vào Web Control điều khiển tại: http://$WLAN_IP:8081/)"
+        echo ">> IP Loa trong mang WiFi nha: $WLAN_IP"
+        echo "   (Ban co the vao Web Control dieu khien tai: http://$WLAN_IP:8081/)"
     else
-        echo ">> Loa chưa có IP mạng WiFi nhà (hoặc chưa cài đặt WiFi)."
-        echo "   Vào http://192.168.43.1:8081/wifi.html để kết nối WiFi nhà cho loa."
+        echo ">> Loa chua co IP mang WiFi nha (hoac chua cai dat WiFi)."
+        echo "   Vao http://192.168.43.1:8081/wifi.html de ket noi WiFi nha cho loa."
     fi
     exit 0
 fi
 
 # ------------------------------------------------------------------------------
-# 10. CHẾ ĐỘ CÀI ĐẶT ĐẦY ĐỦ: AUTODLNA + UNISOUND + AI BOX PLUS TIẾNG VIỆT
+# 10. CHE DO CAI DAT DAY DU: AUTODLNA + UNISOUND + AI BOX PLUS
 # ------------------------------------------------------------------------------
 if [ "$MODE" = "FULL" ]; then
     echo "=========================================================="
-    echo "  BẮT ĐẦU CÀI ĐẶT: AutoDLNA + Unisound + AI Box Plus DLNA"
+    echo "  BAT DAU CAI DAT: AutoDLNA + Unisound + AI Box Plus DLNA"
     echo "=========================================================="
     echo ""
     
-    # 10.1 TẮT HẾT TIẾN TRÌNH CHIẾM QUYỀN & XUNG ĐỘT (Gộp 1 phiên shell duy nhất)
-    echo ">> [1/5] Tắt toàn bộ tiến trình chiếm quyền, xung đột âm thanh & micro..."
+    # 10.1 Tat toan bo tien trinh chiem quyen & xung dot
+    echo ">> [1/5] Tat toan bo tien trinh chiem quyen, xung dot am thanh & micro..."
     adb -s "$SERIAL" shell "
-        # 0. Giu loa luon thuc (chong ngu/standby lam dut WiFi AP)
+        # 1. Giu loa luon thuc (chong sleep lam dut AP)
         svc power stayon true 2>/dev/null
 
-        # 1. Buộc dừng (force-stop) các tiến trình cũ đang chiếm âm thanh/micro/cổng mạng
+        # 2. Force-stop cac tien trinh cu dang chiem am thanh/micro/cong mang
         am force-stop info.dourok.voicebot 2>/dev/null
         am force-stop com.phicomm.speaker.player 2>/dev/null
         am force-stop com.phicomm.speaker.device 2>/dev/null
@@ -533,47 +486,44 @@ if [ "$MODE" = "FULL" ]; then
         am force-stop com.phicomm.speaker.remote 2>/dev/null
         am force-stop com.tencent.qqmusic 2>/dev/null
 
-        # 2. Dừng các daemon media chạy ngầm nếu có
+        # 3. Dung cac daemon media chay ngam neu co
         killall -9 shairport dlna mpd 2>/dev/null
 
-        # 3. Vô hiệu hóa vĩnh viễn các app rác Phicomm gây chiếm quyền/tự tắt WiFi AP
+        # 4. Vo hieu hoa cac app gay chiem quyen/tu tat WiFi AP cua Phicomm
         for p in com.phicomm.speaker.airskill com.phicomm.speaker.otaservice com.phicomm.speaker.exceptionreporter com.phicomm.speaker.systemtool com.phicomm.speaker.productiontest com.phicomm.speaker.bugreport com.phicomm.speaker.remote com.tencent.qqmusic; do
             pm hide \$p 2>/dev/null
             pm disable \$p 2>/dev/null
         done
 
-        # 4. Dọn sạch cache OTA, file tạm và bật quyền cài đặt ngoài
+        # 5. Don sach cache OTA va bat quyen cai dat ngoai
         rm -f /sdcard/otaprop.txt /sdcard/incremental*.zip 2>/dev/null
         rm -rf /data/local/tmp/* 2>/dev/null
         pm clear com.phicomm.speaker.otaservice 2>/dev/null
         settings put secure install_non_market_apps 1 2>/dev/null
     " >/dev/null 2>&1
-    echo "   [OK] Đã giải phóng hoàn toàn âm thanh, micro và các cổng mạng!"
+    echo "   [OK] Da giai phong hoan toan am thanh, micro va cac cong mang!"
 
-    # 10.2 Cài đặt AutoDLNA
-    echo ">> [2/5] Cài đặt AutoDLNA (Điều khiển nhạc & Web Control)..."
+    # 10.2 Cai dat AutoDLNA
+    echo ">> [2/5] Cai dat AutoDLNA (Dieu khien nhac & Web Control)..."
     install_apk_on_device "$APK_DLNA" "com.phicomm.speaker.player" "AutoDLNA"
 
-    # 10.3 Cài đặt Unisound
-    echo ">> [3/5] Cài đặt Unisound (Điều khiển phần cứng & hệ thống)..."
+    # 10.3 Cai dat Unisound
+    echo ">> [3/5] Cai dat Unisound (Dieu khien phan cung & he thong)..."
     install_apk_on_device "$APK_UNI" "com.phicomm.speaker.device" "Unisound"
 
-    # 10.4 Cài đặt AI Box Plus DLNA
-    echo ">> [4/5] Cài đặt AI Box Plus DLNA (Trợ lý Tiếng Việt & DLNA)..."
+    # 10.4 Cai dat AI Box Plus DLNA
+    echo ">> [4/5] Cai dat AI Box Plus DLNA (Tro ly Tieng Viet & DLNA)..."
     install_apk_on_device "$APK_AI" "info.dourok.voicebot" "AI Box Plus DLNA"
 
-    # 10.5 Mở khóa và khởi chạy toàn bộ dịch vụ
-    echo ">> [5/5] Mở khóa và khởi chạy toàn bộ dịch vụ hệ thống..."
+    # 10.5 Mo khoa va khoi chay toan bo dich vu
+    echo ">> [5/5] Mo khoa va khoi chay toan bo dich vu he thong..."
     adb -s "$SERIAL" shell "
         for p in com.phicomm.speaker.player com.phicomm.speaker.device com.phicomm.speaker.ijetty com.phicomm.speaker.netctl info.dourok.voicebot; do
             pm unhide \$p 2>/dev/null
             pm enable \$p 2>/dev/null
         done
-        # Khởi chạy EchoService (LED, EQ, Web server 8080/8081)
         am startservice com.phicomm.speaker.player/.EchoService 2>/dev/null
-        # Khởi chạy giao diện Unisound
         am start -n com.phicomm.speaker.device/.ui.MainActivity 2>/dev/null
-        # Khởi chạy ứng dụng AI Box Plus DLNA
         am start -n info.dourok.voicebot/.java.activities.MainActivity 2>/dev/null
 
         # Tu dong cau hinh ngay sau khi cai: BAT DLNA, AirPlay, Bluetooth & Den RGB; TAT Den vien & Den cho
@@ -587,66 +537,51 @@ if [ "$MODE" = "FULL" ]; then
 
     sleep 1
 
-    # 10.6 Kiểm tra nhanh trạng thái các cổng dịch vụ
-    echo ""
-    echo ">> Kiểm tra trạng thái hoạt động các cổng dịch vụ:"
-    if check_port "$TARGET_IP" "8081"; then
-        echo "   [OK] Web Control (Cổng 8081) đã sẵn sàng!"
-    else
-        echo "   [*] Web Control (Cổng 8081) đang khởi động..."
-    fi
-    if check_port "$TARGET_IP" "8080"; then
-        echo "   [OK] EchoService (Cổng 8080 - Đèn LED & EQ) đã sẵn sàng!"
-    fi
-    if check_port "$TARGET_IP" "8082"; then
-        echo "   [OK] AI Box Service (Cổng 8082) đã sẵn sàng!"
-    fi
-
     echo ""
     echo "=========================================================="
-    echo "     [HOÀN TẤT] CÀI ĐẶT LOA PHICOMM R1 THÀNH CÔNG!        "
+    echo "     [HOAN TAT] CAI DAT LOA PHICOMM R1 THANH CONG!        "
     echo "=========================================================="
-    echo "Toàn bộ ứng dụng & dịch vụ đã được kích hoạt SẴN SÀNG DÙNG NGAY!"
+    echo "Toan bo ung dung & dich vu da duoc kich hoat SAN SANG DUNG NGAY!"
     if [ "$TARGET_IP" = "192.168.43.1" ]; then
-        echo "Kết nối WiFi giữa máy bạn và loa được GIỮ NGUYÊN (không bị ngắt)."
+        echo "Ket noi WiFi giua may ban va loa duoc GIU NGUYEN (khong bi ngat)."
         echo ""
-        echo ">>> CÁC BƯỚC CẤU HÌNH WIFI NHÀ (HÃY THỰC HIỆN NGAY):"
-        echo " 1. Mở trình duyệt Safari hoặc Chrome trên máy, truy cập:"
-        echo "    👉 http://192.168.43.1:8081/wifi.html (để cài WiFi nhà cho loa)"
-        echo "    hoặc: http://192.168.43.1:8081/ (giao diện điều khiển Web)"
-        echo " 2. Chọn tên WiFi nhà bạn, nhập mật khẩu -> Loa sẽ phát âm thông báo."
-        echo " 3. Sau khi loa đã nối WiFi nhà, chuyển máy bạn về WiFi nhà và tận hưởng!"
+        echo ">>> CAC BUOC CAU HINH WIFI NHA (HAY THUC HIEN NGAY):"
+        echo " 1. Mo trinh duyet Safari hoac Chrome tren may, truy cap:"
+        echo "    👉 http://192.168.43.1:8081/wifi.html (de cai WiFi nha cho loa)"
+        echo "    hoac: http://192.168.43.1:8081/ (giao dien dieu khien Web)"
+        echo " 2. Chon ten WiFi nha ban, nhap mat khau -> Loa se phat am thong bao."
+        echo " 3. Sau khi loa da noi WiFi nha, chuyen may ban ve WiFi nha va tan huong!"
         echo "=========================================================="
         echo ""
-        REBOOT_NOW=$(read_input "Bạn có muốn khởi động lại loa bây giờ không? (y/n, mặc định n để vào web ngay): " "n")
+        REBOOT_NOW=$(read_input "Ban co muon khoi dong lai loa bay gio khong? (y/n, mac dinh n de vao web ngay): " "n")
         if [ "$REBOOT_NOW" = "y" ] || [ "$REBOOT_NOW" = "Y" ]; then
-            echo ">> Đang khởi động lại loa (vui lòng đợi 25-30 giây)..."
+            echo ">> Dang khoi dong lai loa (vui long doi 25-30 giay)..."
             adb -s "$SERIAL" reboot >/dev/null 2>&1 || true
         else
-            echo ">> Giữ nguyên kết nối để bạn vào http://192.168.43.1:8081/wifi.html ngay!"
+            echo ">> Giu nguyen ket noi de ban vao http://192.168.43.1:8081/wifi.html ngay!"
         fi
     else
-        echo "Truy cập giao diện web điều khiển loa tại: http://$TARGET_IP:8081/"
+        echo "Truy cap giao dien web dieu khien loa tai: http://$TARGET_IP:8081/"
         echo "=========================================================="
         echo ""
-        REBOOT_NOW=$(read_input "Bạn có muốn khởi động lại loa bây giờ không? (y/n, mặc định n): " "n")
+        REBOOT_NOW=$(read_input "Ban co muon khoi dong lai loa bay gio khong? (y/n, mac dinh n): " "n")
         if [ "$REBOOT_NOW" = "y" ] || [ "$REBOOT_NOW" = "Y" ]; then
-            echo ">> Đang khởi động lại loa..."
+            echo ">> Dang khoi dong lai loa..."
             adb -s "$SERIAL" reboot >/dev/null 2>&1 || true
         fi
     fi
 fi
 
 # ------------------------------------------------------------------------------
-# 11. CHẾ ĐỘ CẬP NHẬT NHANH AI BOX PLUS DLNA (GIỮ NGUYÊN CÀI ĐẶT CŨ)
+# 11. CHE DO CAP NHAT NHANH AI BOX PLUS DLNA
 # ------------------------------------------------------------------------------
 if [ "$MODE" = "UPDATE_ONLY" ]; then
     echo "=========================================================="
-    echo "  CẬP NHẬT NHANH AI BOX PLUS DLNA (GIỮ NGUYEN CẤU HÌNH)   "
+    echo "  CAP NHAT NHANH AI BOX PLUS DLNA (GIU NGUYEN CAU HINH)   "
     echo "=========================================================="
     echo ""
     
-    echo ">> [1/3] Tắt tiến trình cũ & dọn dẹp các app xung đột..."
+    echo ">> [1/3] Tat tien trinh cu & don dep cac app xung dot..."
     adb -s "$SERIAL" shell "
         am force-stop info.dourok.voicebot 2>/dev/null
         for p in com.phicomm.speaker.airskill com.phicomm.speaker.otaservice com.phicomm.speaker.exceptionreporter com.phicomm.speaker.systemtool com.phicomm.speaker.productiontest com.phicomm.speaker.bugreport; do
@@ -656,10 +591,10 @@ if [ "$MODE" = "UPDATE_ONLY" ]; then
         rm -rf /data/local/tmp/* 2>/dev/null
     " >/dev/null 2>&1
 
-    echo ">> [2/3] Đang chuyển và cài đặt AI Box Plus DLNA mới nhất..."
+    echo ">> [2/3] Dang chuyen va cai dat AI Box Plus DLNA moi nhat..."
     install_apk_on_device "$APK_AI" "info.dourok.voicebot" "AI Box Plus DLNA"
 
-    echo ">> [3/3] Khởi chạy ứng dụng AI Box Plus..."
+    echo ">> [3/3] Khoi chay ung dung AI Box Plus..."
     adb -s "$SERIAL" shell "
         pm unhide info.dourok.voicebot 2>/dev/null
         pm enable info.dourok.voicebot 2>/dev/null
@@ -674,15 +609,10 @@ if [ "$MODE" = "UPDATE_ONLY" ]; then
         lights_test set 7fffff0000 ffffff 2>/dev/null
     " >/dev/null 2>&1
 
-    sleep 1
-    if check_port "$TARGET_IP" "8082"; then
-        echo "   [OK] AI Box Service (Cổng 8082) đã sẵn sàng!"
-    fi
-
     echo ""
     echo "=========================================================="
-    echo "     [HOÀN TẤT] CẬP NHẬT AI BOX PLUS DLNA THÀNH CÔNG!     "
+    echo "     [HOAN TAT] CAP NHAT AI BOX PLUS DLNA THANH CONG!     "
     echo "=========================================================="
-    echo "Toàn bộ cài đặt (mDNS, PayOS, hẹn giờ...) được giữ nguyên 100%!"
-    echo "Truy cập giao diện web điều khiển tại: http://$TARGET_IP:8081/"
+    echo "Toan bo cai dat (mDNS, PayOS, hen gio...) duoc giu nguyen 100%!"
+    echo "Truy cap giao dien web dieu khien tai: http://$TARGET_IP:8081/"
 fi
