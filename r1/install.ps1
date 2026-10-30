@@ -1,19 +1,19 @@
 # ==============================================================================
-# Script Cai Dat & Cap Nhat Phicomm R1 tren Windows (PowerShell)
-# Nguon APK: https://vdt34.github.io/r1/
-# Tu dong tai ADB neu chua co, tu dong ket noi va flash sieu toc
+# PHICOMM R1 ALL-IN-ONE AUTOMATED INSTALLER (WINDOWS POWERSHELL)
+# Ho tro: Windows 7, 8, 10, 11 (PowerShell 5.1 & PowerShell 7+)
 # ==============================================================================
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$Host.UI.RawUI.WindowTitle = "CAI DAT & CAP NHAT PHICOMM R1 - WINDOWS"
+$OutputEncoding = [System.Text.Encoding]::UTF8
 
-$BaseUrl = "https://vdt34.github.io/r1"
-$TempDir = "$env:TEMP\r1_install"
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+if (-not $ScriptDir) { $ScriptDir = Get-Location }
+$TempDir   = Join-Path $env:TEMP "phicomm_r1_install"
+$BaseUrl   = "https://vdt34.github.io/r1"
+
 $ApkDLNA = "autodlna.apk"
 $ApkUNI  = "unisound.apk"
 $ApkAI   = "AIBoxPlus_DLNA.apk"
-$ScriptDir = $PSScriptRoot
-if (-not $ScriptDir) { $ScriptDir = (Get-Location).Path }
 
 Clear-Host
 Write-Host "==========================================================" -ForegroundColor Cyan
@@ -22,54 +22,91 @@ Write-Host "==========================================================" -Foregro
 Write-Host ""
 
 # ------------------------------------------------------------------------------
-# 1. KIEM TRA & TU DONG CAI DAT ADB NEU CHUA CO
+# 1. KIEM TRA VA CHUAN BI CONG CU ADB
 # ------------------------------------------------------------------------------
-function Ensure-Adb {
-    if (Get-Command adb -ErrorAction SilentlyContinue) {
+function Ensure-AdbTools {
+    $AdbCmd = Get-Command adb -ErrorAction SilentlyContinue
+    if ($AdbCmd) {
         Write-Host ">> [OK] Da co cong cu ADB tren he thong Windows." -ForegroundColor Green
-        return
+        return $true
     }
 
-    $AdbDir = "$TempDir\adb_tools\platform-tools"
-    if (Test-Path "$AdbDir\adb.exe") {
-        $env:PATH = "$AdbDir;" + $env:PATH
-        Write-Host ">> [OK] Su dung ADB tu thu muc tam: $AdbDir" -ForegroundColor Green
-        return
+    $LocalAdb = Join-Path $ScriptDir "adb.exe"
+    if (Test-Path $LocalAdb) {
+        $env:PATH = "$ScriptDir;" + $env:PATH
+        Write-Host ">> [OK] Tim thay adb.exe tai thu muc hien tai." -ForegroundColor Green
+        return $true
     }
 
-    Write-Host ">> [*] May tinh chua co ADB. Dang tu dong tai bo cong cu tu Google Android..." -ForegroundColor Yellow
-    New-Item -ItemType Directory -Force -Path "$TempDir\adb_tools" | Out-Null
-    $ZipPath = "$TempDir\adb.zip"
-    
-    $ProgressPreference = 'SilentlyContinue'
+    $TempAdb = Join-Path $TempDir "platform-tools\adb.exe"
+    if (Test-Path $TempAdb) {
+        $ToolsDir = Join-Path $TempDir "platform-tools"
+        $env:PATH = "$ToolsDir;" + $env:PATH
+        Write-Host ">> [OK] Su dung ADB tu thu muc cache." -ForegroundColor Green
+        return $true
+    }
+
+    Write-Host ">> [CHUAN BI] Dang tai cong cu ADB tu Google..." -ForegroundColor Yellow
+    New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
+    $ZipPath = Join-Path $TempDir "platform-tools.zip"
+    $AdbUrl  = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
+
     try {
-        Invoke-WebRequest -Uri "https://dl.google.com/android/repository/platform-tools-latest-windows.zip" -OutFile $ZipPath -TimeoutSec 60
-        Expand-Archive -Path $ZipPath -DestinationPath "$TempDir\adb_tools" -Force
-        Remove-Item $ZipPath -Force -ErrorAction SilentlyContinue
-        if (Test-Path "$AdbDir\adb.exe") {
-            $env:PATH = "$AdbDir;" + $env:PATH
-            Write-Host ">> [OK] Da tai va tich hop ADB thanh cong!" -ForegroundColor Green
-        } else {
-            throw "Khong tim thay adb.exe sau khi giai nen."
-        }
+        $ProgressPreference = 'SilentlyContinue'
+        Invoke-WebRequest -Uri $AdbUrl -OutFile $ZipPath -TimeoutSec 30
+        Expand-Archive -Path $ZipPath -DestinationPath $TempDir -Force
+        $ToolsDir = Join-Path $TempDir "platform-tools"
+        $env:PATH = "$ToolsDir;" + $env:PATH
+        Write-Host ">> [OK] Da cai dat xong ADB vao bo nho tam." -ForegroundColor Green
+        return $true
     } catch {
-        Write-Host ">> [LOI] Khong the tai ADB tu dong: $_" -ForegroundColor Red
-        Write-Host "   Vui long tai Android Platform-Tools thu cong de tiep tuc!" -ForegroundColor Yellow
-        exit 1
+        Write-Host ">> [LOI] Khong the tai ADB tu dong. Vui long cai ADB hoac kiem tra mang." -ForegroundColor Red
+        return $false
     }
 }
 
-Ensure-Adb
+if (-not (Ensure-AdbTools)) {
+    Read-Host "`nNhan Enter de thoat"
+    return
+}
 
 # ------------------------------------------------------------------------------
-# 2. HAM QUET MANG TIM IP LOA R1
+# 2. HAM DANH THUC & KHOI DONG LAI ADB TREN LOA PHICOMM R1 QUA PORT 8080
+# ------------------------------------------------------------------------------
+function Revive-R1Speaker ($Ip) {
+    if (-not $Ip) { return $false }
+    try {
+        $ws = New-Object System.Net.WebSockets.ClientWebSocket
+        $ct = [System.Threading.CancellationToken]::None
+        $uri = [Uri]"ws://$($Ip):8080"
+        $connTask = $ws.ConnectAsync($uri, $ct)
+        if ($connTask.Wait(2000)) {
+            if ($ws.State -eq [System.Net.WebSockets.WebSocketState]::Open) {
+                # Khoi dong lai adbd tren port 5555, ngan ngu dong, tat ung dung chiem loa
+                $cmd = "stop adbd; setprop service.adb.tcp.port 5555; start adbd; svc power stayon true; am force-stop com.phicomm.speaker.airskill; am force-stop com.phicomm.speaker.otaservice"
+                $json = '{"type":"shell","type_id":"revive","shell":"' + $cmd + '"}'
+                $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
+                $segment = New-Object System.ArraySegment[byte] -ArgumentList @(,$bytes)
+                $ws.SendAsync($segment, [System.Net.WebSockets.WebSocketMessageType]::Text, $true, $ct).Wait(2000) | Out-Null
+                $ws.CloseAsync([System.Net.WebSockets.WebSocketCloseStatus]::NormalClosure, "", $ct).Wait(1000) | Out-Null
+                return $true
+            }
+        }
+    } catch {}
+    return $false
+}
+
+# ------------------------------------------------------------------------------
+# 3. HAM QUET MANG TIM IP LOA R1
 # ------------------------------------------------------------------------------
 function Get-LocalSubnet {
-    $Sub = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254.*" } | Select-Object -First 1).IPAddress
-    if ($Sub) {
-        $Parts = $Sub.Split('.')
-        return "$($Parts[0]).$($Parts[1]).$($Parts[2])"
-    }
+    try {
+        $Sub = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254.*" } | Select-Object -First 1).IPAddress
+        if ($Sub) {
+            $Parts = $Sub.Split('.')
+            return "$($Parts[0]).$($Parts[1]).$($Parts[2])"
+        }
+    } catch {}
     return "192.168.1"
 }
 
@@ -77,10 +114,18 @@ function Scan-SpeakerIp {
     $CurSub = Get-LocalSubnet
     Write-Host ""
     $UserSub = Read-Host "Nhap dai mang can quet [Mac dinh: $CurSub]"
-    if (-not $UserSub) { $UserSub = $CurSub }
+    if (-not $UserSub -or -not $UserSub.Trim()) {
+        $UserSub = $CurSub
+    } else {
+        $UserSub = $UserSub.Trim()
+        $parts = $UserSub.Split('.')
+        if ($parts.Length -ge 3) {
+            $UserSub = "$($parts[0]).$($parts[1]).$($parts[2])"
+        }
+    }
 
     Write-Host ""
-    Write-Host ">> Dang quet nhanh dai mang $UserSub.1 -> 254 (Port 5555)..." -ForegroundColor Cyan
+    Write-Host ">> Dang quet dai mang $UserSub.1 -> 254 (Kiem tra cong 8080 & 5555)..." -ForegroundColor Cyan
     
     $FoundIps = New-Object System.Collections.Generic.List[string]
     $Tasks = @()
@@ -91,17 +136,19 @@ function Scan-SpeakerIp {
         $task = [PSCustomObject]@{
             IP = $ip
             Client = $tcp
-            AsyncResult = $tcp.BeginConnect($ip, 5555, $null, $null)
+            AsyncResult = $tcp.BeginConnect($ip, 8080, $null, $null)
         }
         $Tasks += $task
 
-        if ($Tasks.Count -ge 30 -or $_ -eq 254) {
+        if ($Tasks.Count -ge 32 -or $_ -eq 254) {
             Start-Sleep -Milliseconds 350
             foreach ($t in $Tasks) {
                 try {
                     if ($t.Client.Connected) {
-                        $FoundIps.Add($t.IP)
-                        Write-Host "`n   [+] Phat hien loa Phicomm R1 tai IP: $($t.IP)" -ForegroundColor Green
+                        if (-not $FoundIps.Contains($t.IP)) {
+                            $FoundIps.Add($t.IP)
+                            Write-Host "`n   [+] Phat hien loa Phicomm R1 tai IP: $($t.IP)" -ForegroundColor Green
+                        }
                     }
                 } catch {}
                 finally {
@@ -115,13 +162,13 @@ function Scan-SpeakerIp {
     Write-Host ""
 
     if ($FoundIps.Count -eq 0) {
-        Write-Host ">> Khong tim thay thiet bi nao mo cong 5555 trong dai $UserSub.x." -ForegroundColor Yellow
+        Write-Host ">> Khong tim thay thiet bi Phicomm R1 trong dai $UserSub.x." -ForegroundColor Yellow
     }
     return $FoundIps
 }
 
 # ------------------------------------------------------------------------------
-# 3. MENU LUA CHON
+# 4. MENU LUA CHON
 # ------------------------------------------------------------------------------
 $TargetIp = "192.168.43.1"
 $Mode = "FULL"
@@ -132,7 +179,7 @@ while ($true) {
     Write-Host "              BANG DIEU KHIEN PHICOMM R1" -ForegroundColor Yellow
     Write-Host "==========================================================" -ForegroundColor Cyan
     Write-Host "  [1] Cai dat SIEU TOC qua WiFi loa phat ra (192.168.43.1) [Khuyen dung]" -ForegroundColor White
-    Write-Host "  [2] Cai dat day du qua mang WiFi nha (Tu tim hoac nhap IP thu cong)" -ForegroundColor White
+    Write-Host "  [2] Cai dat day du qua mang WiFi nha (Nhap IP hoac tu dong quet)" -ForegroundColor White
     Write-Host "  [3] Chi cap nhat AI Box Plus DLNA moi nhat (Giu nguyen cai dat cu)" -ForegroundColor White
     Write-Host "  [4] Quet & tim dia chi IP cua loa trong mang WiFi nha" -ForegroundColor White
     Write-Host "  [5] Thoat" -ForegroundColor White
@@ -140,25 +187,35 @@ while ($true) {
     Write-Host ""
 
     $Choice = Read-Host "Nhap lua chon cua ban (1-5, mac dinh 1)"
-    if (-not $Choice) { $Choice = "1" }
+    if (-not $Choice -or -not $Choice.Trim()) { $Choice = "1" }
 
-    switch ($Choice) {
+    switch ($Choice.Trim()) {
         "1" {
             $TargetIp = "192.168.43.1"
             $Mode = "FULL"
             break
         }
         "2" {
-            $Suggest = Scan-SpeakerIp
-            $DefIp = if ($Suggest.Count -gt 0) { ($Suggest | Select-Object -First 1) } else { "192.168.1.50" }
-            $UserIp = Read-Host "`nNhap IP cua loa [Enter de chon $DefIp]"
-            $TargetIp = if ($UserIp) { $UserIp.Trim().Replace(":5555", "") } else { $DefIp }
+            Write-Host ""
+            Write-Host "Nhap IP cua loa Phicomm R1 trong mang WiFi nha (Vi du: 192.168.1.94)." -ForegroundColor Yellow
+            Write-Host "Neu chua ro dia chi IP, de trong roi nhan [Enter] de tu dong quet." -ForegroundColor Gray
+            $UserIp = Read-Host "`nNhap IP cua loa [Nhan Enter de tu dong quet]"
+            if ($UserIp -and $UserIp.Trim()) {
+                $TargetIp = $UserIp.Trim().Replace(":5555", "")
+            } else {
+                $Suggest = Scan-SpeakerIp
+                $DefIp = if ($Suggest.Count -gt 0) { ($Suggest | Select-Object -First 1) } else { "192.168.1.94" }
+                $ChoiceIp = Read-Host "`nChon IP loa [Enter de chon $DefIp]"
+                $TargetIp = if ($ChoiceIp -and $ChoiceIp.Trim()) { $ChoiceIp.Trim().Replace(":5555", "") } else { $DefIp }
+            }
             $Mode = "FULL"
             break
         }
         "3" {
-            $UserIp = Read-Host "`nNhap IP loa can cap nhat [Enter de chon 192.168.43.1]"
-            $TargetIp = if ($UserIp) { $UserIp.Trim().Replace(":5555", "") } else { "192.168.43.1" }
+            Write-Host ""
+            Write-Host "Nhap dia chi IP cua loa can cap nhat (VD: 192.168.1.94 hoac 192.168.43.1)" -ForegroundColor Yellow
+            $UserIp = Read-Host "`nNhap IP loa can cap nhat [Mac dinh: 192.168.1.94]"
+            $TargetIp = if ($UserIp -and $UserIp.Trim()) { $UserIp.Trim().Replace(":5555", "") } else { "192.168.1.94" }
             $Mode = "UPDATE_ONLY"
             break
         }
@@ -180,7 +237,7 @@ while ($true) {
 }
 
 # ------------------------------------------------------------------------------
-# 4. QUAN LY CACHE & TAI FILE APK TU GITHUB
+# 5. QUAN LY CACHE & TAI FILE APK TU GITHUB
 # ------------------------------------------------------------------------------
 New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
 
@@ -213,7 +270,7 @@ function Download-ApkFile ($FileName, $Desc, $MinSize) {
     Write-Host ">> Dang tai $Desc tu GitHub ($BaseUrl/$FileName)..." -ForegroundColor White
     $ProgressPreference = 'SilentlyContinue'
     try {
-        Invoke-WebRequest -Uri "$BaseUrl/$FileName" -OutFile "$TempPath.tmp" -TimeoutSec 30
+        Invoke-WebRequest -Uri "$BaseUrl/$FileName" -OutFile "$TempPath.tmp" -TimeoutSec 45
         Move-Item -Path "$TempPath.tmp" -Destination $TempPath -Force
         Write-Host ">> [OK] Da tai $Desc thanh cong." -ForegroundColor Green
         return $true
@@ -253,15 +310,13 @@ if ($ErrCount -gt 0) {
 Write-Host ">> [OK] Toan bo file APK da san sang trong may tinh!" -ForegroundColor Green
 
 # ------------------------------------------------------------------------------
-# 5. KET NOI ADB DEN LOA PHICOMM R1
+# 6. KET NOI ADB DEN LOA PHICOMM R1 (TUDONG REVIVE QUA PORT 8080)
 # ------------------------------------------------------------------------------
-$Serial = "$TargetIp" + ":5555"
+$Serial = "$($TargetIp):5555"
 Write-Host ""
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "      KIEM TRA KET NOI DEN LOA R1 ($Serial)" -ForegroundColor Yellow
 Write-Host "==========================================================" -ForegroundColor Cyan
-
-adb start-server | Out-Null
 
 if ($TargetIp -eq "192.168.43.1") {
     Write-Host "------------------ HUONG DAN KET NOI WIFI LOA (AP) ------------------" -ForegroundColor Yellow
@@ -269,110 +324,97 @@ if ($TargetIp -eq "192.168.43.1") {
     Write-Host " 2. Bam bieu tuong WiFi goc phai Taskbar Windows, chon: Phicomm_R1_xxxx"
     Write-Host " 3. Neu Windows bao 'No Internet, secured' -> Van giu nguyen ket noi!"
     Write-Host "---------------------------------------------------------------------" -ForegroundColor Yellow
-    Write-Host ">> HE THONG SE TU DONG BAT DAU CAI DAT NGAY KHI PHAT HIEN LOA!" -ForegroundColor Green
+    Write-Host ">> HE THONG SE TU DONG KET NOI & CAI DAT NGAY KHI PHAT HIEN LOA!" -ForegroundColor Green
     Write-Host "---------------------------------------------------------------------" -ForegroundColor Yellow
 } else {
     Write-Host ">> Dam bao may tinh dang ket noi cung mang WiFi voi loa tai IP: $TargetIp" -ForegroundColor Yellow
 }
 
-Write-Host ">> Dang do tim loa lien tuc tai $Serial (Bam Ctrl + C neu muon dung)..." -ForegroundColor White
-Write-Host ""
-
 function Test-SpeakerReady {
-    $State = (adb -s $Serial get-state 2>$null)
-    if ($State -and $State.Trim() -eq "device") { return $true }
     $Devs = (adb devices 2>$null | Out-String)
-    if ($Devs -match "$Serial\s+device") { return $true }
-    $Out = (adb -s $Serial shell "echo 1" 2>$null)
-    if ($Out -and $Out.Trim() -eq "1") { return $true }
+    if ($Devs -match [regex]::Escape($Serial) + "\s+device") { return $true }
+    $Out = (adb -s $Serial shell "echo 1" 2>$null | Out-String).Trim()
+    if ($Out -eq "1") { return $true }
     return $false
 }
 
-$ConnInit = (adb connect $Serial 2>&1 | Out-String).Trim()
-Start-Sleep -Milliseconds 800
+Write-Host ">> Dang khoi dong ADB tren may tinh..." -ForegroundColor Gray
+adb start-server 2>$null | Out-Null
 
-if (-not (Test-SpeakerReady)) {
-    if ($ConnInit -match "already connected") {
-        Write-Host ">> Phat hien socket cu bi treo, dang lam sach ket noi..." -ForegroundColor Yellow
+Write-Host ">> Dang danh thuc & kich hoat he thong loa tai $TargetIp..." -ForegroundColor Cyan
+Revive-R1Speaker -Ip $TargetIp | Out-Null
+Start-Sleep -Milliseconds 600
+
+$TryCount = 0
+while ($true) {
+    $TryCount++
+
+    $ConnRes = (adb connect $Serial 2>&1 | Out-String).Trim()
+    Start-Sleep -Milliseconds 400
+
+    if (Test-SpeakerReady) {
+        Write-Host "`n>> [KET NOI THANH CONG] Da ket noi den loa Phicomm R1 tai $Serial!" -ForegroundColor Green
+        break
+    }
+
+    Write-Host -NoNewline "`r[*] Dang ket noi [$Serial] (Lan thu $TryCount)... "
+
+    if ($ConnRes -match "already connected" -or ($TryCount % 3 -eq 0)) {
         adb disconnect $Serial 2>$null | Out-Null
-        adb kill-server 2>$null | Out-Null
-        Start-Sleep -Milliseconds 600
-        adb start-server 2>$null | Out-Null
-        adb connect $Serial 2>$null | Out-Null
+        Revive-R1Speaker -Ip $TargetIp | Out-Null
         Start-Sleep -Milliseconds 600
     }
 
-    $TryCount = 0
-    while ($true) {
-        $TryCount++
-        if (Test-SpeakerReady) {
-            Write-Host "`n>> [KET NOI THANH CONG] Da nhan dien loa Phicomm R1 tai $Serial!" -ForegroundColor Green
-            break
-        }
-
-        $ConnRes = (adb connect $Serial 2>&1 | Out-String).Trim()
-        if (Test-SpeakerReady) {
-            Write-Host "`n>> [KET NOI THANH CONG] Da nhan dien loa Phicomm R1 tai $Serial!" -ForegroundColor Green
-            break
-        }
-
-        Write-Host -NoNewline "`r[*] Dang cho ket noi [$Serial] (Lan thu $TryCount) | $ConnRes   "
-
-        if ($ConnRes -match "already connected" -or ($TryCount % 6 -eq 0)) {
-            adb disconnect $Serial 2>$null | Out-Null
-            adb kill-server 2>$null | Out-Null
-            Start-Sleep -Milliseconds 600
-            adb start-server 2>$null | Out-Null
-        }
-
-        if ($TryCount % 18 -eq 0 -and $TargetIp -ne "192.168.43.1") {
-            Write-Host ""
-            $Retry = Read-Host "`n>> Chua thay loa tai $TargetIp. Ban co muon doi IP khac? (y/n, mac dinh n)"
-            if ($Retry -eq "y" -or $Retry -eq "Y") {
-                $NewIp = Read-Host "Nhap dia chi IP moi"
-                if ($NewIp) {
-                    $TargetIp = $NewIp.Trim().Replace(":5555", "")
-                    $Serial = "$TargetIp" + ":5555"
-                    $TryCount = 0
-                    Write-Host ">> Da doi muc tieu sang: $Serial" -ForegroundColor Cyan
-                }
+    if ($TryCount % 15 -eq 0 -and $TargetIp -ne "192.168.43.1") {
+        Write-Host ""
+        $Retry = Read-Host "`n>> Chua thay loa tai $TargetIp. Ban co muon doi IP khac? (y/n, mac dinh n)"
+        if ($Retry -eq "y" -or $Retry -eq "Y") {
+            $NewIp = Read-Host "Nhap dia chi IP moi cua loa"
+            if ($NewIp -and $NewIp.Trim()) {
+                $TargetIp = $NewIp.Trim().Replace(":5555", "")
+                $Serial = "$($TargetIp):5555"
+                $TryCount = 0
+                Write-Host ">> Da doi muc tieu sang: $Serial" -ForegroundColor Cyan
+                Revive-R1Speaker -Ip $TargetIp | Out-Null
             }
         }
-
-        Start-Sleep -Milliseconds 1200
     }
-} else {
-    Write-Host "`n>> [KET NOI THANH CONG] Da nhan dien loa Phicomm R1 tai $Serial!" -ForegroundColor Green
+
+    Start-Sleep -Milliseconds 1000
 }
 
 Write-Host ""
 Write-Host ">> [SAN SANG] BAT DAU QUA TRINH CAI DAT CHO LOA R1..." -ForegroundColor Cyan
 
 # ------------------------------------------------------------------------------
-# 6. HAM CAI DAT APK AN TOAN QUA ADB
+# 7. HAM CAI DAT APK AN TOAN QUA SDCARD
 # ------------------------------------------------------------------------------
 function Install-ApkToSpeaker ($LocalFile, $PkgName, $AppDesc) {
-    Write-Host -NoNewline "   -> Dang chuyen $AppDesc sang loa... "
-    adb -s $Serial push $LocalFile /data/local/tmp/app.apk 2>$null | Out-Null
-    Write-Host -NoNewline "Dang cai dat... "
-    $InstallLog = (adb -s $Serial shell "pm install -r /data/local/tmp/app.apk" 2>&1 | Out-String).Trim()
+    Write-Host "   -> Dang chuyen $AppDesc sang loa..." -ForegroundColor White
+    adb -s $Serial push $LocalFile /sdcard/app.apk 2>$null | Out-Null
+    Start-Sleep -Milliseconds 500
 
-    if ($InstallLog -match "INSTALL_FAILED_UPDATE_INCOMPATIBLE") {
-        Write-Host -NoNewline "`n   [!] Khac chu ky cu, dang go ban cu de cai moi... " -ForegroundColor Yellow
+    Write-Host "   -> Dang cai dat $AppDesc..." -ForegroundColor White
+    adb connect $Serial 2>$null | Out-Null
+    $InstallLog = (adb -s $Serial shell "pm install -r /sdcard/app.apk" 2>&1 | Out-String).Trim()
+
+    if ($InstallLog -match "INSTALL_FAILED_UPDATE_INCOMPATIBLE" -or $InstallLog -match "signatures do not match") {
+        Write-Host "   [!] Khac chu ky cu, dang go ban cu de cai moi..." -ForegroundColor Yellow
         adb -s $Serial shell "pm uninstall $PkgName" 2>$null | Out-Null
-        $InstallLog = (adb -s $Serial shell "pm install /data/local/tmp/app.apk" 2>&1 | Out-String).Trim()
+        $InstallLog = (adb -s $Serial shell "pm install /sdcard/app.apk" 2>&1 | Out-String).Trim()
     }
 
     if ($InstallLog -match "Success") {
-        Write-Host "[THANH CONG]" -ForegroundColor Green
+        Write-Host "   [THANH CONG] Da cai dat $AppDesc." -ForegroundColor Green
     } else {
-        Write-Host "[LOI]: $InstallLog" -ForegroundColor Red
+        adb -s $Serial shell "pm unhide $PkgName; pm enable $PkgName" 2>$null | Out-Null
+        Write-Host "   [KET QUA]: $InstallLog" -ForegroundColor Yellow
     }
-    adb -s $Serial shell "rm -f /data/local/tmp/app.apk" 2>$null | Out-Null
+    adb -s $Serial shell "rm -f /sdcard/app.apk" 2>$null | Out-Null
 }
 
 # ------------------------------------------------------------------------------
-# 7. THUC THI CAI DAT
+# 8. THUC THI CAI DAT & CAU HINH HE THONG
 # ------------------------------------------------------------------------------
 if ($Mode -eq "FULL") {
     Write-Host "==========================================================" -ForegroundColor Cyan
@@ -395,7 +437,7 @@ if ($Mode -eq "FULL") {
     Install-ApkToSpeaker (Join-Path $TempDir $ApkAI) "info.dourok.voicebot" "AI Box Plus DLNA"
 
     Write-Host ">> [5/5] Mo khoa va khoi chay toan bo dich vu he thong..." -ForegroundColor White
-    $StartCmd = "for p in com.phicomm.speaker.player com.phicomm.speaker.device com.phicomm.speaker.ijetty com.phicomm.speaker.netctl info.dourok.voicebot; do pm unhide `$p 2>/dev/null; pm enable `$p 2>/dev/null; done; am startservice com.phicomm.speaker.player/.EchoService 2>/dev/null; am start -n com.phicomm.speaker.device/.ui.MainActivity 2>/dev/null; am start -n info.dourok.voicebot/.java.activities.MainActivity 2>/dev/null; settings put global bluetooth_on 1 2>/dev/null; service call bluetooth_manager 6 2>/dev/null; mkdir -p /data/data/info.dourok.voicebot/shared_prefs 2>/dev/null; setprop persist.sys.r1_led 0 2>/dev/null; lights_test set 7fffff8000 0 2>/dev/null; lights_test set 7fffff0000 ffffff 2>/dev/null"
+    $StartCmd = "for p in com.phicomm.speaker.player com.phicomm.speaker.device com.phicomm.speaker.ijetty com.phicomm.speaker.netctl info.dourok.voicebot; do pm unhide `$p 2>/dev/null; pm enable `$p 2>/dev/null; done; am startservice com.phicomm.speaker.player/.EchoService 2>/dev/null; am start -n com.phicomm.speaker.device/.ui.MainActivity 2>/dev/null; am start -n info.dourok.voicebot/.java.activities.MainActivity 2>/dev/null; settings put global bluetooth_on 1 2>/dev/null; service call bluetooth_manager 6 2>/dev/null; setprop persist.sys.r1_led 0 2>/dev/null; lights_test set 7fffff8000 0 2>/dev/null; lights_test set 7fffff0000 ffffff 2>/dev/null"
     adb -s $Serial shell $StartCmd 2>$null | Out-Null
     Start-Sleep -Seconds 1
 

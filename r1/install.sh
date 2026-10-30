@@ -110,9 +110,11 @@ detect_subnet() {
 scan_lan_for_r1() {
     PREFIX="$1"
     [ -z "$PREFIX" ] && PREFIX=$(detect_subnet)
+    # Neu nguoi dung nhap IP day du (VD 192.168.1.94), tu dong cat lay 3 octet dau
+    PREFIX=$(echo "$PREFIX" | awk -F'.' '{if (NF>=3) print $1"."$2"."$3; else print $0}')
     
     echo ""
-    echo ">> Dang quet nhanh dai mang ${PREFIX}.1 -> 254 de tim loa Phicomm R1..."
+    echo ">> Dang quet nhanh dai mang ${PREFIX}.1 -> 254 (Port 8080 & 5555)..."
     
     SCAN_TMP="/tmp/r1_scan_$$"
     mkdir -p "$SCAN_TMP"
@@ -127,7 +129,7 @@ scan_lan_for_r1() {
             (
                 TARGET="${PREFIX}.${i}"
                 if command -v nc >/dev/null 2>&1; then
-                    if nc -w 1 -z "$TARGET" 5555 >/dev/null 2>&1; then
+                    if nc -w 1 -z "$TARGET" 8080 >/dev/null 2>&1 || nc -w 1 -z "$TARGET" 5555 >/dev/null 2>&1; then
                         echo "$TARGET" > "$SCAN_TMP/$i"
                     fi
                 fi
@@ -153,7 +155,7 @@ scan_lan_for_r1() {
     rm -rf "$SCAN_TMP"
     
     if [ $FOUND_COUNT -eq 0 ]; then
-        echo ">> Khong tim thay thiet bi nao mo cong 5555 trong dai mang ${PREFIX}.x."
+        echo ">> Khong tim thay thiet bi Phicomm R1 trong dai mang ${PREFIX}.x."
         echo "   (Hay dam bao loa da cam nguon va thiet bi dang bat Wi-Fi cung lop mang)."
     fi
 }
@@ -164,27 +166,24 @@ prompt_for_target_ip() {
     echo "----------------------------------------------------------"
     echo "           TIM KIEM & XAC DINH IP CUA LOA R1              "
     echo "----------------------------------------------------------"
-    echo "  [1] Tu dong quet mang WiFi de tim IP loa (Khuyen dung)"
-    echo "  [2] Nhap truc tiep dia chi IP loa thu cong"
+    echo "Nhap dia chi IP cua loa Phicomm R1 (Vi du: 192.168.1.94)."
+    echo "Neu chua ro dia chi IP, de trong roi nhan [Enter] de tu dong quet tim."
     echo ""
-    IP_OPT=$(read_input "Chon phuong thuc tim IP (1-2, mac dinh 1): " "1")
-
-    if [ "$IP_OPT" = "1" ]; then
+    USER_INPUT_IP=$(read_input "Nhap dia chi IP loa [Enter de quet tu dong]: " "")
+    
+    if [ -n "$USER_INPUT_IP" ]; then
+        TARGET_IP=$(echo "$USER_INPUT_IP" | sed 's/:5555$//')
+    else
         CUR_SUB=$(detect_subnet)
-        USER_SUB=$(read_input "Dai mang can quet [mac dinh: $CUR_SUB]: " "$CUR_SUB")
-        scan_lan_for_r1 "$USER_SUB"
+        scan_lan_for_r1 "$CUR_SUB"
         if [ -n "$FIRST_FOUND_IP" ]; then
             SUGGESTED="$FIRST_FOUND_IP"
+        else
+            SUGGESTED="192.168.1.94"
         fi
-    fi
-
-    echo ""
-    if [ -n "$SUGGESTED" ]; then
         TARGET_IP=$(read_input "Nhap dia chi IP cua loa [Enter de chon $SUGGESTED]: " "$SUGGESTED")
-    else
-        TARGET_IP=$(read_input "Nhap dia chi IP cua loa (VD: 192.168.1.15): " "192.168.43.1")
+        TARGET_IP=$(echo "$TARGET_IP" | sed 's/:5555$//')
     fi
-    TARGET_IP=$(echo "$TARGET_IP" | sed 's/:5555$//')
     echo ">> [XAC NHAN] Dia chi IP lua chon: $TARGET_IP"
 }
 
@@ -333,6 +332,46 @@ echo "=========================================================="
 # Khoi dong adb server tren may
 adb start-server >/dev/null 2>&1 || true
 
+revive_r1_adbd() {
+    local tip="$1"
+    [ -z "$tip" ] && return 0
+    python3 -c "
+import socket
+try:
+    s = socket.socket()
+    s.settimeout(2)
+    s.connect(('$tip', 8080))
+    s.sendall(b'GET / HTTP/1.1\r\nHost: $tip:8080\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n')
+    s.recv(1024)
+    cmd = b'stop adbd; setprop service.adb.tcp.port 5555; start adbd; svc power stayon true; am force-stop com.phicomm.speaker.airskill; am force-stop com.phicomm.speaker.otaservice'
+    payload = b'{\"type\":\"shell\",\"type_id\":\"revive\",\"shell\":\"' + cmd + b'\"}'
+    mask = b'\x12\x34\x56\x78'
+    masked = bytes([b ^ mask[i % 4] for i, b in enumerate(payload)])
+    hdr = bytes([0x81, 0x80 | len(payload)]) + mask if len(payload) < 126 else bytes([0x81, 0x80 | 126, len(payload) >> 8, len(payload) & 0xff]) + mask
+    s.sendall(hdr + masked)
+    s.close()
+except:
+    pass
+" 2>/dev/null || python -c "
+import socket
+try:
+    s = socket.socket()
+    s.settimeout(2)
+    s.connect(('$tip', 8080))
+    s.sendall(b'GET / HTTP/1.1\r\nHost: $tip:8080\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n')
+    s.recv(1024)
+    cmd = b'stop adbd; setprop service.adb.tcp.port 5555; start adbd; svc power stayon true; am force-stop com.phicomm.speaker.airskill; am force-stop com.phicomm.speaker.otaservice'
+    payload = b'{\"type\":\"shell\",\"type_id\":\"revive\",\"shell\":\"' + cmd + b'\"}'
+    mask = b'\x12\x34\x56\x78'
+    masked = bytes([b ^ mask[i % 4] for i, b in enumerate(payload)])
+    hdr = bytes([0x81, 0x80 | len(payload)]) + mask if len(payload) < 126 else bytes([0x81, 0x80 | 126, len(payload) >> 8, len(payload) & 0xff]) + mask
+    s.sendall(hdr + masked)
+    s.close()
+except:
+    pass
+" 2>/dev/null || true
+}
+
 if [ "$TARGET_IP" = "192.168.43.1" ]; then
     echo "------------------ HUONG DAN KET NOI WIFI LOA (AP) ------------------"
     echo " 1. TAT 4G/5G (Du lieu di dong) tren dien thoai:"
@@ -348,6 +387,10 @@ else
     echo " 2. Dia chi IP muc tieu cua loa: $TARGET_IP"
     echo " 3. iPhone: Vao Cai dat may -> iSH -> Bat 'Mang cuc bo' (Local Network)."
 fi
+
+echo ">> Dang danh thuc & kich hoat he thong loa tai $TARGET_IP..."
+revive_r1_adbd "$TARGET_IP"
+sleep 0.6
 
 echo ">> He thong dang tu dong cho ket noi (Nhan Ctrl + C neu muon dung)..."
 echo ""
@@ -372,18 +415,15 @@ is_r1_ready() {
 
 # Ket noi thu lan dau
 CONN_INIT=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
-sleep 1
+sleep 0.5
 
 if ! is_r1_ready; then
-    # Neu bao already connected ma get-state khong phai device (socket ma tren adb daemon)
     if echo "$CONN_INIT" | grep -q "already connected"; then
-        echo ">> Phat hien socket cu dang giu, dang lam sach ket noi..."
         adb disconnect "$SERIAL" >/dev/null 2>&1 || true
-        adb kill-server >/dev/null 2>&1 || true
-        sleep 1
-        adb start-server >/dev/null 2>&1 || true
+        revive_r1_adbd "$TARGET_IP"
+        sleep 0.6
         adb connect "$SERIAL" >/dev/null 2>&1 || true
-        sleep 1
+        sleep 0.5
     fi
 
     TRY_COUNT=0
@@ -397,7 +437,7 @@ if ! is_r1_ready; then
         fi
 
         CONN_RES=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
-        DEV_STATE=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d '\r\n')
+        sleep 0.4
 
         if is_r1_ready; then
             echo ""
@@ -405,14 +445,13 @@ if ! is_r1_ready; then
             break
         fi
 
-        printf "\r[*] Dang cho ket noi [%s] (Thu %d) | Trang thai: %s   " "$SERIAL" "$TRY_COUNT" "$CONN_RES"
+        printf "\r[*] Dang cho ket noi [%s] (Thu %d)... " "$SERIAL" "$TRY_COUNT"
 
-        # Neu bi ket 'already connected' hoac sau moi 6 lan thu (~7s), lam sach adb server de bat tay lai
-        if echo "$CONN_RES" | grep -q "already connected" || [ $((TRY_COUNT % 6)) -eq 0 ]; then
+        # Neu bi ket 'already connected' hoac moi 3 lan thu, lam sach socket va danh thuc lai
+        if echo "$CONN_RES" | grep -q "already connected" || [ $((TRY_COUNT % 3)) -eq 0 ]; then
             adb disconnect "$SERIAL" >/dev/null 2>&1 || true
-            adb kill-server >/dev/null 2>&1 || true
-            sleep 0.8
-            adb start-server >/dev/null 2>&1 || true
+            revive_r1_adbd "$TARGET_IP"
+            sleep 0.6
         fi
 
         # Sau 18 lan thu (~20s) o che do WiFi nha ma chua duoc, hoi nguoi dung
@@ -446,26 +485,38 @@ echo ">> [SAN SANG] BAT DAU QUA TRINH CAI DAT CHO LOA R1..."
 # ------------------------------------------------------------------------------
 install_apk_on_device() {
     LOCAL_APK="$1"
-    REMOTE_TMP="/data/local/tmp/$(basename "$LOCAL_APK")"
+    REMOTE_TMP="/sdcard/app.apk"
     PKG_NAME="$2"
     DESC="$3"
     
     printf "   -> Dang truyen %s sang loa... " "$DESC"
+    adb connect "$SERIAL" >/dev/null 2>&1 || true
     adb -s "$SERIAL" push "$LOCAL_APK" "$REMOTE_TMP" >/dev/null 2>&1
+    sleep 0.5
+
     printf "Dang cai dat... "
+    adb connect "$SERIAL" >/dev/null 2>&1 || true
+    sleep 0.4
     INSTALL_OUT=$(adb -s "$SERIAL" shell "pm install -r $REMOTE_TMP" 2>&1 | tr -d '\r')
     
+    if echo "$INSTALL_OUT" | grep -qi "closed" || [ -z "$INSTALL_OUT" ]; then
+        sleep 0.8
+        adb connect "$SERIAL" >/dev/null 2>&1 || true
+        INSTALL_OUT=$(adb -s "$SERIAL" shell "pm install -r $REMOTE_TMP" 2>&1 | tr -d '\r')
+    fi
+
     # Neu bi loi khac biet chu ky ung dung cu
-    if echo "$INSTALL_OUT" | grep -q "INSTALL_FAILED_UPDATE_INCOMPATIBLE"; then
+    if echo "$INSTALL_OUT" | grep -q "INSTALL_FAILED_UPDATE_INCOMPATIBLE" || echo "$INSTALL_OUT" | grep -qi "signatures do not match"; then
         printf "\n   [!] Khac chu ky cu, dang go ban cu de cai moi... "
         [ -n "$PKG_NAME" ] && adb -s "$SERIAL" shell "pm uninstall $PKG_NAME" >/dev/null 2>&1 || true
         INSTALL_OUT=$(adb -s "$SERIAL" shell "pm install $REMOTE_TMP" 2>&1 | tr -d '\r')
     fi
     
     if echo "$INSTALL_OUT" | grep -qi "Success"; then
-        echo "[THANG CONG]"
+        echo "[THANH CONG]"
     else
-        echo "[LOI]: $INSTALL_OUT"
+        adb -s "$SERIAL" shell "pm unhide $PKG_NAME; pm enable $PKG_NAME" >/dev/null 2>&1 || true
+        echo "[KET QUA]: $INSTALL_OUT"
     fi
     
     adb -s "$SERIAL" shell "rm -f $REMOTE_TMP" >/dev/null 2>&1 || true
