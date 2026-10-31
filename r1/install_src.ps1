@@ -1,4 +1,4 @@
-﻿# ==============================================================================
+# ==============================================================================
 # BỘ CÀI ĐẶT PHICOMM R1 SIÊU TỐC - WINDOWS POWERSHELL
 # Tự động cấu hình WiFi AP, quét tìm loa trong LAN, dọn sạch file cũ, giao diện UTF-8
 # ==============================================================================
@@ -552,7 +552,7 @@ function Run-Install {
         Write-Host "   -> Khởi động AI Box Plus..." -ForegroundColor White
         adb -s $Serial shell "am start -n info.dourok.voicebot/.java.activities.MainActivity 2>/dev/null; settings put global bluetooth_on 1 2>/dev/null; service call bluetooth_manager 6 2>/dev/null; setprop persist.sys.r1_led 0 2>/dev/null; lights_test set 7fffff8000 0 2>/dev/null; lights_test set 7fffff0000 ffffff 2>/dev/null" 2>$null | Out-Null
 
-        $SpeakerLanIp = (adb -s $Serial shell "getprop dhcp.wlan0.ipaddress" 2>/dev/null | Out-String).Trim()
+        $SpeakerLanIp = (adb -s $Serial shell "getprop dhcp.wlan0.ipaddress 2>/dev/null" 2>$null | Out-String).Trim()
     } else {
         Write-Host "   -> [DRY-RUN] Đã thực thi chuỗi lệnh new.bat chuẩn xác!" -ForegroundColor Yellow
         $SpeakerLanIp = ""
