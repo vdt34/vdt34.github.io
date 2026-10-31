@@ -1,6 +1,6 @@
 ﻿# ==============================================================================
 # BỘ CÀI ĐẶT PHICOMM R1 SIÊU TỐC - WINDOWS POWERSHELL
-# Tự động cấu hình WiFi, quét tìm loa trong LAN, dọn sạch file cũ, giao diện UTF-8
+# Tự động cấu hình WiFi AP, quét tìm loa trong LAN, dọn sạch file cũ, giao diện UTF-8
 # ==============================================================================
 
 try { chcp 65001 >$null } catch {}
@@ -15,11 +15,20 @@ $RunScanCli = $false
 
 if ($args.Count -gt 0) {
     foreach ($a in $args) {
-        if ($a -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}') { $Ip = $a }
-        elseif ($a -eq "-Yes" -or $a -eq "-y") { $Yes = $true }
-        elseif ($a -eq "-DryRun") { $DryRun = $true }
-        elseif ($a -eq "-Wifi" -or $a -eq "--wifi") { $RunWifiCli = $true }
-        elseif ($a -eq "-Scan" -or $a -eq "--scan") { $RunScanCli = $true }
+        if ($a -eq "192.168.43.1") {
+            $Ip = $a
+            $RunWifiCli = $true
+        } elseif ($a -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}') {
+            $Ip = $a
+        } elseif ($a -eq "-Yes" -or $a -eq "-y") {
+            $Yes = $true
+        } elseif ($a -eq "-DryRun") {
+            $DryRun = $true
+        } elseif ($a -eq "-Wifi" -or $a -eq "--wifi") {
+            $RunWifiCli = $true
+        } elseif ($a -eq "-Scan" -or $a -eq "--scan") {
+            $RunScanCli = $true
+        }
     }
 }
 
@@ -75,7 +84,7 @@ function Revive-Speaker {
     } catch {}
 }
 
-# 3. Cấu hình WiFi cho loa qua AP API (192.168.43.1:8989)
+# 3. [MỤC 1] Cấu hình WiFi cho loa qua AP API (192.168.43.1:8989)
 function Send-WifiConfig {
     param(
         [string]$TargetIp = "192.168.43.1",
@@ -110,26 +119,21 @@ function Send-WifiConfig {
 
 function Run-WifiConfig {
     Write-Host ""
-    Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
-    Write-Host "        CẤU HÌNH WIFI CHO LOA QUA CHẾ ĐỘ AP               " -ForegroundColor Yellow
-    Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
-    Write-Host " LƯU Ý: Loa chỉ phát WiFi AP ~60-90 giây sau khi reset." -ForegroundColor Gray
-    Write-Host "  -> Bước này CHỈ gửi cấu hình WiFi (xong dưới 5 giây)." -ForegroundColor Gray
-    Write-Host "  -> KHÔNG nạp APK ở đây để tránh bị timeout giữa chừng." -ForegroundColor Gray
-    Write-Host ""
-    Write-Host " Các bước chuẩn bị:" -ForegroundColor White
-    Write-Host "  1. Giữ nút tròn đỉnh loa 5-6 giây cho đến khi đèn đổi màu/nhấp nháy." -ForegroundColor White
-    Write-Host "  2. Trên máy tính: Cài đặt WiFi -> chọn mạng 'Phicomm_R1_xxxx'." -ForegroundColor White
-    Write-Host "  3. Nhấn Enter để tiếp tục." -ForegroundColor White
-    Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
+    Write-Host "==========================================================" -ForegroundColor Cyan
+    Write-Host "  CẤU HÌNH WIFI CHO LOA VỪA RESET (CHẾ ĐỘ AP 192.168.43.1)" -ForegroundColor Yellow
+    Write-Host "==========================================================" -ForegroundColor Cyan
+    Write-Host " Hướng dẫn chuẩn bị:" -ForegroundColor White
+    Write-Host "  1. Loa vừa reset sẽ phát mạng WiFi 'Phicomm_R1_xxxx'." -ForegroundColor White
+    Write-Host "  2. Trên máy tính: Vào Cài đặt WiFi -> Kết nối mạng 'Phicomm_R1_xxxx'." -ForegroundColor White
+    Write-Host "==========================================================" -ForegroundColor Cyan
 
     if (-not $Yes -and -not $DryRun -and $env:R1_DRYRUN -ne "1") {
-        Read-Host "Nhấn Enter khi đã kết nối WiFi loa"
+        Read-Host "Nhấn Enter khi đã kết nối WiFi của loa"
     }
 
     # Kiểm tra cổng 8989 trên loa AP
     Write-Host ""
-    Write-Host ">> Kiểm tra kết nối tới 192.168.43.1:8989..." -ForegroundColor Cyan
+    Write-Host ">> Đang kiểm tra kết nối tới loa (192.168.43.1:8989)..." -ForegroundColor Cyan
     $connectedApi = $false
     try {
         $client = New-Object System.Net.Sockets.TcpClient
@@ -158,14 +162,21 @@ function Run-WifiConfig {
     Write-Host "Nhập thông tin mạng WiFi nhà để loa kết nối:" -ForegroundColor White
     Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
     $ssid = ""
-    while (-not $ssid) {
-        $ssid = Read-Host ">> Tên WiFi nhà (SSID, phân biệt HOA/thường)"
-        $ssid = if ($ssid) { $ssid.Trim() } else { "" }
-        if (-not $ssid) { Write-Host "   [!] Tên WiFi không được để trống!" -ForegroundColor Yellow }
+    $pass = ""
+    if ($Yes -or $DryRun -or $env:R1_DRYRUN -eq "1") {
+        $ssid = "MyWiFi"
+        $pass = "12345678"
+    } else {
+        while (-not $ssid) {
+            $ssid = Read-Host ">> Tên WiFi nhà (SSID, phân biệt HOA/thường)"
+            $ssid = if ($ssid) { $ssid.Trim() } else { "" }
+            if (-not $ssid) {
+                Write-Host "   [!] Tên WiFi không được để trống!" -ForegroundColor Yellow
+            }
+        }
+        $pass = Read-Host ">> Mật khẩu WiFi (nhấn Enter nếu WiFi không có pass)"
+        $pass = if ($pass) { $pass.Trim() } else { "" }
     }
-
-    $pass = Read-Host ">> Mật khẩu WiFi (nhấn Enter nếu WiFi không có pass)"
-    $pass = if ($pass) { $pass.Trim() } else { "" }
 
     $secure = "WPA"
     if (-not $pass) {
@@ -183,26 +194,17 @@ function Run-WifiConfig {
 
     Write-Host ""
     Write-Host "==========================================================" -ForegroundColor Green
-    Write-Host "            ĐÃ GỬI CẤU HÌNH WIFI THÀNH CÔNG               " -ForegroundColor Yellow
+    Write-Host "            ĐÃ GỬI CẤU HÌNH WIFI THÀNH CÔNG!              " -ForegroundColor Yellow
     Write-Host "==========================================================" -ForegroundColor Green
-    Write-Host " BƯỚC TIẾP THEO:" -ForegroundColor White
-    Write-Host "  1. Nghe loa báo 'kết nối thành công' (nếu có)." -ForegroundColor White
-    Write-Host "  2. Đợi 20 giây để loa kết nối WiFi nhà và nhận IP LAN." -ForegroundColor White
-    Write-Host "  3. Chuyển máy tính về lại mạng WiFi nhà." -ForegroundColor White
-    Write-Host "  4. Quay lại menu, chọn mục 2 để quét IP LAN & cài APK." -ForegroundColor Cyan
+    Write-Host " THÔNG BÁO QUAN TRỌNG:" -ForegroundColor White
+    Write-Host "  1. Loa đang kết nối WiFi nhà, chờ khoảng 20 giây sẽ có IP." -ForegroundColor White
+    Write-Host "  2. Hãy chuyển máy tính về lại mạng WiFi nhà." -ForegroundColor White
+    Write-Host "  3. Sau đó quay lại menu chọn [2] để tìm IP và cài APK." -ForegroundColor Cyan
     Write-Host "==========================================================" -ForegroundColor Green
 
     if (-not $Yes -and -not $DryRun -and $env:R1_DRYRUN -ne "1") {
         Write-Host ""
-        $waitChoice = Read-Host "Nhấn Enter để đợi 20s loa kết nối hoặc gõ 'M' để về menu ngay [Mặc định: đợi]"
-        if ($waitChoice -ne "m" -and $waitChoice -ne "M") {
-            Write-Host ">> Đang đếm ngược 20 giây..." -ForegroundColor Gray
-            for ($s = 20; $s -gt 0; $s--) {
-                Write-Host -NoNewline "`r   Còn $s giây..."
-                Start-Sleep -Seconds 1
-            }
-            Write-Host "`r   [OK] Đã hoàn tất thời gian chờ!                " -ForegroundColor Green
-        }
+        Read-Host "Nhấn Enter để quay lại menu chính"
     }
     return $true
 }
@@ -346,25 +348,23 @@ function Ensure-Apks {
         Write-Host "  [LỖI THIẾU FILE CÀI ĐẶT DO CHƯA CÓ INTERNET]" -ForegroundColor Red
         Write-Host "==========================================================" -ForegroundColor Red
         Write-Host "Vui lòng kiểm tra kết nối mạng để tải đủ 3 file APK." -ForegroundColor Yellow
-        Read-Host "Nhấn Enter để quay lại"
+        Read-Host "Nhấn Enter để quay lại menu"
         return $false
     }
     return $true
 }
 
-# 6. Luồng Quét IP LAN & Cài đặt APK
+# 6. [MỤC 2] Luồng Quét IP LAN & Cài đặt APK (GIỮ NGUYÊN CODE CHUẨN)
 function Run-Install {
     param([string]$TargetIpParam = "")
     $TargetIp = $TargetIpParam
-    if (-not $TargetIp) { $TargetIp = $Ip }
 
     if (-not $TargetIp) {
         Write-Host ""
         Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
-        Write-Host "                  XÁC ĐỊNH IP CỦA LOA                     " -ForegroundColor Yellow
+        Write-Host "                  TÌM IP CỦA LOA TRONG LAN                " -ForegroundColor Yellow
         Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
-        Write-Host " [S]     Tự động QUÉT tìm IP loa trong WiFi nhà (KHUYÊN DÙNG)" -ForegroundColor Cyan
-        Write-Host " [Enter] Dùng 192.168.43.1 (KHÔNG khuyến nghị — AP sẽ tắt)" -ForegroundColor Gray
+        Write-Host " [S] hoặc [Enter]: Tự động QUÉT tìm IP loa trong WiFi nhà (LAN)" -ForegroundColor Cyan
         Write-Host " Hoặc gõ trực tiếp IP của loa (Ví dụ: 192.168.1.94)" -ForegroundColor Gray
         Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
 
@@ -394,7 +394,6 @@ function Run-Install {
                 } else {
                     Write-Host ""
                     Write-Host ">> Không tìm thấy loa trong mạng LAN." -ForegroundColor Yellow
-                    Write-Host "   -> Nếu loa vừa reset, hãy quay lại menu chọn mục 1 để cấu hình WiFi trước." -ForegroundColor Gray
                     $manual = Read-Host "Hoặc nhập IP loa thủ công (Enter=quay lại menu)"
                     if ($manual -and $manual.Trim()) {
                         $TargetIp = $manual.Trim()
@@ -405,24 +404,30 @@ function Run-Install {
             } elseif ($u -eq "1" -or $u -eq "192.168.43.1") {
                 Write-Host ""
                 Write-Host "==========================================================" -ForegroundColor Red
-                Write-Host "  [CẢNH BÁO] Chọn 192.168.43.1 (AP mode) để cài APK" -ForegroundColor Yellow
-                Write-Host "  KHÔNG khuyến nghị vì AP sẽ tắt sau ~60-90s!" -ForegroundColor Yellow
+                Write-Host "  [CẢNH BÁO] KHÔNG THỂ CÀI ĐẶT APK QUA AP 192.168.43.1!" -ForegroundColor Yellow
                 Write-Host "==========================================================" -ForegroundColor Red
-                Write-Host "  Quy trình đúng:" -ForegroundColor White
-                Write-Host "   1. Chọn mục 1 cấu hình WiFi trước (mất 5s)" -ForegroundColor White
-                Write-Host "   2. Loa kết nối WiFi nhà, có IP LAN" -ForegroundColor White
-                Write-Host "   3. Chọn mục 2 quét IP LAN và cài đặt siêu tốc" -ForegroundColor White
+                Write-Host "  WiFi AP của loa tự tắt sau ~60-90 giây, push APK sẽ rớt mạng." -ForegroundColor White
+                Write-Host "  -> Hãy chọn [1] trên Menu để cấu hình WiFi cho loa trước!" -ForegroundColor White
                 Write-Host "==========================================================" -ForegroundColor Red
-                $cont = Read-Host "Vẫn tiếp tục cài qua AP? [y/N]"
-                if ($cont -eq "y" -or $cont -eq "Y") {
-                    $TargetIp = "192.168.43.1"
-                } else {
-                    return
-                }
+                Read-Host "Nhấn Enter để quay lại menu"
+                return
             } else {
                 $TargetIp = $u
             }
         }
+    }
+
+    # Kiểm tra lại nếu người dùng nhập nhầm 192.168.43.1
+    if ($TargetIp -eq "192.168.43.1") {
+        Write-Host ""
+        Write-Host "==========================================================" -ForegroundColor Red
+        Write-Host "  [CẢNH BÁO] KHÔNG THỂ CÀI ĐẶT APK QUA AP 192.168.43.1!" -ForegroundColor Yellow
+        Write-Host "==========================================================" -ForegroundColor Red
+        Write-Host "  WiFi AP của loa tự tắt sau ~60-90 giây, push APK sẽ rớt mạng." -ForegroundColor White
+        Write-Host "  -> Hãy chọn [1] trên Menu để cấu hình WiFi cho loa trước!" -ForegroundColor White
+        Write-Host "==========================================================" -ForegroundColor Red
+        Read-Host "Nhấn Enter để quay lại menu"
+        return
     }
 
     $TargetIp = $TargetIp.Trim().Replace(":5555", "")
@@ -444,7 +449,7 @@ function Run-Install {
 
     if (-not (Ensure-Apks)) { return }
 
-    # Kết nối ADB tới loa
+    # [2/4] Bắt đầu kết nối thiết bị ADB
     Write-Host ""
     Write-Host ">> [2/4] Bắt đầu kết nối thiết bị [$Serial]..." -ForegroundColor Cyan
 
@@ -498,13 +503,13 @@ function Run-Install {
             Write-Host " 3. Địa chỉ IP của loa ($TargetIp) đã đúng chưa." -ForegroundColor White
             Write-Host " 4. Nếu loa vừa reset -> hãy chọn mục 1 để cấu hình WiFi trước." -ForegroundColor White
             Write-Host "==========================================================" -ForegroundColor Red
-            Read-Host "Nhấn Enter để quay lại"
+            Read-Host "Nhấn Enter để quay lại menu"
             return
         }
     }
     Write-Host ">> [OK] Kết nối thành công tới loa ($Serial)!" -ForegroundColor Green
 
-    # Đẩy APK lên bộ nhớ tạm của loa
+    # [3/4] Đẩy APK lên bộ nhớ tạm của loa
     $Apks = @("autodlna.apk", "unisound.apk", "AIBoxPlus_DLNA.apk")
     Write-Host ""
     Write-Host ">> [3/4] Đang dọn sạch bộ nhớ tạm trên loa & nạp 3 file APK mới lên (/data/local/tmp/)..." -ForegroundColor Cyan
@@ -520,7 +525,7 @@ function Run-Install {
     }
     Write-Host ">> [OK] Đã đưa trọn vẹn 3 file mới lên loa!" -ForegroundColor Green
 
-    # Thực thi chuỗi lệnh cài đặt
+    # [4/4] Thực thi chuỗi lệnh cài đặt hệ thống chuẩn theo new.bat
     Write-Host ""
     Write-Host ">> [4/4] Bắt đầu cài đặt hệ thống..." -ForegroundColor Cyan
 
@@ -568,9 +573,6 @@ function Run-Install {
         Write-Host ">> IP của loa trong mạng WiFi nhà: $SpeakerLanIp" -ForegroundColor Cyan
         Write-Host ">> Truy cập bảng điều khiển loa tại: http://$($SpeakerLanIp):8081/" -ForegroundColor White
         try { Start-Process "http://$($SpeakerLanIp):8081/" } catch {}
-    } elseif ($TargetIp -eq "192.168.43.1") {
-        Write-Host ">> Truy cập bảng điều khiển loa tại: http://192.168.43.1:8081/" -ForegroundColor White
-        try { Start-Process "http://192.168.43.1:8081/" } catch {}
     } else {
         Write-Host ">> Truy cập bảng điều khiển loa tại: http://$($TargetIp):8081/" -ForegroundColor White
         try { Start-Process "http://$($TargetIp):8081/" } catch {}
@@ -579,7 +581,7 @@ function Run-Install {
     Write-Host "==========================================================" -ForegroundColor Green
     Write-Host ""
     if (-not $Yes -and -not $DryRun -and $env:R1_DRYRUN -ne "1") {
-        Read-Host "Nhấn Enter để quay lại menu"
+        Read-Host "Nhấn Enter để quay lại menu chính"
     }
 }
 
@@ -592,10 +594,10 @@ function Show-Menu {
     Write-Host "  1) Cấu hình WiFi cho loa (kết nối AP 192.168.43.1)" -ForegroundColor White
     Write-Host "     -> Dùng khi loa vừa reset, đang phát WiFi Phicomm_R1_xxxx" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "  2) Quét IP LAN & cài đặt APK (AutoDLNA + Unisound + AI)" -ForegroundColor White
+    Write-Host "  2) Quét IP LAN & Cài đặt APK (AutoDLNA + Unisound + AI)" -ForegroundColor White
     Write-Host "     -> Dùng khi loa ĐÃ vào WiFi nhà (có IP LAN)" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "  3) Chỉ quét IP LAN (không cài đặt)" -ForegroundColor White
+    Write-Host "  3) Chỉ quét tìm IP loa trong LAN (không cài đặt)" -ForegroundColor White
     Write-Host "  4) Thoát" -ForegroundColor White
     Write-Host "==========================================================" -ForegroundColor Cyan
     $choice = Read-Host "Chọn [1-4]"
@@ -605,13 +607,13 @@ function Show-Menu {
 }
 
 # Xử lý tham số dòng lệnh trực tiếp (Automation / Scripts)
-if ($Ip -and $Ip -ne "") {
-    Run-Install -TargetIpParam $Ip
+if ($RunWifiCli) {
+    Run-WifiConfig | Out-Null
     return
 }
 
-if ($RunWifiCli) {
-    Run-WifiConfig | Out-Null
+if ($Ip -and $Ip -ne "") {
+    Run-Install -TargetIpParam $Ip
     return
 }
 
@@ -644,7 +646,7 @@ while ($true) {
             Write-Host ">> Không tìm thấy loa R1 trong dải mạng hiện tại." -ForegroundColor Yellow
         }
         Write-Host ""
-        Read-Host "Nhấn Enter để quay lại menu"
+        Read-Host "Nhấn Enter để quay lại menu chính"
     } elseif ($c -eq "4" -or $c -eq "q" -or $c -eq "Q" -or $c -eq "exit") {
         Write-Host "Thoát chương trình." -ForegroundColor Yellow
         break
