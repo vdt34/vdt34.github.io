@@ -553,8 +553,12 @@ function Run-Install {
         adb -s $Serial shell "am start -n info.dourok.voicebot/.java.activities.MainActivity 2>/dev/null; settings put global bluetooth_on 1 2>/dev/null; service call bluetooth_manager 6 2>/dev/null; setprop persist.sys.r1_led 0 2>/dev/null; lights_test set 7fffff8000 0 2>/dev/null; lights_test set 7fffff0000 ffffff 2>/dev/null" 2>$null | Out-Null
 
         $SpeakerLanIp = (adb -s $Serial shell "getprop dhcp.wlan0.ipaddress 2>/dev/null" 2>$null | Out-String).Trim()
+
+        Write-Host "   -> Đang khởi động lại loa (Reboot)..." -ForegroundColor White
+        adb -s $Serial reboot 2>$null | Out-Null
     } else {
         Write-Host "   -> [DRY-RUN] Đã thực thi chuỗi lệnh new.bat chuẩn xác!" -ForegroundColor Yellow
+        Write-Host "   -> [DRY-RUN] Đã gửi lệnh khởi động lại (Reboot) loa!" -ForegroundColor Yellow
         $SpeakerLanIp = ""
     }
 
@@ -564,20 +568,17 @@ function Run-Install {
         if (Test-Path $tmpFile) { Remove-Item $tmpFile -Force -ErrorAction SilentlyContinue }
     }
 
+    $UiIp = if ($SpeakerLanIp -and $SpeakerLanIp -ne "") { $SpeakerLanIp } else { $TargetIp }
+
     Write-Host ""
     Write-Host "==========================================================" -ForegroundColor Green
     Write-Host "                    CÀI ĐẶT HOÀN TẤT!                     " -ForegroundColor Yellow
     Write-Host "==========================================================" -ForegroundColor Green
-
-    if ($SpeakerLanIp -and $SpeakerLanIp -ne "") {
-        Write-Host ">> IP của loa trong mạng WiFi nhà: $SpeakerLanIp" -ForegroundColor Cyan
-        Write-Host ">> Truy cập bảng điều khiển loa tại: http://$($SpeakerLanIp):8081/" -ForegroundColor White
-        try { Start-Process "http://$($SpeakerLanIp):8081/" } catch {}
-    } else {
-        Write-Host ">> Truy cập bảng điều khiển loa tại: http://$($TargetIp):8081/" -ForegroundColor White
-        try { Start-Process "http://$($TargetIp):8081/" } catch {}
-    }
-
+    Write-Host ">> Đã gửi lệnh khởi động lại (Reboot) loa thành công!" -ForegroundColor Green
+    Write-Host ">> Loa đang khởi động lại (thường mất khoảng 30 - 45 giây)." -ForegroundColor White
+    Write-Host ""
+    Write-Host ">> Sau khi loa khởi động xong, truy cập bảng điều khiển tại:" -ForegroundColor White
+    Write-Host "   👉 http://$($UiIp):8081/" -ForegroundColor Cyan
     Write-Host "==========================================================" -ForegroundColor Green
     Write-Host ""
     if (-not $Yes -and -not $DryRun -and $env:R1_DRYRUN -ne "1") {

@@ -572,8 +572,12 @@ run_install_lan() {
         adb -s "$SERIAL" shell "am start -n info.dourok.voicebot/.java.activities.MainActivity 2>/dev/null; settings put global bluetooth_on 1 2>/dev/null; service call bluetooth_manager 6 2>/dev/null; setprop persist.sys.r1_led 0 2>/dev/null; lights_test set 7fffff8000 0 2>/dev/null; lights_test set 7fffff0000 ffffff 2>/dev/null" >/dev/null 2>&1
 
         LAN_IP=$(adb -s "$SERIAL" shell "getprop dhcp.wlan0.ipaddress" 2>/dev/null | tr -d '\r\n')
+
+        echo "   -> Đang khởi động lại loa (Reboot)..."
+        adb -s "$SERIAL" reboot >/dev/null 2>&1 || true
     else
         echo "   -> [DRY-RUN] Đã thực thi chuỗi lệnh new.bat chuẩn xác!"
+        echo "   -> [DRY-RUN] Đã gửi lệnh khởi động lại (Reboot) loa!"
         LAN_IP=""
     fi
 
@@ -587,12 +591,15 @@ run_install_lan() {
     echo "=========================================================="
     echo "                    CÀI ĐẶT HOÀN TẤT!                     "
     echo "=========================================================="
-
+    echo ">> Đã gửi lệnh khởi động lại (Reboot) loa thành công!"
+    echo ">> Loa đang khởi động lại (thường mất khoảng 30 - 45 giây)."
+    echo ""
     if [ -n "$LAN_IP" ]; then
-        echo ">> IP của loa trong mạng WiFi nhà: $LAN_IP"
-        echo ">> Truy cập bảng điều khiển loa tại: http://$LAN_IP:8081/"
+        echo ">> Sau khi loa khởi động xong, truy cập bảng điều khiển tại:"
+        echo "   👉 http://$LAN_IP:8081/"
     else
-        echo ">> Truy cập bảng điều khiển loa tại: http://$TARGET_IP:8081/"
+        echo ">> Sau khi loa khởi động xong, truy cập bảng điều khiển tại:"
+        echo "   👉 http://$TARGET_IP:8081/"
     fi
 
     echo "=========================================================="
