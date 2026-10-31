@@ -8,6 +8,16 @@ BASE_URL="https://vdt34.github.io/r1"
 CACHE_DIR="/tmp/r1_cache"
 SCRIPT_DIR=$(cd "$(dirname -- "$0")" 2>/dev/null && pwd)
 
+USER_IP=""
+ASSUME_YES=""
+for arg in "$@"; do
+    case "$arg" in
+        -y|--yes|-Yes) ASSUME_YES="1" ;;
+        -DryRun|--dry-run) export R1_DRYRUN=1 ;;
+        [0-9]*.[0-9]*.[0-9]*.[0-9]*) USER_IP="$arg" ;;
+    esac
+done
+
 clear
 echo "=========================================================="
 echo "     CÀI ĐẶT AUTODLNA + UNISOUND + AI TIẾNG VIỆT (R1)"
@@ -63,6 +73,10 @@ setup_tools
 read_val() {
     prompt="$1"
     def="$2"
+    if [ "$ASSUME_YES" = "1" ] || [ "$R1_DRYRUN" = "1" ]; then
+        echo "$def"
+        return
+    fi
     printf "%s" "$prompt" >&2
     val=""
     read -r val 2>/dev/null || val=""
@@ -151,13 +165,13 @@ scan_speaker_ip() {
     fi
 
     if [ -n "$PY_CMD" ]; then
-        "$PY_CMD" -c "
-import socket
+        "$PY_CMD" - "$sub" << 'EOF' > "$scan_tmp/result.txt" 2>/dev/null || true
+import sys, socket
 from concurrent.futures import ThreadPoolExecutor
 
-prefix = '$sub'
+prefix = sys.argv[1]
 def probe(i):
-    ip = f'{prefix}.{i}'
+    ip = f"{prefix}.{i}"
     ports = []
     for p in (5555, 8081, 8080):
         try:
@@ -166,15 +180,15 @@ def probe(i):
             if s.connect_ex((ip, p)) == 0:
                 ports.append(str(p))
             s.close()
-        except:
+        except Exception:
             pass
     if '5555' in ports or ('8080' in ports and '8081' in ports):
         p_str = ', '.join(ports)
-        print(f'{ip} (Ports: {p_str})')
+        print(f"{ip} (Ports: {p_str})")
 
 with ThreadPoolExecutor(max_workers=50) as ex:
     list(ex.map(probe, range(1, 255)))
-" > "$scan_tmp/result.txt" 2>/dev/null || true
+EOF
     fi
 
     if [ ! -s "$scan_tmp/result.txt" ]; then
@@ -222,11 +236,10 @@ with ThreadPoolExecutor(max_workers=50) as ex:
             [ -z "$line" ] && continue
             TOTAL_FOUND=$((TOTAL_FOUND + 1))
             ip_val=$(echo "$line" | awk '{print $1}')
-            eval "FOUND_IP_$TOTAL_FOUND=\"$ip_val\""
+            echo "$ip_val" >> "$scan_tmp/ips.txt"
             echo "   [$TOTAL_FOUND] $line"
         done < "$scan_tmp/result.txt"
     fi
-    rm -rf "$scan_tmp" 2>/dev/null || true
 }
 
 echo ""
@@ -239,7 +252,7 @@ echo " Hoặc gõ trực tiếp IP của loa (Ví dụ: 192.168.1.94)"
 echo "----------------------------------------------------------"
 echo ""
 
-TARGET_IP=""
+TARGET_IP="$USER_IP"
 while [ -z "$TARGET_IP" ]; do
     USER_INPUT=$(read_val "Nhập IP hoặc gõ 'S' để quét [Mặc định: 192.168.43.1]: " "192.168.43.1")
     USER_INPUT=$(echo "$USER_INPUT" | tr -d ' ')
@@ -255,11 +268,11 @@ while [ -z "$TARGET_IP" ]; do
                 PICK=$(read_val "Chọn số thứ tự loa (1-$TOTAL_FOUND) hoặc nhập IP khác [Mặc định: 1]: " "1")
                 PICK=$(echo "$PICK" | tr -d ' ')
                 if [ "$PICK" -ge 1 ] 2>/dev/null && [ "$PICK" -le "$TOTAL_FOUND" ] 2>/dev/null; then
-                    eval "TARGET_IP=\"\$FOUND_IP_$PICK\""
+                    TARGET_IP=$(sed -n "${PICK}p" "$scan_tmp/ips.txt")
                 elif echo "$PICK" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+'; then
                     TARGET_IP="$PICK"
                 else
-                    TARGET_IP="$FOUND_IP_1"
+                    TARGET_IP=$(head -n 1 "$scan_tmp/ips.txt")
                 fi
             else
                 echo ""
@@ -271,6 +284,7 @@ while [ -z "$TARGET_IP" ]; do
                     TARGET_IP="192.168.43.1"
                 fi
             fi
+            rm -rf "$scan_tmp" 2>/dev/null || true
             ;;
         *)
             TARGET_IP=$(echo "$USER_INPUT" | sed 's/:5555$//')
@@ -530,3 +544,8 @@ else
 fi
 
 echo "=========================================================="
+
+if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
+    echo ""
+    read_val "Nhấn Enter để kết thúc: " "" >/dev/null 2>&1 || true
+fi
