@@ -541,7 +541,9 @@ function Show-Menu {
     Write-Host "  4) Thoát" -ForegroundColor White
     Write-Host "==========================================================" -ForegroundColor Cyan
     $choice = Read-Host "Chọn [1-4]"
-    return if ($choice) { $choice.Trim() } else { "" }
+    if ($null -eq $choice) { return "4" }
+    if ($choice) { return $choice.Trim() }
+    return ""
 }
 
 # 7. Khởi động công cụ ADB
@@ -572,27 +574,30 @@ if ($RunScanCli) {
 # Vòng lặp Menu chính
 while ($true) {
     $c = Show-Menu
-    switch ($c) {
-        "1" { Run-WifiConfig | Out-Null }
-        "2" { Run-Install "" }
-        "3" {
-            $foundList = Scan-SpeakerIp
-            if ($foundList -and $foundList.Count -gt 0) {
-                Write-Host ""
-                Write-Host ">> Phát hiện $($foundList.Count) loa Phicomm R1 trong mạng LAN:" -ForegroundColor Green
-                for ($i = 0; $i -lt $foundList.Count; $i++) {
-                    $item = $foundList[$i]
-                    Write-Host "   [$($i+1)] $($item.IP) ($($item.Ports))" -ForegroundColor Yellow
-                }
-            } else {
-                Write-Host ""
-                Write-Host ">> Không tìm thấy loa R1 trong dải mạng hiện tại." -ForegroundColor Yellow
-            }
+    if ($c -eq "1") {
+        Run-WifiConfig | Out-Null
+    } elseif ($c -eq "2") {
+        Run-Install ""
+    } elseif ($c -eq "3") {
+        $foundList = Scan-SpeakerIp
+        if ($foundList -and $foundList.Count -gt 0) {
             Write-Host ""
-            Read-Host "Nhấn Enter để quay lại menu"
+            Write-Host ">> Phát hiện $($foundList.Count) loa Phicomm R1 trong mạng LAN:" -ForegroundColor Green
+            for ($i = 0; $i -lt $foundList.Count; $i++) {
+                $item = $foundList[$i]
+                Write-Host "   [$($i+1)] $($item.IP) ($($item.Ports))" -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host ""
+            Write-Host ">> Không tìm thấy loa R1 trong dải mạng hiện tại." -ForegroundColor Yellow
         }
-        "4" { Write-Host "Thoát chương trình." -ForegroundColor Yellow; break }
-        "q" { Write-Host "Thoát chương trình." -ForegroundColor Yellow; break }
-        default { Write-Host "Lựa chọn không hợp lệ." -ForegroundColor Yellow; Start-Sleep -Milliseconds 600 }
+        Write-Host ""
+        Read-Host "Nhấn Enter để quay lại menu"
+    } elseif ($c -eq "4" -or $c -eq "q" -or $c -eq "Q" -or $c -eq "exit") {
+        Write-Host "Thoát chương trình." -ForegroundColor Yellow
+        break
+    } else {
+        Write-Host "Lựa chọn không hợp lệ." -ForegroundColor Yellow
+        Start-Sleep -Milliseconds 600
     }
 }
