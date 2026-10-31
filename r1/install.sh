@@ -321,7 +321,7 @@ echo ""
 echo ">> [2/4] Bắt đầu kết nối thiết bị [$SERIAL]..."
 
 revive_speaker() {
-    local tip="$1"
+    tip="$1"
     [ -z "$tip" ] && tip="192.168.43.1"
     [ "$R1_DRYRUN" = "1" ] && return 0
 
