@@ -1,7 +1,7 @@
 #!/bin/sh
 # ==============================================================================
-# BỘ CÀI PHICOMM R1 SIÊU TỐC - TỐI ƯU CHO iPHONE (iSH) & LINUX / ANDROID
-# Tự động dọn file cũ, tải toàn bộ APK mới từ GitHub, kết nối cực nhạy
+# BỘ CÀI ĐẶT PHICOMM R1 SIÊU TỐC - TỐI ƯU CHO iPHONE (iSH) & LINUX / ANDROID
+# Tự động cấu hình WiFi, quét tìm loa trong LAN, dọn file cũ, tải APK từ GitHub
 # ==============================================================================
 
 BASE_URL="https://vdt34.github.io/r1"
@@ -10,17 +10,22 @@ SCRIPT_DIR=$(cd "$(dirname -- "$0")" 2>/dev/null && pwd)
 
 USER_IP=""
 ASSUME_YES=""
+RUN_WIFI_CLI=""
+RUN_SCAN_CLI=""
+
 for arg in "$@"; do
     case "$arg" in
         -y|--yes|-Yes) ASSUME_YES="1" ;;
         -DryRun|--dry-run) export R1_DRYRUN=1 ;;
+        --wifi|-wifi|-Wifi) RUN_WIFI_CLI="1" ;;
+        --scan|-scan|-Scan) RUN_SCAN_CLI="1" ;;
         [0-9]*.[0-9]*.[0-9]*.[0-9]*) USER_IP="$arg" ;;
     esac
 done
 
 clear
 echo "=========================================================="
-echo "     CÀI ĐẶT AUTODLNA + UNISOUND + AI TIẾNG VIỆT (R1)"
+echo "     CÔNG CỤ CÀI ĐẶT PHICOMM R1 - iSH / LINUX"
 echo "=========================================================="
 echo ""
 
@@ -33,16 +38,12 @@ setup_tools() {
     if ! command -v adb >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1 || ! command -v nc >/dev/null 2>&1; then
         echo ">> Đang kiểm tra & chuẩn bị công cụ adb, curl, nc..."
         if command -v apk >/dev/null 2>&1; then
-            # Mở khóa repository community trong Alpine/iSH nếu đang bị khóa
             if [ -f /etc/apk/repositories ]; then
                 sed -i 's/^#\(.*\/community\)/\1/' /etc/apk/repositories 2>/dev/null || true
             fi
             apk update >/dev/null 2>&1
-
-            # Thử cài từ kho mặc định/community
             apk add --no-cache android-tools curl netcat-openbsd >/dev/null 2>&1 || true
 
-            # Nếu vẫn thiếu adb, thử kéo trực tiếp từ kho edge/community hoặc testing
             if ! command -v adb >/dev/null 2>&1; then
                 apk add --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community android-tools curl netcat-openbsd >/dev/null 2>&1 || \
                 apk add --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/testing android-tools curl netcat-openbsd >/dev/null 2>&1 || true
@@ -86,51 +87,138 @@ read_val() {
 }
 
 # ------------------------------------------------------------------------------
-# 2. XÓA FILE CŨ & TẢI 3 FILE APK MỚI NHẤT TỪ GITHUB (KHI CÒN ĐANG CÓ MẠNG)
+# 2. CẤU HÌNH WIFI CHO LOA QUA API AP (192.168.43.1:8989)
 # ------------------------------------------------------------------------------
-echo ">> [1/4] Đang dọn sạch toàn bộ file .sh cũ, cache & tải APK mới nhất..."
-# Quét & xóa sạch các file script .sh cũ từng tải về (tránh chạy nhầm bản cũ)
-CUR_SCRIPT=$(basename "$0" 2>/dev/null || echo "")
-for old_sh in ./r1.sh ./r1*.sh ./install.sh /tmp/r1*.sh /tmp/install*.sh; do
-    if [ -f "$old_sh" ] && [ "$(basename "$old_sh")" != "$CUR_SCRIPT" ]; then
-        rm -f "$old_sh" 2>/dev/null || true
-    fi
-done
-rm -rf "$CACHE_DIR" 2>/dev/null || true
-mkdir -p "$CACHE_DIR"
+send_wifi_config() {
+    target_ip="$1"
+    [ -z "$target_ip" ] && target_ip="192.168.43.1"
+    ssid="$2"
+    pass="$3"
+    secure="$4"
+    [ -z "$secure" ] && secure="WPA"
 
-TS=$(date +%s 2>/dev/null || echo "1")
-for f in autodlna.apk unisound.apk AIBoxPlus_DLNA.apk; do
-    if [ "$R1_DRYRUN" = "1" ] && [ -f "$SCRIPT_DIR/$f" ]; then
-        cp -f "$SCRIPT_DIR/$f" "$CACHE_DIR/$f" 2>/dev/null || true
-        echo "   [OK] (DryRun) Dùng file $f có sẵn."
+    payload="{\"ssid\":\"$ssid\",\"secure\":\"$secure\",\"password\":\"$pass\",\"mac\":\"\"}"
+
+    if [ "$R1_DRYRUN" = "1" ]; then
+        echo "   [DRY-RUN] Đã gửi cấu hình WiFi SSID='$ssid' tới http://$target_ip:8989/api/configwifi"
+        return 0
+    fi
+
+    if command -v curl >/dev/null 2>&1; then
+        curl -s -m 5 -X POST "http://$target_ip:8989/api/configwifi" \
+             -H "Content-Type: application/json" \
+             -d "$payload" >/dev/null 2>&1
+        return 0
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q -O- --timeout=5 --header="Content-Type: application/json" \
+             --post-data="$payload" "http://$target_ip:8989/api/configwifi" >/dev/null 2>&1
+        return 0
     else
-        echo "   -> Đang tải bản mới nhất: $f..."
-        if command -v curl >/dev/null 2>&1; then
-            curl -k -fL --connect-timeout 20 -# -o "$CACHE_DIR/$f.tmp" "$BASE_URL/$f?t=$TS" && mv -f "$CACHE_DIR/$f.tmp" "$CACHE_DIR/$f"
-        elif command -v wget >/dev/null 2>&1; then
-            wget -q --no-check-certificate -O "$CACHE_DIR/$f" "$BASE_URL/$f?t=$TS"
+        echo "   [LỖI] Cần lệnh curl hoặc wget để gửi cấu hình."
+        return 1
+    fi
+}
+
+ask_wifi_and_send() {
+    target_ip="$1"
+    [ -z "$target_ip" ] && target_ip="192.168.43.1"
+
+    echo ""
+    echo "Nhập thông tin mạng WiFi nhà để loa kết nối:"
+    echo "----------------------------------------------------------"
+    ssid=""
+    while [ -z "$ssid" ]; do
+        printf ">> Tên WiFi nhà (SSID, phân biệt HOA/thường): "
+        read -r ssid 2>/dev/null || ssid=""
+        ssid=$(printf '%s' "$ssid" | tr -d '\r\n')
+        [ -z "$ssid" ] && echo "   [!] Tên WiFi không được để trống!"
+    done
+
+    printf ">> Mật khẩu WiFi (nhấn Enter nếu WiFi không có pass): "
+    pass=""
+    read -r pass 2>/dev/null || pass=""
+    pass=$(printf '%s' "$pass" | tr -d '\r\n')
+
+    secure="WPA"
+    if [ -z "$pass" ]; then
+        secure="INSECURE"
+        echo "   -> Chế độ WiFi không mật khẩu (INSECURE)"
+    else
+        if [ ${#pass} -lt 8 ]; then
+            echo "   [!] CẢNH BÁO: Mật khẩu WiFi thông thường từ 8 ký tự trở lên!"
         fi
     fi
 
-    if [ ! -f "$CACHE_DIR/$f" ] || [ "$(wc -c < "$CACHE_DIR/$f" 2>/dev/null)" -lt 1000000 ]; then
+    echo ""
+    echo ">> Đang gửi cấu hình tới loa ($target_ip:8989)..."
+    send_wifi_config "$target_ip" "$ssid" "$pass" "$secure"
+    return $?
+}
+
+run_wifi_config() {
+    echo ""
+    echo "----------------------------------------------------------"
+    echo "        CẤU HÌNH WIFI CHO LOA QUA CHẾ ĐỘ AP               "
+    echo "----------------------------------------------------------"
+    echo " LƯU Ý: Loa chỉ phát WiFi AP ~60-90 giây sau khi reset."
+    echo "  -> Bước này CHỈ gửi WiFi (1 request HTTP nhỏ, xong <5s)."
+    echo "  -> KHÔNG push APK ở đây vì sẽ bị timeout."
+    echo ""
+    echo " Các bước chuẩn bị:"
+    echo "  1. Giữ nút tròn đỉnh loa 5-6 giây cho đến khi đèn đổi màu/nhấp nháy."
+    echo "  2. Trên iPhone / Máy tính: Cài đặt WiFi -> chọn mạng 'Phicomm_R1_xxxx'."
+    echo "  3. TẮT 4G/5G (Dữ liệu di động trên điện thoại)."
+    echo "  4. Nhấn Enter để tiếp tục."
+    echo "----------------------------------------------------------"
+    if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
+        printf "Nhấn Enter khi đã kết nối WiFi loa: "
+        read -r _ 2>/dev/null || true
+    fi
+
+    echo ""
+    echo ">> Kiểm tra kết nối tới 192.168.43.1:8989..."
+    if [ "$R1_DRYRUN" != "1" ] && command -v nc >/dev/null 2>&1; then
+        if nc -w 2 -z 192.168.43.1 8989 >/dev/null 2>&1; then
+            echo "   [OK] Đã kết nối được API của loa."
+        else
+            echo "   [LỖI] Không kết nối được 192.168.43.1:8989"
+            echo "   Kiểm tra: đã đúng WiFi loa? đã tắt 4G? loa còn phát AP?"
+            if [ "$ASSUME_YES" != "1" ]; then
+                printf "   Vẫn tiếp tục gửi WiFi? [y/N]: "
+                ans=""; read -r ans 2>/dev/null || true
+                case "$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')" in
+                    "y"|"yes") ;;
+                    *) return 1 ;;
+                esac
+            fi
+        fi
+    fi
+
+    ask_wifi_and_send "192.168.43.1"
+    rc=$?
+
+    if [ "$rc" = "0" ]; then
         echo ""
         echo "=========================================================="
-        echo "  [LỖI] KHÔNG THỂ TẢI FILE $f TỪ GITHUB!"
+        echo "            ĐÃ GỬI CẤU HÌNH WIFI THÀNH CÔNG               "
         echo "=========================================================="
-        echo "Nguyên nhân: Điện thoại hiện không có kết nối Internet."
-        echo "Nếu bạn đang kết nối WiFi của loa (Phicomm_R1), hãy:"
-        echo " 1. Chuyển điện thoại về WiFi nhà (hoặc bật 4G) có mạng."
-        echo " 2. Chạy lại lệnh cài đặt để tải trọn vẹn 3 file APK vào máy."
-        echo " 3. Khi tải xong, bạn có thể chuyển về WiFi loa để cài siêu tốc."
+        echo " BƯỚC TIẾP THEO:"
+        echo "  1. Nghe loa báo 'kết nối thành công' (nếu có)."
+        echo "  2. Đợi 20 giây để loa kết nối WiFi nhà và nhận IP LAN."
+        echo "  3. Chuyển thiết bị về lại mạng WiFi nhà."
+        echo "  4. Quay lại menu, chọn mục 2 để quét IP LAN & cài APK."
         echo "=========================================================="
-        exit 1
+        if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
+            printf "Đợi 20s và tự động quay lại menu? [Enter]: "
+            read -r _ 2>/dev/null || true
+            sleep 20
+        fi
     fi
-    echo "   [OK] Đã tải bản mới nhất $f thành công."
-done
+    return $rc
+}
 
 # ------------------------------------------------------------------------------
-# 3. XÁC ĐỊNH IP CỦA LOA (HỖ TRỢ TỰ ĐỘNG QUÉT LAN & NHẬP THỦ CÔNG)
+# 3. HÀM TÌM KIẾM DẢI MẠNG & QUÉT LOA TRONG LAN
 # ------------------------------------------------------------------------------
 detect_subnet() {
     sub=""
@@ -242,310 +330,388 @@ EOF
     fi
 }
 
-echo ""
-echo "----------------------------------------------------------"
-echo "                     XÁC ĐỊNH IP CỦA LOA                  "
-echo "----------------------------------------------------------"
-echo " [Enter] Dùng 192.168.43.1 (Khi đang nối trực tiếp WiFi loa)"
-echo " [S]     Tự động QUÉT tìm IP loa trong mạng WiFi nhà (LAN)"
-echo " Hoặc gõ trực tiếp IP của loa (Ví dụ: 192.168.1.94)"
-echo "----------------------------------------------------------"
-echo ""
-
-TARGET_IP="$USER_IP"
-while [ -z "$TARGET_IP" ]; do
-    USER_INPUT=$(read_val "Nhập IP hoặc gõ 'S' để quét [Mặc định: 192.168.43.1]: " "192.168.43.1")
-    USER_INPUT=$(echo "$USER_INPUT" | tr -d ' ')
-
-    case "$USER_INPUT" in
-        "1"|"192.168.43.1"|"")
-            TARGET_IP="192.168.43.1"
-            ;;
-        "s"|"S"|"2"|"scan"|"SCAN")
-            scan_speaker_ip
-            if [ "$TOTAL_FOUND" -gt 0 ]; then
-                echo ""
-                PICK=$(read_val "Chọn số thứ tự loa (1-$TOTAL_FOUND) hoặc nhập IP khác [Mặc định: 1]: " "1")
-                PICK=$(echo "$PICK" | tr -d ' ')
-                if [ "$PICK" -ge 1 ] 2>/dev/null && [ "$PICK" -le "$TOTAL_FOUND" ] 2>/dev/null; then
-                    TARGET_IP=$(sed -n "${PICK}p" "$scan_tmp/ips.txt")
-                elif echo "$PICK" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+'; then
-                    TARGET_IP="$PICK"
-                else
-                    TARGET_IP=$(head -n 1 "$scan_tmp/ips.txt")
-                fi
-            else
-                echo ""
-                echo ">> Không tìm thấy loa tự động trong mạng."
-                MANUAL=$(read_val "Vui lòng nhập IP loa thủ công (VD: 192.168.1.94): " "")
-                if [ -n "$MANUAL" ]; then
-                    TARGET_IP="$MANUAL"
-                else
-                    TARGET_IP="192.168.43.1"
-                fi
-            fi
-            rm -rf "$scan_tmp" 2>/dev/null || true
-            ;;
-        *)
-            TARGET_IP=$(echo "$USER_INPUT" | sed 's/:5555$//')
-            ;;
-    esac
-done
-
-TARGET_IP=$(echo "$TARGET_IP" | tr -d ' ' | sed 's/:5555$//')
-SERIAL="$TARGET_IP:5555"
-
-echo ""
-echo ">> Sẽ kết nối tới IP: $TARGET_IP"
-
-# Cảnh báo hướng dẫn đặc biệt cho iPhone khi cài qua WiFi loa (192.168.43.1)
-if [ "$TARGET_IP" = "192.168.43.1" ]; then
-    echo ""
-    echo "----------------------------------------------------------"
-    echo "  LƯU Ý QUAN TRỌNG TRÊN iPHONE KHI NỐI WIFI LOA (192.168.43.1):"
-    echo "----------------------------------------------------------"
-    echo " 1. HÃY TẮT 4G/5G (Dữ liệu di động) TRÊN iPHONE NGAY BÂY GIỜ!"
-    echo "    (Vì WiFi loa không có Internet, nếu bật 4G thì iOS sẽ tự động"
-    echo "     đẩy mạng sang 4G khiến iSH không gửi được lệnh tới loa)."
-    echo " 2. Đảm bảo iPhone đang kết nối WiFi 'Phicomm_R1_xxxx'."
-    echo " 3. Nếu loa chưa phát WiFi: Nhấn giữ nút tròn đỉnh loa 6 giây."
-    echo "----------------------------------------------------------"
-    printf "Sau khi đã tắt 4G và nối WiFi loa, nhấn [Enter] để tiếp tục: "
-    read -r _ 2>/dev/null || true
-fi
-
 # ------------------------------------------------------------------------------
-# 4. KẾT NỐI THIẾT BỊ LOA (CHẾ ĐỘ KÉP THÔNG MINH: TRỰC TIẾP + KÍCH HOẠT 8080)
+# 4. HÀM KÍCH HOẠT CỔNG ADB & KIỂM TRA TRẠNG THÁI
 # ------------------------------------------------------------------------------
-echo ""
-echo ">> [2/4] Bắt đầu kết nối thiết bị [$SERIAL]..."
-
 revive_speaker() {
     tip="$1"
-    [ -z "$tip" ] && tip="192.168.43.1"
-    [ "$R1_DRYRUN" = "1" ] && return 0
-
-    cmd="stop adbd; setprop service.adb.tcp.port 5555; start adbd; svc power stayon true; am force-stop com.phicomm.speaker.airskill; am force-stop com.phicomm.speaker.otaservice"
-    payload="{\"type\":\"shell\",\"type_id\":\"revive\",\"shell\":\"$cmd\"}"
-    len=${#payload}
-    hdr="\\201$(printf '\\%03o' $((128 + len)))\\000\\000\\000\\000"
-
-    # Cách 1: Thử bằng Python nếu có sẵn
-    if command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1; then
-        PY_BIN=$(command -v python3 2>/dev/null || command -v python 2>/dev/null)
-        "$PY_BIN" -c "
-import socket
-try:
-    s = socket.socket()
-    s.settimeout(2)
-    s.connect(('$tip', 8080))
-    s.sendall(b'GET / HTTP/1.1\r\nHost: $tip:8080\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n')
-    s.recv(1024)
-    cmd = b'stop adbd; setprop service.adb.tcp.port 5555; start adbd; svc power stayon true; am force-stop com.phicomm.speaker.airskill; am force-stop com.phicomm.speaker.otaservice'
-    payload = b'{\"type\":\"shell\",\"type_id\":\"revive\",\"shell\":\"' + cmd + b'\"}'
-    mask = b'\x12\x34\x56\x78'
-    masked = bytes([b ^ mask[i % 4] for i, b in enumerate(payload)])
-    hdr = bytes([0x81, 0x80 | len(payload)]) + mask if len(payload) < 126 else bytes([0x81, 0x80 | 126, len(payload) >> 8, len(payload) & 0xff]) + mask
-    s.sendall(hdr + masked)
-    s.close()
-except:
-    pass
-" 2>/dev/null || true
-    # Cách 2: Dùng nc (netcat)
+    [ -z "$tip" ] && return
+    if command -v curl >/dev/null 2>&1; then
+        curl -s -m 1.5 "http://$tip:8080/" >/dev/null 2>&1 || true
+        curl -s -m 1.5 "http://$tip:8081/" >/dev/null 2>&1 || true
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q -O- --timeout=1 "http://$tip:8080/" >/dev/null 2>&1 || true
+        wget -q -O- --timeout=1 "http://$tip:8081/" >/dev/null 2>&1 || true
     elif command -v nc >/dev/null 2>&1; then
-        {
-            printf 'GET / HTTP/1.1\r\nHost: %s:8080\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n' "$tip"
-            sleep 0.5
-            printf "%b%s" "$hdr" "$payload"
-            sleep 0.5
-        } | nc -w 2 "$tip" 8080 >/dev/null 2>&1 || true
+        nc -w 1 -z "$tip" 8080 >/dev/null 2>&1 || true
+        nc -w 1 -z "$tip" 8081 >/dev/null 2>&1 || true
     fi
 }
 
 check_connected() {
-    DEV_STATE=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d '\r\n')
-    if [ "$DEV_STATE" = "device" ]; then
-        if adb -s "$SERIAL" shell ls >/dev/null 2>&1; then
-            return 0
-        fi
+    state=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d ' \r\n')
+    if [ "$state" = "device" ]; then
+        adb -s "$SERIAL" shell ls /data >/dev/null 2>&1
+        return $?
     fi
     return 1
 }
 
-CONNECTED=0
-if [ "$R1_DRYRUN" != "1" ]; then
-    # Khởi động adb daemon nếu chưa chạy
-    adb start-server >/dev/null 2>&1 || true
+# ------------------------------------------------------------------------------
+# 5. TẢI VÀ CHUẨN BỊ 3 FILE APK TỪ GITHUB
+# ------------------------------------------------------------------------------
+ensure_apks() {
+    echo ""
+    echo ">> [1/4] Chuẩn bị bộ 3 file APK cài đặt từ GitHub..."
+    CUR_SCRIPT=$(basename "$0" 2>/dev/null || echo "")
+    for old_sh in ./r1.sh ./r1*.sh ./install.sh /tmp/r1*.sh /tmp/install*.sh; do
+        if [ -f "$old_sh" ] && [ "$(basename "$old_sh")" != "$CUR_SCRIPT" ]; then
+            rm -f "$old_sh" 2>/dev/null || true
+        fi
+    done
+    rm -rf "$CACHE_DIR" 2>/dev/null || true
+    mkdir -p "$CACHE_DIR"
 
-    # BƯỚC 1: Thử kết nối trực tiếp (cực nhanh 1-2s nếu cổng 5555 đã mở sẵn)
-    echo "   [Kết nối] Thử kết nối trực tiếp tới $SERIAL..."
-    OUT_CONN=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
-    echo "   -> $OUT_CONN"
-    sleep 1.2
-
-    if check_connected; then
-        CONNECTED=1
-    else
-        # BƯỚC 2: Nếu chưa vào được (loa AP hoặc bản gốc ngủ đông adbd), kích hoạt qua cổng 8080
-        echo "   -> Loa chưa phản hồi, đang gửi tín hiệu kích hoạt ADB qua cổng 8080..."
-        revive_speaker "$TARGET_IP"
-        sleep 1.8
-
-        # Thử lại 5 lần
-        for try in 1 2 3 4 5; do
-            echo "   [Kết nối lại] Thử lần $try/5 tới $SERIAL..."
-            OUT_CONN=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
-            echo "   -> $OUT_CONN"
-            sleep 1.2
-            if check_connected; then
-                CONNECTED=1
-                break
+    TS=$(date +%s 2>/dev/null || echo "1")
+    for f in autodlna.apk unisound.apk AIBoxPlus_DLNA.apk; do
+        if [ "$R1_DRYRUN" = "1" ] && [ -f "$SCRIPT_DIR/$f" ]; then
+            cp -f "$SCRIPT_DIR/$f" "$CACHE_DIR/$f" 2>/dev/null || true
+            echo "   [OK] (DryRun) Dùng file $f có sẵn."
+        else
+            echo "   -> Đang tải bản mới nhất: $f..."
+            if command -v curl >/dev/null 2>&1; then
+                curl -k -fL --connect-timeout 20 -# -o "$CACHE_DIR/$f.tmp" "$BASE_URL/$f?t=$TS" && mv -f "$CACHE_DIR/$f.tmp" "$CACHE_DIR/$f"
+            elif command -v wget >/dev/null 2>&1; then
+                wget -q --no-check-certificate -O "$CACHE_DIR/$f" "$BASE_URL/$f?t=$TS"
             fi
-            sleep 1
+        fi
+
+        if [ "$R1_DRYRUN" != "1" ] && { [ ! -f "$CACHE_DIR/$f" ] || [ "$(wc -c < "$CACHE_DIR/$f" 2>/dev/null)" -lt 500000 ]; }; then
+            echo ""
+            echo "=========================================================="
+            echo "  [LỖI] KHÔNG THỂ TẢI FILE $f TỪ GITHUB!"
+            echo "=========================================================="
+            echo "Nguyên nhân: Thiết bị hiện không có kết nối Internet."
+            echo "Vui lòng kiểm tra lại kết nối mạng WiFi/4G."
+            echo "=========================================================="
+            return 1
+        fi
+        echo "   [OK] Đã chuẩn bị file $f thành công."
+    done
+    return 0
+}
+
+# ------------------------------------------------------------------------------
+# 6. LUỒNG QUÉT IP LAN & CÀI ĐẶT APK
+# ------------------------------------------------------------------------------
+run_install() {
+    passed_ip="$1"
+    TARGET_IP="$passed_ip"
+    [ -z "$TARGET_IP" ] && TARGET_IP="$USER_IP"
+
+    if [ -z "$TARGET_IP" ]; then
+        echo ""
+        echo "----------------------------------------------------------"
+        echo "                  XÁC ĐỊNH IP CỦA LOA                     "
+        echo "----------------------------------------------------------"
+        echo " [S]     Tự động QUÉT tìm IP loa trong WiFi nhà (KHUYÊN DÙNG)"
+        echo " [Enter] Dùng 192.168.43.1 (KHÔNG khuyến nghị — AP sẽ tắt)"
+        echo " Hoặc gõ trực tiếp IP của loa (Ví dụ: 192.168.1.94)"
+        echo "----------------------------------------------------------"
+
+        while [ -z "$TARGET_IP" ]; do
+            USER_INPUT=$(read_val "Nhập IP hoặc 'S' để quét [Mặc định: S]: " "S")
+            USER_INPUT=$(echo "$USER_INPUT" | tr -d ' ')
+
+            case "$USER_INPUT" in
+                "s"|"S"|"scan"|"SCAN")
+                    scan_speaker_ip
+                    if [ "${TOTAL_FOUND:-0}" -gt 0 ]; then
+                        echo ""
+                        PICK=$(read_val "Chọn số thứ tự loa (1-$TOTAL_FOUND) hoặc nhập IP khác [Mặc định: 1]: " "1")
+                        PICK=$(echo "$PICK" | tr -d ' ')
+                        if [ "$PICK" -ge 1 ] 2>/dev/null && [ "$PICK" -le "$TOTAL_FOUND" ] 2>/dev/null; then
+                            TARGET_IP=$(sed -n "${PICK}p" "$scan_tmp/ips.txt")
+                        elif echo "$PICK" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+'; then
+                            TARGET_IP="$PICK"
+                        else
+                            TARGET_IP=$(head -n 1 "$scan_tmp/ips.txt")
+                        fi
+                    else
+                        echo ""
+                        echo ">> Không tìm thấy loa trong mạng LAN."
+                        echo "   -> Nếu loa vừa reset, hãy quay lại menu chọn mục 1 để cấu hình WiFi trước."
+                        MANUAL=$(read_val "Hoặc nhập IP loa thủ công (Enter=quay lại menu): " "")
+                        if [ -n "$MANUAL" ]; then
+                            TARGET_IP="$MANUAL"
+                        else
+                            rm -rf "$scan_tmp" 2>/dev/null || true
+                            return 1
+                        fi
+                    fi
+                    rm -rf "$scan_tmp" 2>/dev/null || true
+                    ;;
+                "1"|"192.168.43.1"|"")
+                    echo ""
+                    echo "=========================================================="
+                    echo "  [CẢNH BÁO] Chọn 192.168.43.1 (AP mode) để cài APK"
+                    echo "  KHÔNG khuyến nghị vì AP sẽ tắt sau ~60-90s!"
+                    echo "=========================================================="
+                    echo "  Quy trình đúng:"
+                    echo "   1. Chọn mục 1 cấu hình WiFi trước (mất 5s)"
+                    echo "   2. Loa kết nối WiFi nhà, có IP LAN"
+                    echo "   3. Chọn mục 2 quét IP LAN và cài đặt siêu tốc"
+                    echo "=========================================================="
+                    printf "Vẫn tiếp tục cài qua AP? [y/N]: "
+                    ans=""; read -r ans 2>/dev/null || true
+                    case "$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')" in
+                        "y"|"yes") TARGET_IP="192.168.43.1" ;;
+                        *) return 1 ;;
+                    esac
+                    ;;
+                *)
+                    TARGET_IP=$(echo "$USER_INPUT" | sed 's/:5555$//')
+                    ;;
+            esac
         done
     fi
 
-    if [ "$CONNECTED" != "1" ]; then
-        echo ""
-        echo "=========================================================="
-        echo "  [LỖI] KẾT NỐI THẤT BẠI TỚI LOA TẠI $SERIAL"
-        echo "=========================================================="
-        echo "Vui lòng kiểm tra các mục sau trên iPhone:"
-        echo " 1. TẮT 4G/5G (Dữ liệu di động): Bắt buộc tắt để iPhone không"
-        echo "    gửi gói tin qua mạng di động."
-        echo " 2. BẬT MẠNG CỤC BỘ: Vào 'Cài đặt' iPhone -> cuộn xuống tìm app"
-        echo "    'iSH' -> Gạt BẬT 'Mạng cục bộ' (Local Network)."
-        echo " 3. ĐÚNG MẠNG WIFI: Đang kết nối cùng WiFi với loa (nếu WiFi nhà)"
-        echo "    hoặc đã kết nối vào 'Phicomm_R1_xxxx' (nếu dùng 192.168.43.1)."
-        echo " 4. KIỂM TRA ĐÈN LOA: Loa đã cắm điện, nếu dùng 192.168.43.1 thì"
-        echo "    ấn giữ nút tròn đỉnh loa 6 giây cho đổi màu đèn cam/trắng."
-        echo "=========================================================="
-        exit 1
-    fi
-fi
-echo ">> [OK] Kết nối thành công tới loa ($SERIAL)!"
+    TARGET_IP=$(echo "$TARGET_IP" | tr -d ' ' | sed 's/:5555$//')
+    SERIAL="$TARGET_IP:5555"
 
-# ------------------------------------------------------------------------------
-# 5. DỌN SẠCH THƯ MỤC TẠM TRÊN LOA VÀ ĐẨY CẢ 3 FILE APK MỚI LÊN
-# ------------------------------------------------------------------------------
-echo ""
-echo ">> [3/4] Đang dọn sạch bộ nhớ tạm của loa & nạp 3 file APK mới lên (/data/local/tmp/)..."
-if [ "$R1_DRYRUN" != "1" ]; then
-    adb -s "$SERIAL" shell "rm -rf /data/local/tmp/* 2>/dev/null" >/dev/null 2>&1
-fi
-
-for f in autodlna.apk unisound.apk AIBoxPlus_DLNA.apk; do
-    echo "   -> Nạp $f..."
-    if [ "$R1_DRYRUN" != "1" ]; then
-        adb -s "$SERIAL" push "$CACHE_DIR/$f" "/data/local/tmp/$f" >/dev/null 2>&1
-    fi
-done
-echo ">> [OK] Đã đưa trọn vẹn 3 file mới lên loa!"
-
-# ------------------------------------------------------------------------------
-# 6. THỰC THI CHUỖI LỆNH CÀI ĐẶT CHUẨN XÁC THEO NEW.BAT
-# ------------------------------------------------------------------------------
-echo ""
-echo ">> [4/4] Bắt đầu cài đặt hệ thống..."
-
-if [ "$R1_DRYRUN" != "1" ]; then
-    # 6.1 Xóa bộ nhớ đệm trước khi cài đặt & cho phép cài app ngoài
-    echo "   -> Đang dọn dẹp bộ nhớ đệm..."
-    adb -s "$SERIAL" shell "
-        rm -f /sdcard/otaprop.txt /sdcard/incremental*.zip 2>/dev/null
-        /system/bin/pm clear com.phicomm.speaker.otaservice 2>/dev/null
-        settings put secure install_non_market_apps 1 2>/dev/null
-    " >/dev/null 2>&1
-
-    # 6.2 Tắt các ứng dụng không cần thiết trên loa
-    echo "   -> Tắt các ứng dụng chiếm quyền..."
-    adb -s "$SERIAL" shell "
-        /system/bin/pm hide com.phicomm.speaker.airskill 2>/dev/null
-        /system/bin/pm hide com.phicomm.speaker.exceptionreporter 2>/dev/null
-        /system/bin/pm hide com.phicomm.speaker.systemtool 2>/dev/null
-        /system/bin/pm hide com.phicomm.speaker.device 2>/dev/null
-        /system/bin/pm hide com.phicomm.speaker.otaservice 2>/dev/null
-        /system/bin/pm hide com.phicomm.speaker.productiontest 2>/dev/null
-        /system/bin/pm hide com.phicomm.speaker.bugreport 2>/dev/null
-    " >/dev/null 2>&1
-
-    # 6.3 Cài đặt AutoDLNA + Unisound
-    echo "   -> Cài đặt AutoDLNA + Unisound..."
-    adb -s "$SERIAL" shell "
-        /system/bin/pm install -r /data/local/tmp/autodlna.apk
-        /system/bin/pm install -r /data/local/tmp/unisound.apk
-        rm -f /data/local/tmp/autodlna.apk /data/local/tmp/unisound.apk
-    " >/dev/null 2>&1
-
-    # 6.4 Khởi động AutoDLNA + Unisound
-    echo "   -> Khởi động AutoDLNA + Unisound..."
-    adb -s "$SERIAL" shell "
-        am startservice com.phicomm.speaker.player/.EchoService 2>/dev/null
-        am start com.phicomm.speaker.device/.ui.MainActivity 2>/dev/null
-    " >/dev/null 2>&1
-    sleep 2
-
-    # 6.5 Khôi phục ứng dụng cần thiết & Cài đặt AI Trợ lý ảo Tiếng Việt
-    echo "   -> Khôi phục ijetty & netctl..."
-    adb -s "$SERIAL" shell "
-        /system/bin/pm unhide com.phicomm.speaker.ijetty 2>/dev/null
-        /system/bin/pm unhide com.phicomm.speaker.netctl 2>/dev/null
-    " >/dev/null 2>&1
-
-    echo "   -> Gỡ bản AI cũ và cài đặt AI Tiếng Việt mới..."
-    adb -s "$SERIAL" shell "
-        /system/bin/pm uninstall info.dourok.voicebot 2>/dev/null
-        /system/bin/pm install -r /data/local/tmp/AIBoxPlus_DLNA.apk
-        rm -f /data/local/tmp/AIBoxPlus_DLNA.apk
-    " >/dev/null 2>&1
-
-    # 6.6 Khởi động AI Trợ lý ảo Tiếng Việt & cấu hình Bluetooth, LED
-    echo "   -> Khởi động AI Box Plus..."
-    adb -s "$SERIAL" shell "
-        am start -n info.dourok.voicebot/.java.activities.MainActivity 2>/dev/null
-        settings put global bluetooth_on 1 2>/dev/null
-        service call bluetooth_manager 6 2>/dev/null
-        setprop persist.sys.r1_led 0 2>/dev/null
-        lights_test set 7fffff8000 0 2>/dev/null
-        lights_test set 7fffff0000 ffffff 2>/dev/null
-    " >/dev/null 2>&1
-
-    # Lấy IP WiFi nhà của loa nếu có
-    LAN_IP=$(adb -s "$SERIAL" shell "getprop dhcp.wlan0.ipaddress" 2>/dev/null | tr -d '\r\n')
-else
-    echo "   -> [DRY-RUN] Đã thực thi chuỗi lệnh new.bat chuẩn xác!"
-    LAN_IP=""
-fi
-
-# ------------------------------------------------------------------------------
-# 7. DỌN SẠCH FILE TẠM & FILE SCRIPT .SH TRÊN iSH ĐỂ LẦN SAU KHÔNG BỊ DÍNH FILE CŨ
-# ------------------------------------------------------------------------------
-rm -rf "$CACHE_DIR" 2>/dev/null || true
-for tmp_sh in ./r1.sh ./r1*.sh /tmp/r1*.sh /tmp/install*.sh; do
-    [ -f "$tmp_sh" ] && rm -f "$tmp_sh" 2>/dev/null || true
-done
-
-echo ""
-echo "=========================================================="
-echo "                    CÀI ĐẶT HOÀN TẤT!                     "
-echo "=========================================================="
-
-if [ -n "$LAN_IP" ]; then
-    echo ">> IP của loa trong mạng WiFi nhà: $LAN_IP"
-    echo ">> Truy cập bảng điều khiển loa tại: http://$LAN_IP:8081/"
-elif [ "$TARGET_IP" = "192.168.43.1" ]; then
-    echo ">> BƯỚC TIẾP THEO: CẤU HÌNH WIFI CHO LOA"
-    echo " 1. Mở Safari trên iPhone vào:"
-    echo "    👉 http://192.168.43.1:8081/wifi.html"
-    echo " 2. Chọn WiFi nhà bạn, nhập mật khẩu để loa kết nối Internet."
-    echo " 3. Đổi iPhone về WiFi nhà và trải nghiệm!"
-else
-    echo ">> Truy cập bảng điều khiển loa tại: http://$TARGET_IP:8081/"
-fi
-
-echo "=========================================================="
-
-if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
     echo ""
-    read_val "Nhấn Enter để kết thúc: " "" >/dev/null 2>&1 || true
+    echo ">> Sẽ kết nối tới IP: $TARGET_IP"
+
+    # Tải bộ 3 file APK
+    ensure_apks || return 1
+
+    # Kết nối ADB tới loa
+    echo ""
+    echo ">> [2/4] Bắt đầu kết nối thiết bị [$SERIAL]..."
+
+    CONNECTED=0
+    if [ "$R1_DRYRUN" != "1" ]; then
+        adb start-server >/dev/null 2>&1 || true
+
+        echo "   [Kết nối] Thử kết nối trực tiếp tới $SERIAL..."
+        OUT_CONN=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
+        echo "   -> $OUT_CONN"
+        sleep 1.2
+
+        if check_connected; then
+            CONNECTED=1
+        else
+            echo "   -> Loa chưa phản hồi, đang gửi tín hiệu kích hoạt ADB qua cổng 8080..."
+            revive_speaker "$TARGET_IP"
+            sleep 1.8
+
+            for try in 1 2 3 4 5; do
+                echo "   [Thử lại] Lần $try/5 tới $SERIAL..."
+                OUT_CONN=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
+                echo "   -> $OUT_CONN"
+                sleep 1.2
+                if check_connected; then
+                    CONNECTED=1
+                    break
+                fi
+                sleep 1
+            done
+        fi
+
+        if [ "$CONNECTED" != "1" ]; then
+            echo ""
+            echo "=========================================================="
+            echo "  [LỖI] KẾT NỐI THẤT BẠI TỚI LOA TẠI $SERIAL"
+            echo "=========================================================="
+            echo " Kiểm tra:"
+            echo "  - Thiết bị đã kết nối cùng mạng WiFi với loa chưa?"
+            echo "  - TẮT 4G/5G trên điện thoại (để không bị định tuyến nhầm)."
+            echo "  - Trên iOS: Đã bật 'Mạng cục bộ' cho iSH chưa?"
+            echo "  - Nếu loa vừa reset -> hãy chọn mục 1 để cấu hình WiFi trước."
+            echo "=========================================================="
+            return 1
+        fi
+    fi
+    echo ">> [OK] Kết nối thành công tới loa ($SERIAL)!"
+
+    # Nạp 3 file APK lên loa
+    echo ""
+    echo ">> [3/4] Đang dọn sạch bộ nhớ tạm của loa & nạp 3 file APK mới lên (/data/local/tmp/)..."
+    if [ "$R1_DRYRUN" != "1" ]; then
+        adb -s "$SERIAL" shell "rm -rf /data/local/tmp/* 2>/dev/null" >/dev/null 2>&1
+    fi
+
+    for f in autodlna.apk unisound.apk AIBoxPlus_DLNA.apk; do
+        echo "   -> Nạp $f..."
+        if [ "$R1_DRYRUN" != "1" ]; then
+            adb -s "$SERIAL" push "$CACHE_DIR/$f" "/data/local/tmp/$f" >/dev/null 2>&1
+        fi
+    done
+    echo ">> [OK] Đã đưa trọn vẹn 3 file mới lên loa!"
+
+    # Thực thi cài đặt chuẩn new.bat
+    echo ""
+    echo ">> [4/4] Bắt đầu cài đặt hệ thống..."
+
+    if [ "$R1_DRYRUN" != "1" ]; then
+        echo "   -> Đang dọn dẹp bộ nhớ đệm..."
+        adb -s "$SERIAL" shell "
+            rm -f /sdcard/otaprop.txt /sdcard/incremental*.zip 2>/dev/null
+            /system/bin/pm clear com.phicomm.speaker.otaservice 2>/dev/null
+            settings put secure install_non_market_apps 1 2>/dev/null
+        " >/dev/null 2>&1
+
+        echo "   -> Tắt các ứng dụng chiếm quyền..."
+        adb -s "$SERIAL" shell "
+            /system/bin/pm hide com.phicomm.speaker.airskill 2>/dev/null
+            /system/bin/pm hide com.phicomm.speaker.exceptionreporter 2>/dev/null
+            /system/bin/pm hide com.phicomm.speaker.systemtool 2>/dev/null
+            /system/bin/pm hide com.phicomm.speaker.device 2>/dev/null
+            /system/bin/pm hide com.phicomm.speaker.otaservice 2>/dev/null
+            /system/bin/pm hide com.phicomm.speaker.productiontest 2>/dev/null
+            /system/bin/pm hide com.phicomm.speaker.bugreport 2>/dev/null
+        " >/dev/null 2>&1
+
+        echo "   -> Cài đặt AutoDLNA + Unisound..."
+        adb -s "$SERIAL" shell "
+            /system/bin/pm install -r /data/local/tmp/autodlna.apk
+            /system/bin/pm install -r /data/local/tmp/unisound.apk
+            rm -f /data/local/tmp/autodlna.apk /data/local/tmp/unisound.apk
+        " >/dev/null 2>&1
+
+        echo "   -> Khởi động AutoDLNA + Unisound..."
+        adb -s "$SERIAL" shell "
+            am startservice com.phicomm.speaker.player/.EchoService 2>/dev/null
+            am start com.phicomm.speaker.device/.ui.MainActivity 2>/dev/null
+        " >/dev/null 2>&1
+        sleep 2
+
+        echo "   -> Khôi phục ijetty & netctl..."
+        adb -s "$SERIAL" shell "
+            /system/bin/pm unhide com.phicomm.speaker.ijetty 2>/dev/null
+            /system/bin/pm unhide com.phicomm.speaker.netctl 2>/dev/null
+        " >/dev/null 2>&1
+
+        echo "   -> Gỡ bản AI cũ và cài đặt AI Tiếng Việt mới..."
+        adb -s "$SERIAL" shell "
+            /system/bin/pm uninstall info.dourok.voicebot 2>/dev/null
+            /system/bin/pm install -r /data/local/tmp/AIBoxPlus_DLNA.apk
+            rm -f /data/local/tmp/AIBoxPlus_DLNA.apk
+        " >/dev/null 2>&1
+
+        echo "   -> Khởi động AI Box Plus & cấu hình đèn LED..."
+        adb -s "$SERIAL" shell "
+            am start -n info.dourok.voicebot/.java.activities.MainActivity 2>/dev/null
+            settings put global bluetooth_on 1 2>/dev/null
+            service call bluetooth_manager 6 2>/dev/null
+            setprop persist.sys.r1_led 0 2>/dev/null
+            lights_test set 7fffff8000 0 2>/dev/null
+            lights_test set 7fffff0000 ffffff 2>/dev/null
+        " >/dev/null 2>&1
+
+        LAN_IP=$(adb -s "$SERIAL" shell "getprop dhcp.wlan0.ipaddress" 2>/dev/null | tr -d '\r\n')
+    else
+        echo "   -> [DRY-RUN] Đã thực thi chuỗi lệnh new.bat chuẩn xác!"
+        LAN_IP=""
+    fi
+
+    # Dọn dẹp cache
+    rm -rf "$CACHE_DIR" 2>/dev/null || true
+    for tmp_sh in ./r1.sh ./r1*.sh /tmp/r1*.sh /tmp/install*.sh; do
+        [ -f "$tmp_sh" ] && rm -f "$tmp_sh" 2>/dev/null || true
+    done
+
+    echo ""
+    echo "=========================================================="
+    echo "                    CÀI ĐẶT HOÀN TẤT!                     "
+    echo "=========================================================="
+
+    if [ -n "$LAN_IP" ]; then
+        echo ">> IP của loa trong mạng WiFi nhà: $LAN_IP"
+        echo ">> Truy cập bảng điều khiển loa tại: http://$LAN_IP:8081/"
+    elif [ "$TARGET_IP" = "192.168.43.1" ]; then
+        echo ">> Truy cập bảng điều khiển loa tại: http://192.168.43.1:8081/"
+    else
+        echo ">> Truy cập bảng điều khiển loa tại: http://$TARGET_IP:8081/"
+    fi
+    echo "=========================================================="
+
+    if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
+        echo ""
+        printf "Nhấn Enter để quay lại menu: "
+        read -r _ 2>/dev/null || true
+    fi
+    return 0
+}
+
+# ------------------------------------------------------------------------------
+# 7. MENU CHÍNH & VÒNG LẶP ĐIỀU KHIỂN
+# ------------------------------------------------------------------------------
+show_menu() {
+    echo ""
+    echo "=========================================================="
+    echo "     CÔNG CỤ CÀI ĐẶT PHICOMM R1 - iSH / LINUX"
+    echo "=========================================================="
+    echo "  1) Cấu hình WiFi cho loa (kết nối AP 192.168.43.1)"
+    echo "     -> Dùng khi loa vừa reset, đang phát WiFi Phicomm_R1_xxxx"
+    echo ""
+    echo "  2) Quét IP LAN & cài đặt APK (AutoDLNA + Unisound + AI)"
+    echo "     -> Dùng khi loa ĐÃ vào WiFi nhà (có IP LAN)"
+    echo ""
+    echo "  3) Chỉ quét IP LAN (không cài đặt)"
+    echo "  4) Thoát"
+    echo "=========================================================="
+    printf "Chọn [1-4]: "
+    CHOICE=""
+    read -r CHOICE 2>/dev/null || CHOICE=""
+    CHOICE=$(printf '%s' "$CHOICE" | tr -d ' \r\n')
+}
+
+# Xử lý tham số dòng lệnh trực tiếp (Automation / Scripts)
+if [ -n "$USER_IP" ]; then
+    run_install "$USER_IP"
+    exit $?
 fi
+
+if [ "$RUN_WIFI_CLI" = "1" ]; then
+    run_wifi_config
+    exit $?
+fi
+
+if [ "$RUN_SCAN_CLI" = "1" ]; then
+    scan_speaker_ip
+    exit $?
+fi
+
+# Vòng lặp menu chính tương tác
+while :; do
+    show_menu
+    case "$CHOICE" in
+        1)
+            run_wifi_config
+            ;;
+        2)
+            run_install ""
+            ;;
+        3)
+            scan_speaker_ip
+            if [ "${TOTAL_FOUND:-0}" -gt 0 ]; then
+                echo ""
+                echo ">> Đã tìm thấy $TOTAL_FOUND loa trong mạng LAN."
+            else
+                echo ""
+                echo ">> Không tìm thấy loa R1 trong dải mạng hiện tại."
+            fi
+            printf "Nhấn Enter để quay lại menu: "
+            read -r _ 2>/dev/null || true
+            ;;
+        4|"q"|"Q"|"exit"|"")
+            echo "Thoát chương trình."
+            break
+            ;;
+        *)
+            echo "Lựa chọn không hợp lệ."
+            sleep 1
+            ;;
+    esac
+done
