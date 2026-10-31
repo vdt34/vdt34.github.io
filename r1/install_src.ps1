@@ -1,4 +1,4 @@
-# ==============================================================================
+﻿# ==============================================================================
 # BỘ CÀI ĐẶT PHICOMM R1 SIÊU TỐC - WINDOWS POWERSHELL
 # Tự động cấu hình WiFi, quét tìm loa trong LAN, dọn sạch file cũ, giao diện UTF-8
 # ==============================================================================
@@ -41,18 +41,41 @@ function Ensure-Adb {
     $zip = Join-Path $TempDir "platform-tools.zip"
     try {
         $old = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
-        Invoke-WebRequest -Uri "https://dl.google.com/android/repository/platform-tools-latest-windows.zip" -OutFile $zip -TimeoutSec 30
+        Invoke-WebRequest -Uri "https://dl.google.com/android/repository/platform-tools-latest-windows.zip" -OutFile $zip -TimeoutSec 30 -UseBasicParsing
         Expand-Archive -Path $zip -DestinationPath $TempDir -Force
         $ProgressPreference = $old
         $env:PATH = "$TempDir\platform-tools;" + $env:PATH
-        return $true
+        return (Test-Path (Join-Path $TempDir "platform-tools\adb.exe"))
     } catch {
         Write-Host ">> [LỖI] Không thể tải ADB. Vui lòng kiểm tra kết nối mạng." -ForegroundColor Red
         return $false
     }
 }
 
-# 2. Cấu hình WiFi cho loa qua AP API (192.168.43.1:8989)
+# 2. Hàm đánh thức loa R1 qua cổng 8080/8081
+function Revive-Speaker {
+    param([string]$TargetIp)
+    if (-not $TargetIp) { return }
+    try {
+        $c8080 = New-Object System.Net.Sockets.TcpClient
+        $ar1 = $c8080.BeginConnect($TargetIp, 8080, $null, $null)
+        if ($ar1.AsyncWaitHandle.WaitOne(800)) { $c8080.EndConnect($ar1) }
+        $c8080.Close()
+    } catch {}
+    try {
+        $c8081 = New-Object System.Net.Sockets.TcpClient
+        $ar2 = $c8081.BeginConnect($TargetIp, 8081, $null, $null)
+        if ($ar2.AsyncWaitHandle.WaitOne(800)) { $c8081.EndConnect($ar2) }
+        $c8081.Close()
+    } catch {}
+    try {
+        $wc = New-Object System.Net.WebClient
+        $wc.DownloadStringAsync([uri]"http://$($TargetIp):8080/")
+        $wc.DownloadStringAsync([uri]"http://$($TargetIp):8081/")
+    } catch {}
+}
+
+# 3. Cấu hình WiFi cho loa qua AP API (192.168.43.1:8989)
 function Send-WifiConfig {
     param(
         [string]$TargetIp = "192.168.43.1",
@@ -76,7 +99,7 @@ function Send-WifiConfig {
 
     try {
         $old = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
-        $resp = Invoke-RestMethod -Uri "http://$($TargetIp):8989/api/configwifi" -Method Post -ContentType "application/json" -Body $json -TimeoutSec 5 -ErrorAction Stop
+        $resp = Invoke-RestMethod -Uri "http://$($TargetIp):8989/api/configwifi" -Method Post -ContentType "application/json" -Body $json -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
         $ProgressPreference = $old
         return $true
     } catch {
@@ -170,13 +193,21 @@ function Run-WifiConfig {
     Write-Host "==========================================================" -ForegroundColor Green
 
     if (-not $Yes -and -not $DryRun -and $env:R1_DRYRUN -ne "1") {
-        Read-Host "Đợi 20 giây và tự động quay lại menu [Nhấn Enter]"
-        Start-Sleep -Seconds 20
+        Write-Host ""
+        $waitChoice = Read-Host "Nhấn Enter để đợi 20s loa kết nối hoặc gõ 'M' để về menu ngay [Mặc định: đợi]"
+        if ($waitChoice -ne "m" -and $waitChoice -ne "M") {
+            Write-Host ">> Đang đếm ngược 20 giây..." -ForegroundColor Gray
+            for ($s = 20; $s -gt 0; $s--) {
+                Write-Host -NoNewline "`r   Còn $s giây..."
+                Start-Sleep -Seconds 1
+            }
+            Write-Host "`r   [OK] Đã hoàn tất thời gian chờ!                " -ForegroundColor Green
+        }
     }
     return $true
 }
 
-# 3. Hàm dò tìm dải mạng LAN & Quét loa Phicomm R1
+# 4. Hàm dò tìm dải mạng LAN & Quét loa Phicomm R1
 function Get-LocalSubnet {
     try {
         $ip = (Get-CimInstance Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled -and $_.DefaultIPGateway } | Select-Object -ExpandProperty IPAddress | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' -and $_ -notlike '127.*' -and $_ -notlike '169.254.*' } | Select-Object -First 1)
@@ -206,7 +237,7 @@ function Scan-SpeakerIp {
         } catch {}
     }
 
-    Start-Sleep -Milliseconds 600
+    Start-Sleep -Milliseconds 800
 
     foreach ($t in $Tasks) {
         try {
@@ -229,7 +260,7 @@ function Scan-SpeakerIp {
         }
     }
 
-    Start-Sleep -Milliseconds 600
+    Start-Sleep -Milliseconds 800
 
     foreach ($t in $Tasks8080) {
         try {
@@ -250,7 +281,7 @@ function Scan-SpeakerIp {
             $c = New-Object System.Net.Sockets.TcpClient
             try {
                 $ar = $c.BeginConnect($cand, $p, $null, $null)
-                if ($ar.AsyncWaitHandle.WaitOne(250)) {
+                if ($ar.AsyncWaitHandle.WaitOne(300)) {
                     $c.EndConnect($ar)
                     if ($p -eq 5555) { $has5555 = $true }
                     elseif ($p -eq 8080) { $has8080 = $true }
@@ -272,7 +303,7 @@ function Scan-SpeakerIp {
     return $FoundSpeakers
 }
 
-# 4. Tải và chuẩn bị 3 file APK từ GitHub
+# 5. Tải và chuẩn bị 3 file APK từ GitHub
 function Ensure-Apks {
     $Apks = @("autodlna.apk", "unisound.apk", "AIBoxPlus_DLNA.apk")
     Write-Host ""
@@ -298,7 +329,7 @@ function Ensure-Apks {
             Write-Host "   -> Đang tải bản mới nhất: $f..." -ForegroundColor Yellow
             try {
                 $old = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
-                Invoke-WebRequest -Uri "$BaseUrl/$f`?t=$UnixTs" -OutFile "$cacheFile.tmp" -TimeoutSec 45
+                Invoke-WebRequest -Uri "$BaseUrl/$f`?t=$UnixTs" -OutFile "$cacheFile.tmp" -TimeoutSec 45 -UseBasicParsing
                 Move-Item "$cacheFile.tmp" $cacheFile -Force
                 $ProgressPreference = $old
                 Write-Host "   [OK] Đã tải bản mới nhất $f thành công." -ForegroundColor Green
@@ -321,7 +352,7 @@ function Ensure-Apks {
     return $true
 }
 
-# 5. Luồng Quét IP LAN & Cài đặt APK
+# 6. Luồng Quét IP LAN & Cài đặt APK
 function Run-Install {
     param([string]$TargetIpParam = "")
     $TargetIp = $TargetIpParam
@@ -400,6 +431,17 @@ function Run-Install {
     Write-Host ""
     Write-Host ">> Sẽ kết nối tới IP: $TargetIp" -ForegroundColor Cyan
 
+    # Đảm bảo có ADB trước khi cài đặt
+    if (-not (Ensure-Adb)) {
+        Write-Host ""
+        Write-Host "==========================================================" -ForegroundColor Red
+        Write-Host "  [LỖI] KHÔNG THỂ KHỞI TẠO CÔNG CỤ ADB!" -ForegroundColor Red
+        Write-Host "==========================================================" -ForegroundColor Red
+        Write-Host "Vui lòng kiểm tra kết nối Internet để tải bộ công cụ ADB." -ForegroundColor Yellow
+        Read-Host "Nhấn Enter để quay lại menu"
+        return
+    }
+
     if (-not (Ensure-Apks)) { return }
 
     # Kết nối ADB tới loa
@@ -413,20 +455,36 @@ function Run-Install {
         Start-Sleep -Seconds 1
 
         $connected = $false
-        for ($try = 1; $try -le 5; $try++) {
-            Write-Host "   [Kết nối] Thử lần $try/5 tới $Serial..." -ForegroundColor Yellow
-            adb connect $Serial 2>$null | Out-Null
-            Start-Sleep -Milliseconds 600
+        Write-Host "   [Kết nối] Thử kết nối trực tiếp..." -ForegroundColor Yellow
+        adb connect $Serial 2>$null | Out-Null
+        Start-Sleep -Milliseconds 1200
 
-            $state = (adb -s $Serial get-state 2>$null | Out-String).Trim()
-            if ($state -eq "device") {
-                adb -s $Serial shell ls 2>$null | Out-Null
-                if ($LASTEXITCODE -eq 0) {
-                    $connected = $true
-                    break
+        $state = (adb -s $Serial get-state 2>$null | Out-String).Trim()
+        if ($state -eq "device") {
+            adb -s $Serial shell ls /data 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) { $connected = $true }
+        }
+
+        if (-not $connected) {
+            Write-Host "   -> Loa chưa phản hồi, đang gửi tín hiệu kích hoạt ADB qua cổng 8080..." -ForegroundColor Cyan
+            Revive-Speaker -TargetIp $TargetIp
+            Start-Sleep -Milliseconds 1800
+
+            for ($try = 1; $try -le 5; $try++) {
+                Write-Host "   [Thử lại] Lần $try/5 tới $Serial..." -ForegroundColor Yellow
+                adb connect $Serial 2>$null | Out-Null
+                Start-Sleep -Milliseconds 1200
+
+                $state = (adb -s $Serial get-state 2>$null | Out-String).Trim()
+                if ($state -eq "device") {
+                    adb -s $Serial shell ls /data 2>$null | Out-Null
+                    if ($LASTEXITCODE -eq 0) {
+                        $connected = $true
+                        break
+                    }
                 }
+                Start-Sleep -Seconds 1
             }
-            Start-Sleep -Seconds 1
         }
 
         if (-not $connected) {
@@ -525,7 +583,7 @@ function Run-Install {
     }
 }
 
-# 6. Hàm hiển thị Menu chính
+# 7. Hàm hiển thị Menu chính
 function Show-Menu {
     Write-Host ""
     Write-Host "==========================================================" -ForegroundColor Cyan
@@ -544,12 +602,6 @@ function Show-Menu {
     if ($null -eq $choice) { return "4" }
     if ($choice) { return $choice.Trim() }
     return ""
-}
-
-# 7. Khởi động công cụ ADB
-if (-not (Ensure-Adb)) {
-    Read-Host "Nhấn Enter để thoát"
-    return
 }
 
 # Xử lý tham số dòng lệnh trực tiếp (Automation / Scripts)
@@ -596,8 +648,10 @@ while ($true) {
     } elseif ($c -eq "4" -or $c -eq "q" -or $c -eq "Q" -or $c -eq "exit") {
         Write-Host "Thoát chương trình." -ForegroundColor Yellow
         break
+    } elseif ($c -eq "") {
+        continue
     } else {
-        Write-Host "Lựa chọn không hợp lệ." -ForegroundColor Yellow
+        Write-Host "Lựa chọn không hợp lệ. Vui lòng nhập số từ 1 đến 4." -ForegroundColor Yellow
         Start-Sleep -Milliseconds 600
     }
 }
