@@ -56,20 +56,149 @@ if (-not (Ensure-Adb)) {
     return
 }
 
-# 2. Nhap IP cua loa (Chuan new.bat: Enter lay 192.168.43.1, hoac go IP WiFi nha)
+# Ham tu dong tim dai mang LAN hien tai
+function Get-LocalSubnet {
+    try {
+        $ip = (Get-CimInstance Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled -and $_.DefaultIPGateway } | Select-Object -ExpandProperty IPAddress | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' -and $_ -notlike '127.*' -and $_ -notlike '169.254.*' } | Select-Object -First 1)
+        if ($ip) {
+            $parts = $ip.Split('.')
+            return "$($parts[0]).$($parts[1]).$($parts[2])"
+        }
+    } catch {}
+    return "192.168.1"
+}
+
+# Ham quet tu dong mang LAN tim loa Phicomm R1
+function Scan-SpeakerIp {
+    param([string]$Subnet = "")
+    if (-not $Subnet) { $Subnet = Get-LocalSubnet }
+    Write-Host ""
+    Write-Host ">> Dang quet tu dong mang LAN ($Subnet.1 -> 254) tim loa Phicomm R1..." -ForegroundColor Cyan
+
+    $Candidates = [System.Collections.Generic.List[string]]::new()
+    $Tasks = [System.Collections.Generic.List[object]]::new()
+
+    # Quet nhanh port 5555
+    1..254 | ForEach-Object {
+        $ipStr = "$Subnet.$_"
+        $client = New-Object System.Net.Sockets.TcpClient
+        try {
+            $ar = $client.BeginConnect($ipStr, 5555, $null, $null)
+            $Tasks.Add([PSCustomObject]@{ IP = $ipStr; Client = $client })
+        } catch {}
+    }
+
+    Start-Sleep -Milliseconds 600
+
+    foreach ($t in $Tasks) {
+        try {
+            if ($t.Client.Connected) {
+                if (-not $Candidates.Contains($t.IP)) { $Candidates.Add($t.IP) }
+            }
+        } catch {}
+        finally { $t.Client.Close() }
+    }
+
+    # Quet tiep port 8080 cho cac loa chua bat san adbd
+    $Tasks8080 = [System.Collections.Generic.List[object]]::new()
+    1..254 | ForEach-Object {
+        $ipStr = "$Subnet.$_"
+        if (-not $Candidates.Contains($ipStr)) {
+            $client = New-Object System.Net.Sockets.TcpClient
+            try {
+                $ar = $client.BeginConnect($ipStr, 8080, $null, $null)
+                $Tasks8080.Add([PSCustomObject]@{ IP = $ipStr; Client = $client })
+            } catch {}
+        }
+    }
+
+    Start-Sleep -Milliseconds 600
+
+    foreach ($t in $Tasks8080) {
+        try {
+            if ($t.Client.Connected) {
+                if (-not $Candidates.Contains($t.IP)) { $Candidates.Add($t.IP) }
+            }
+        } catch {}
+        finally { $t.Client.Close() }
+    }
+
+    # Kiem tra chi tiet cac cong tren tung IP tim duoc de xac dinh loa R1
+    $FoundSpeakers = [System.Collections.Generic.List[object]]::new()
+    foreach ($cand in $Candidates) {
+        $has5555 = $false
+        $has8080 = $false
+        $has8081 = $false
+
+        foreach ($p in 5555, 8080, 8081) {
+            $c = New-Object System.Net.Sockets.TcpClient
+            try {
+                $ar = $c.BeginConnect($cand, $p, $null, $null)
+                if ($ar.AsyncWaitHandle.WaitOne(250)) {
+                    $c.EndConnect($ar)
+                    if ($p -eq 5555) { $has5555 = $true }
+                    elseif ($p -eq 8080) { $has8080 = $true }
+                    elseif ($p -eq 8081) { $has8081 = $true }
+                }
+            } catch {}
+            finally { $c.Close() }
+        }
+
+        if ($has5555 -or ($has8080 -and $has8081)) {
+            $ports = @()
+            if ($has5555) { $ports += "ADB:5555" }
+            if ($has8080) { $ports += "R1:8080" }
+            if ($has8081) { $ports += "Web:8081" }
+            $FoundSpeakers.Add([PSCustomObject]@{ IP = $cand; Ports = ($ports -join ", ") })
+        }
+    }
+
+    return $FoundSpeakers
+}
+
+# 2. Xac dinh IP cua loa (Co the nhan Enter, go IP hoac go 'S' / 2 de tu dong quet LAN)
 $TargetIp = $Ip
 if (-not $TargetIp) {
     Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
-    Write-Host "                     NHAP IP CUA LOA                      " -ForegroundColor Yellow
+    Write-Host "                     XAC DINH IP CUA LOA                  " -ForegroundColor Yellow
     Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
-    Write-Host " - Neu dang ket noi WiFi cua loa: Nhan [Enter] dung 192.168.43.1" -ForegroundColor Gray
-    Write-Host " - Neu loa da noi WiFi nha: Nhap dia chi IP cua loa (VD: 192.168.1.94)" -ForegroundColor Gray
+    Write-Host " [Enter] Dung 192.168.43.1 (Khi dang noi truc tiep WiFi loa)" -ForegroundColor Gray
+    Write-Host " [S]     Tu dong QUET tim IP loa trong mang WiFi nha (LAN)" -ForegroundColor Cyan
+    Write-Host " Hoac go truc tiep IP cua loa (Vi du: 192.168.1.94)" -ForegroundColor Gray
+    Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
     Write-Host ""
-    $u = Read-Host "Nhap IP cua loa (Enter de dung mac dinh 192.168.43.1)"
-    if ($u -and $u.Trim()) {
-        $TargetIp = $u.Trim().Replace(":5555", "")
-    } else {
+    $u = Read-Host "Nhap IP hoac go 'S' de quet [Mac dinh: 192.168.43.1]"
+    $u = if ($u) { $u.Trim() } else { "" }
+
+    if ($u -eq "s" -or $u -eq "S" -or $u -eq "2" -or $u -eq "scan") {
+        $foundList = Scan-SpeakerIp
+        if ($foundList -and $foundList.Count -gt 0) {
+            Write-Host ""
+            Write-Host ">> Phat hien $($foundList.Count) loa Phicomm R1 trong mang LAN:" -ForegroundColor Green
+            for ($i = 0; $i -lt $foundList.Count; $i++) {
+                $item = $foundList[$i]
+                Write-Host "   [$($i+1)] $($item.IP) ($($item.Ports))" -ForegroundColor Yellow
+            }
+            Write-Host ""
+            $pick = Read-Host "Chon so thu tu loa (1-$($foundList.Count)) hoac nhap IP khac [Mac dinh: 1]"
+            $pick = if ($pick) { $pick.Trim() } else { "" }
+            if ($pick -match '^\d+$' -and [int]$pick -ge 1 -and [int]$pick -le $foundList.Count) {
+                $TargetIp = $foundList[[int]$pick - 1].IP
+            } elseif ($pick -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}') {
+                $TargetIp = $pick
+            } else {
+                $TargetIp = $foundList[0].IP
+            }
+        } else {
+            Write-Host ""
+            Write-Host ">> Khong tim thay loa tu dong trong mang." -ForegroundColor Yellow
+            $manual = Read-Host "Vui long nhap IP loa thu cong (VD: 192.168.1.94)"
+            $TargetIp = if ($manual -and $manual.Trim()) { $manual.Trim() } else { "192.168.43.1" }
+        }
+    } elseif ($u -eq "1" -or $u -eq "" -or $u -eq "192.168.43.1") {
         $TargetIp = "192.168.43.1"
+    } else {
+        $TargetIp = $u
     }
 }
 $TargetIp = $TargetIp.Trim().Replace(":5555", "")

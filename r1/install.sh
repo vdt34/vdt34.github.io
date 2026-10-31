@@ -116,18 +116,169 @@ for f in autodlna.apk unisound.apk AIBoxPlus_DLNA.apk; do
 done
 
 # ------------------------------------------------------------------------------
-# 3. NHẬP IP CỦA LOA & HƯỚNG DẪN KẾT NỐI
+# 3. XÁC ĐỊNH IP CỦA LOA (HỖ TRỢ TỰ ĐỘNG QUÉT LAN & NHẬP THỦ CÔNG)
 # ------------------------------------------------------------------------------
+detect_subnet() {
+    sub=""
+    if command -v ip >/dev/null 2>&1; then
+        sub=$(ip -4 route show default 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="via") print $(i+1)}' | awk -F'.' '{print $1"."$2"."$3}')
+        [ -z "$sub" ] && sub=$(ip -4 addr show 2>/dev/null | grep -v '127.0.0.1' | grep -oE 'inet [0-9]+\.[0-9]+\.[0-9]+' | head -n 1 | awk '{print $2}')
+    fi
+    if [ -z "$sub" ] && command -v ifconfig >/dev/null 2>&1; then
+        sub=$(ifconfig 2>/dev/null | grep -v '127.0.0.1' | grep -oE 'inet (addr:)?[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+    fi
+    if [ -z "$sub" ] && command -v route >/dev/null 2>&1; then
+        sub=$(route -n 2>/dev/null | grep -E '^0\.0\.0\.0' | awk '{print $2}' | awk -F'.' '{print $1"."$2"."$3}')
+    fi
+    [ -z "$sub" ] && sub="192.168.1"
+    echo "$sub"
+}
+
+scan_speaker_ip() {
+    sub=$(detect_subnet)
+    echo ""
+    echo ">> Đang quét tự động dải mạng $sub.1 -> 254 để tìm loa Phicomm R1..."
+
+    scan_tmp="/tmp/r1_scan_$$"
+    rm -rf "$scan_tmp" 2>/dev/null || true
+    mkdir -p "$scan_tmp"
+
+    PY_CMD=""
+    if python3 -c "import sys" >/dev/null 2>&1; then
+        PY_CMD="python3"
+    elif python -c "import sys" >/dev/null 2>&1; then
+        PY_CMD="python"
+    fi
+
+    if [ -n "$PY_CMD" ]; then
+        "$PY_CMD" -c "
+import socket
+from concurrent.futures import ThreadPoolExecutor
+
+prefix = '$sub'
+def probe(i):
+    ip = f'{prefix}.{i}'
+    ports = []
+    for p in (5555, 8081, 8080):
+        try:
+            s = socket.socket()
+            s.settimeout(0.35)
+            if s.connect_ex((ip, p)) == 0:
+                ports.append(str(p))
+            s.close()
+        except:
+            pass
+    if '5555' in ports or ('8080' in ports and '8081' in ports):
+        p_str = ', '.join(ports)
+        print(f'{ip} (Ports: {p_str})')
+
+with ThreadPoolExecutor(max_workers=50) as ex:
+    list(ex.map(probe, range(1, 255)))
+" > "$scan_tmp/result.txt" 2>/dev/null || true
+    fi
+
+    if [ ! -s "$scan_tmp/result.txt" ]; then
+        idx=1
+        while [ $idx -le 254 ]; do
+            bend=$((idx + 31))
+            [ $bend -gt 254 ] && bend=254
+            i=$idx
+            while [ $i -le $bend ]; do
+                (
+                    target="${sub}.${i}"
+                    found=""
+                    if command -v nc >/dev/null 2>&1; then
+                        if nc -w 1 -z "$target" 5555 >/dev/null 2>&1; then
+                            found="5555"
+                        elif nc -w 1 -z "$target" 8081 >/dev/null 2>&1; then
+                            found="8081"
+                        elif nc -w 1 -z "$target" 8080 >/dev/null 2>&1; then
+                            found="8080"
+                        fi
+                    elif command -v curl >/dev/null 2>&1; then
+                        if curl -s -m 0.4 -o /dev/null "http://$target:8081/" 2>/dev/null; then
+                            found="8081"
+                        elif curl -s -m 0.4 -o /dev/null "http://$target:8080/" 2>/dev/null; then
+                            found="8080"
+                        fi
+                    fi
+                    if [ -n "$found" ]; then
+                        echo "$target (Port: $found)" >> "$scan_tmp/result.txt"
+                    fi
+                ) &
+                i=$((i + 1))
+            done
+            wait
+            idx=$((bend + 1))
+        done
+    fi
+
+    TOTAL_FOUND=0
+    if [ -f "$scan_tmp/result.txt" ]; then
+        echo ""
+        echo ">> Kết quả phát hiện loa trong mạng LAN:"
+        while IFS= read -r line || [ -n "$line" ]; do
+            line=$(echo "$line" | tr -d '\r\n')
+            [ -z "$line" ] && continue
+            TOTAL_FOUND=$((TOTAL_FOUND + 1))
+            ip_val=$(echo "$line" | awk '{print $1}')
+            eval "FOUND_IP_$TOTAL_FOUND=\"$ip_val\""
+            echo "   [$TOTAL_FOUND] $line"
+        done < "$scan_tmp/result.txt"
+    fi
+    rm -rf "$scan_tmp" 2>/dev/null || true
+}
+
 echo ""
 echo "----------------------------------------------------------"
-echo "                     NHẬP IP CỦA LOA                      "
+echo "                     XÁC ĐỊNH IP CỦA LOA                  "
 echo "----------------------------------------------------------"
-echo " - Nếu đang kết nối WiFi của loa: Nhấn [Enter] để lấy 192.168.43.1"
-echo " - Nếu loa đã nối WiFi nhà: Nhập địa chỉ IP của loa (VD: 192.168.1.94)"
+echo " [Enter] Dùng 192.168.43.1 (Khi đang nối trực tiếp WiFi loa)"
+echo " [S]     Tự động QUÉT tìm IP loa trong mạng WiFi nhà (LAN)"
+echo " Hoặc gõ trực tiếp IP của loa (Ví dụ: 192.168.1.94)"
+echo "----------------------------------------------------------"
 echo ""
-USER_IP=$(read_val "Nhập IP của loa (Enter để dùng mặc định 192.168.43.1): " "192.168.43.1")
-TARGET_IP=$(echo "$USER_IP" | tr -d ' ' | sed 's/:5555$//')
-[ -z "$TARGET_IP" ] && TARGET_IP="192.168.43.1"
+
+TARGET_IP=""
+while [ -z "$TARGET_IP" ]; do
+    USER_INPUT=$(read_val "Nhập IP hoặc gõ 'S' để quét [Mặc định: 192.168.43.1]: " "192.168.43.1")
+    USER_INPUT=$(echo "$USER_INPUT" | tr -d ' ')
+
+    case "$USER_INPUT" in
+        "1"|"192.168.43.1"|"")
+            TARGET_IP="192.168.43.1"
+            ;;
+        "s"|"S"|"2"|"scan"|"SCAN")
+            scan_speaker_ip
+            if [ "$TOTAL_FOUND" -gt 0 ]; then
+                echo ""
+                PICK=$(read_val "Chọn số thứ tự loa (1-$TOTAL_FOUND) hoặc nhập IP khác [Mặc định: 1]: " "1")
+                PICK=$(echo "$PICK" | tr -d ' ')
+                if [ "$PICK" -ge 1 ] 2>/dev/null && [ "$PICK" -le "$TOTAL_FOUND" ] 2>/dev/null; then
+                    eval "TARGET_IP=\"\$FOUND_IP_$PICK\""
+                elif echo "$PICK" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+'; then
+                    TARGET_IP="$PICK"
+                else
+                    TARGET_IP="$FOUND_IP_1"
+                fi
+            else
+                echo ""
+                echo ">> Không tìm thấy loa tự động trong mạng."
+                MANUAL=$(read_val "Vui lòng nhập IP loa thủ công (VD: 192.168.1.94): " "")
+                if [ -n "$MANUAL" ]; then
+                    TARGET_IP="$MANUAL"
+                else
+                    TARGET_IP="192.168.43.1"
+                fi
+            fi
+            ;;
+        *)
+            TARGET_IP=$(echo "$USER_INPUT" | sed 's/:5555$//')
+            ;;
+    esac
+done
+
+TARGET_IP=$(echo "$TARGET_IP" | tr -d ' ' | sed 's/:5555$//')
 SERIAL="$TARGET_IP:5555"
 
 echo ""
