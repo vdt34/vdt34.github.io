@@ -23,7 +23,7 @@ for arg in "$@"; do
     esac
 done
 
-clear
+clear 2>/dev/null || true
 echo "=========================================================="
 echo "     CÔNG CỤ CÀI ĐẶT PHICOMM R1 - iSH / LINUX"
 echo "=========================================================="
@@ -35,37 +35,31 @@ echo ""
 setup_tools() {
     mkdir -p "$HOME/.android" "$CACHE_DIR" 2>/dev/null || true
 
-    if ! command -v adb >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1 || ! command -v nc >/dev/null 2>&1; then
-        echo ">> Đang kiểm tra & chuẩn bị công cụ adb, curl, nc..."
+    # Kiểm tra và cài đặt curl nếu thiếu (cần cho tải file và gửi WiFi)
+    if ! command -v curl >/dev/null 2>&1; then
+        echo ">> Đang cài đặt curl..."
+        if command -v apk >/dev/null 2>&1; then
+            apk add --no-cache curl >/dev/null 2>&1 || true
+        elif command -v pkg >/dev/null 2>&1; then
+            pkg install -y curl >/dev/null 2>&1 || true
+        elif command -v apt-get >/dev/null 2>&1; then
+            apt-get update -y >/dev/null 2>&1 && apt-get install -y curl >/dev/null 2>&1 || true
+        fi
+    fi
+
+    # Thử cài đặt adb và netcat nếu chưa có (nếu có Internet)
+    if ! command -v adb >/dev/null 2>&1; then
         if command -v apk >/dev/null 2>&1; then
             if [ -f /etc/apk/repositories ]; then
                 sed -i 's/^#\(.*\/community\)/\1/' /etc/apk/repositories 2>/dev/null || true
             fi
-            apk update >/dev/null 2>&1
-            apk add --no-cache android-tools curl netcat-openbsd >/dev/null 2>&1 || true
-
-            if ! command -v adb >/dev/null 2>&1; then
-                apk add --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community android-tools curl netcat-openbsd >/dev/null 2>&1 || \
-                apk add --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/testing android-tools curl netcat-openbsd >/dev/null 2>&1 || true
-            fi
+            apk add --no-cache android-tools netcat-openbsd >/dev/null 2>&1 || \
+            apk add --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community android-tools netcat-openbsd >/dev/null 2>&1 || true
         elif command -v pkg >/dev/null 2>&1; then
-            pkg update -y >/dev/null 2>&1
-            pkg install -y android-tools curl netcat-openbsd >/dev/null 2>&1 || true
+            pkg install -y android-tools netcat-openbsd >/dev/null 2>&1 || true
         elif command -v apt-get >/dev/null 2>&1; then
-            apt-get update -y >/dev/null 2>&1
-            apt-get install -y android-tools-adb curl netcat-openbsd >/dev/null 2>&1 || true
+            apt-get install -y android-tools-adb netcat-openbsd >/dev/null 2>&1 || true
         fi
-    fi
-
-    if [ "$R1_DRYRUN" != "1" ] && ! command -v adb >/dev/null 2>&1; then
-        echo ""
-        echo "=========================================================="
-        echo "  [LỖI] KHÔNG THỂ CÀI ĐẶT LỆNH 'adb' TRÊN THIẾT BỊ NÀY!"
-        echo "=========================================================="
-        echo "Vui lòng chạy thủ công lệnh sau trong iSH để cài đặt adb:"
-        echo "  apk add android-tools --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community"
-        echo "=========================================================="
-        exit 1
     fi
 }
 setup_tools
@@ -97,7 +91,9 @@ send_wifi_config() {
     secure="$4"
     [ -z "$secure" ] && secure="WPA"
 
-    payload="{\"ssid\":\"$ssid\",\"secure\":\"$secure\",\"password\":\"$pass\",\"mac\":\"\"}"
+    esc_ssid=$(printf '%s' "$ssid" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    esc_pass=$(printf '%s' "$pass" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    payload="{\"ssid\":\"$esc_ssid\",\"secure\":\"$secure\",\"password\":\"$esc_pass\",\"mac\":\"\"}"
 
     if [ "$R1_DRYRUN" = "1" ]; then
         echo "   [DRY-RUN] Đã gửi cấu hình WiFi SSID='$ssid' tới http://$target_ip:8989/api/configwifi"
@@ -107,11 +103,11 @@ send_wifi_config() {
     if command -v curl >/dev/null 2>&1; then
         curl -s -m 5 -X POST "http://$target_ip:8989/api/configwifi" \
              -H "Content-Type: application/json" \
-             -d "$payload" >/dev/null 2>&1
+             -d "$payload" >/dev/null 2>&1 || true
         return 0
     elif command -v wget >/dev/null 2>&1; then
         wget -q -O- --timeout=5 --header="Content-Type: application/json" \
-             --post-data="$payload" "http://$target_ip:8989/api/configwifi" >/dev/null 2>&1
+             --post-data="$payload" "http://$target_ip:8989/api/configwifi" >/dev/null 2>&1 || true
         return 0
     else
         echo "   [LỖI] Cần lệnh curl hoặc wget để gửi cấu hình."
@@ -127,17 +123,22 @@ ask_wifi_and_send() {
     echo "Nhập thông tin mạng WiFi nhà để loa kết nối:"
     echo "----------------------------------------------------------"
     ssid=""
-    while [ -z "$ssid" ]; do
-        printf ">> Tên WiFi nhà (SSID, phân biệt HOA/thường): "
-        read -r ssid 2>/dev/null || ssid=""
-        ssid=$(printf '%s' "$ssid" | tr -d '\r\n')
-        [ -z "$ssid" ] && echo "   [!] Tên WiFi không được để trống!"
-    done
+    if [ "$ASSUME_YES" = "1" ] || [ "$R1_DRYRUN" = "1" ]; then
+        ssid="MyWiFi"
+        pass="12345678"
+    else
+        while [ -z "$ssid" ]; do
+            printf ">> Tên WiFi nhà (SSID, phân biệt HOA/thường): "
+            read -r ssid 2>/dev/null || ssid=""
+            ssid=$(printf '%s' "$ssid" | tr -d '\r\n')
+            [ -z "$ssid" ] && echo "   [!] Tên WiFi không được để trống!"
+        done
 
-    printf ">> Mật khẩu WiFi (nhấn Enter nếu WiFi không có pass): "
-    pass=""
-    read -r pass 2>/dev/null || pass=""
-    pass=$(printf '%s' "$pass" | tr -d '\r\n')
+        printf ">> Mật khẩu WiFi (nhấn Enter nếu WiFi không có pass): "
+        pass=""
+        read -r pass 2>/dev/null || pass=""
+        pass=$(printf '%s' "$pass" | tr -d '\r\n')
+    fi
 
     secure="WPA"
     if [ -z "$pass" ]; then
@@ -177,20 +178,36 @@ run_wifi_config() {
 
     echo ""
     echo ">> Kiểm tra kết nối tới 192.168.43.1:8989..."
-    if [ "$R1_DRYRUN" != "1" ] && command -v nc >/dev/null 2>&1; then
-        if nc -w 2 -z 192.168.43.1 8989 >/dev/null 2>&1; then
-            echo "   [OK] Đã kết nối được API của loa."
-        else
-            echo "   [LỖI] Không kết nối được 192.168.43.1:8989"
-            echo "   Kiểm tra: đã đúng WiFi loa? đã tắt 4G? loa còn phát AP?"
-            if [ "$ASSUME_YES" != "1" ]; then
-                printf "   Vẫn tiếp tục gửi WiFi? [y/N]: "
-                ans=""; read -r ans 2>/dev/null || true
-                case "$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')" in
-                    "y"|"yes") ;;
-                    *) return 1 ;;
-                esac
+    connected_api=0
+    if [ "$R1_DRYRUN" = "1" ]; then
+        connected_api=1
+    else
+        # Kiểm tra cổng 8989 bằng curl hoặc nc (không dùng nc -z để tránh lỗi busybox)
+        if command -v curl >/dev/null 2>&1; then
+            if curl -s -m 2 -o /dev/null "http://192.168.43.1:8989/" 2>/dev/null; then
+                connected_api=1
             fi
+        fi
+        if [ "$connected_api" = "0" ] && command -v nc >/dev/null 2>&1; then
+            if nc -w 2 192.168.43.1 8989 </dev/null >/dev/null 2>&1; then
+                connected_api=1
+            fi
+        fi
+    fi
+
+    if [ "$connected_api" = "1" ]; then
+        echo "   [OK] Đã kết nối được tới loa R1."
+    else
+        echo "   [!] Chưa thấy phản hồi từ 192.168.43.1:8989."
+        echo "   (Hãy chắc chắn điện thoại đã kết nối WiFi Phicomm_R1 và đã TẮT 4G)."
+        if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
+            printf "   Vẫn tiếp tục gửi cấu hình WiFi? [y/N]: "
+            ans=""
+            read -r ans 2>/dev/null || true
+            case "$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')" in
+                "y"|"yes") ;;
+                *) return 1 ;;
+            esac
         fi
     fi
 
@@ -279,29 +296,27 @@ with ThreadPoolExecutor(max_workers=50) as ex:
 EOF
     fi
 
+    # Nếu không có Python, quét bằng vòng lặp shell dùng curl / nc an toàn
     if [ ! -s "$scan_tmp/result.txt" ]; then
         idx=1
         while [ $idx -le 254 ]; do
-            bend=$((idx + 31))
+            bend=$((idx + 25))
             [ $bend -gt 254 ] && bend=254
             i=$idx
             while [ $i -le $bend ]; do
                 (
                     target="${sub}.${i}"
                     found=""
-                    if command -v nc >/dev/null 2>&1; then
-                        if nc -w 1 -z "$target" 5555 >/dev/null 2>&1; then
-                            found="5555"
-                        elif nc -w 1 -z "$target" 8081 >/dev/null 2>&1; then
+                    if command -v curl >/dev/null 2>&1; then
+                        if curl -s -m 0.3 -o /dev/null "http://$target:8081/" 2>/dev/null; then
                             found="8081"
-                        elif nc -w 1 -z "$target" 8080 >/dev/null 2>&1; then
+                        elif curl -s -m 0.3 -o /dev/null "http://$target:8080/" 2>/dev/null; then
                             found="8080"
                         fi
-                    elif command -v curl >/dev/null 2>&1; then
-                        if curl -s -m 0.4 -o /dev/null "http://$target:8081/" 2>/dev/null; then
-                            found="8081"
-                        elif curl -s -m 0.4 -o /dev/null "http://$target:8080/" 2>/dev/null; then
-                            found="8080"
+                    fi
+                    if [ -z "$found" ] && command -v nc >/dev/null 2>&1; then
+                        if nc -w 1 "$target" 5555 </dev/null >/dev/null 2>&1; then
+                            found="5555"
                         fi
                     fi
                     if [ -n "$found" ]; then
@@ -343,8 +358,8 @@ revive_speaker() {
         wget -q -O- --timeout=1 "http://$tip:8080/" >/dev/null 2>&1 || true
         wget -q -O- --timeout=1 "http://$tip:8081/" >/dev/null 2>&1 || true
     elif command -v nc >/dev/null 2>&1; then
-        nc -w 1 -z "$tip" 8080 >/dev/null 2>&1 || true
-        nc -w 1 -z "$tip" 8081 >/dev/null 2>&1 || true
+        nc -w 1 "$tip" 8080 </dev/null >/dev/null 2>&1 || true
+        nc -w 1 "$tip" 8081 </dev/null >/dev/null 2>&1 || true
     fi
 }
 
@@ -363,30 +378,27 @@ check_connected() {
 ensure_apks() {
     echo ""
     echo ">> [1/4] Chuẩn bị bộ 3 file APK cài đặt từ GitHub..."
-    CUR_SCRIPT=$(basename "$0" 2>/dev/null || echo "")
-    for old_sh in ./r1.sh ./r1*.sh ./install.sh /tmp/r1*.sh /tmp/install*.sh; do
-        if [ -f "$old_sh" ] && [ "$(basename "$old_sh")" != "$CUR_SCRIPT" ]; then
-            rm -f "$old_sh" 2>/dev/null || true
-        fi
-    done
-    rm -rf "$CACHE_DIR" 2>/dev/null || true
     mkdir -p "$CACHE_DIR"
 
     TS=$(date +%s 2>/dev/null || echo "1")
     for f in autodlna.apk unisound.apk AIBoxPlus_DLNA.apk; do
+        cached="$CACHE_DIR/$f"
+
         if [ "$R1_DRYRUN" = "1" ] && [ -f "$SCRIPT_DIR/$f" ]; then
-            cp -f "$SCRIPT_DIR/$f" "$CACHE_DIR/$f" 2>/dev/null || true
+            cp -f "$SCRIPT_DIR/$f" "$cached" 2>/dev/null || true
             echo "   [OK] (DryRun) Dùng file $f có sẵn."
+        elif [ -f "$cached" ] && [ "$(wc -c < "$cached" 2>/dev/null)" -ge 500000 ]; then
+            echo "   [OK] Đã có sẵn $f trong bộ nhớ tạm."
         else
             echo "   -> Đang tải bản mới nhất: $f..."
             if command -v curl >/dev/null 2>&1; then
-                curl -k -fL --connect-timeout 20 -# -o "$CACHE_DIR/$f.tmp" "$BASE_URL/$f?t=$TS" && mv -f "$CACHE_DIR/$f.tmp" "$CACHE_DIR/$f"
+                curl -k -fL --connect-timeout 25 -# -o "$cached.tmp" "$BASE_URL/$f?t=$TS" && mv -f "$cached.tmp" "$cached"
             elif command -v wget >/dev/null 2>&1; then
-                wget -q --no-check-certificate -O "$CACHE_DIR/$f" "$BASE_URL/$f?t=$TS"
+                wget -q --no-check-certificate -O "$cached" "$BASE_URL/$f?t=$TS"
             fi
         fi
 
-        if [ "$R1_DRYRUN" != "1" ] && { [ ! -f "$CACHE_DIR/$f" ] || [ "$(wc -c < "$CACHE_DIR/$f" 2>/dev/null)" -lt 500000 ]; }; then
+        if [ "$R1_DRYRUN" != "1" ] && { [ ! -f "$cached" ] || [ "$(wc -c < "$cached" 2>/dev/null)" -lt 500000 ]; }; then
             echo ""
             echo "=========================================================="
             echo "  [LỖI] KHÔNG THỂ TẢI FILE $f TỪ GITHUB!"
@@ -405,6 +417,23 @@ ensure_apks() {
 # 6. LUỒNG QUÉT IP LAN & CÀI ĐẶT APK
 # ------------------------------------------------------------------------------
 run_install() {
+    # Kiểm tra lệnh adb trước khi cài đặt APK
+    if [ "$R1_DRYRUN" != "1" ] && ! command -v adb >/dev/null 2>&1; then
+        echo ""
+        echo "=========================================================="
+        echo "  [LỖI] THIẾU CÔNG CỤ 'adb' ĐỂ CÀI ĐẶT APK VÀO LOA!"
+        echo "=========================================================="
+        echo "Vui lòng kết nối WiFi nhà (có Internet) và chạy lệnh sau trong iSH:"
+        echo "  apk add android-tools"
+        echo "Sau đó chạy lại script để tiến hành cài đặt."
+        echo "=========================================================="
+        if [ "$ASSUME_YES" != "1" ]; then
+            printf "Nhấn Enter để quay lại menu: "
+            read -r _ 2>/dev/null || true
+        fi
+        return 1
+    fi
+
     passed_ip="$1"
     TARGET_IP="$passed_ip"
     [ -z "$TARGET_IP" ] && TARGET_IP="$USER_IP"
@@ -415,7 +444,7 @@ run_install() {
         echo "                  XÁC ĐỊNH IP CỦA LOA                     "
         echo "----------------------------------------------------------"
         echo " [S]     Tự động QUÉT tìm IP loa trong WiFi nhà (KHUYÊN DÙNG)"
-        echo " [Enter] Dùng 192.168.43.1 (KHÔNG khuyến nghị — AP sẽ tắt)"
+        echo " [1]     Dùng 192.168.43.1 (KHÔNG khuyến nghị — AP sẽ tắt)"
         echo " Hoặc gõ trực tiếp IP của loa (Ví dụ: 192.168.1.94)"
         echo "----------------------------------------------------------"
 
@@ -451,7 +480,7 @@ run_install() {
                     fi
                     rm -rf "$scan_tmp" 2>/dev/null || true
                     ;;
-                "1"|"192.168.43.1"|"")
+                "1"|"192.168.43.1")
                     echo ""
                     echo "=========================================================="
                     echo "  [CẢNH BÁO] Chọn 192.168.43.1 (AP mode) để cài APK"
@@ -463,7 +492,8 @@ run_install() {
                     echo "   3. Chọn mục 2 quét IP LAN và cài đặt siêu tốc"
                     echo "=========================================================="
                     printf "Vẫn tiếp tục cài qua AP? [y/N]: "
-                    ans=""; read -r ans 2>/dev/null || true
+                    ans=""
+                    read -r ans 2>/dev/null || true
                     case "$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')" in
                         "y"|"yes") TARGET_IP="192.168.43.1" ;;
                         *) return 1 ;;
@@ -529,6 +559,10 @@ run_install() {
             echo "  - Trên iOS: Đã bật 'Mạng cục bộ' cho iSH chưa?"
             echo "  - Nếu loa vừa reset -> hãy chọn mục 1 để cấu hình WiFi trước."
             echo "=========================================================="
+            if [ "$ASSUME_YES" != "1" ]; then
+                printf "Nhấn Enter để quay lại menu: "
+                read -r _ 2>/dev/null || true
+            fi
             return 1
         fi
     fi
@@ -555,71 +589,32 @@ run_install() {
 
     if [ "$R1_DRYRUN" != "1" ]; then
         echo "   -> Đang dọn dẹp bộ nhớ đệm..."
-        adb -s "$SERIAL" shell "
-            rm -f /sdcard/otaprop.txt /sdcard/incremental*.zip 2>/dev/null
-            /system/bin/pm clear com.phicomm.speaker.otaservice 2>/dev/null
-            settings put secure install_non_market_apps 1 2>/dev/null
-        " >/dev/null 2>&1
+        adb -s "$SERIAL" shell "rm -f /sdcard/otaprop.txt /sdcard/incremental*.zip 2>/dev/null; /system/bin/pm clear com.phicomm.speaker.otaservice 2>/dev/null; settings put secure install_non_market_apps 1 2>/dev/null" >/dev/null 2>&1
 
         echo "   -> Tắt các ứng dụng chiếm quyền..."
-        adb -s "$SERIAL" shell "
-            /system/bin/pm hide com.phicomm.speaker.airskill 2>/dev/null
-            /system/bin/pm hide com.phicomm.speaker.exceptionreporter 2>/dev/null
-            /system/bin/pm hide com.phicomm.speaker.systemtool 2>/dev/null
-            /system/bin/pm hide com.phicomm.speaker.device 2>/dev/null
-            /system/bin/pm hide com.phicomm.speaker.otaservice 2>/dev/null
-            /system/bin/pm hide com.phicomm.speaker.productiontest 2>/dev/null
-            /system/bin/pm hide com.phicomm.speaker.bugreport 2>/dev/null
-        " >/dev/null 2>&1
+        adb -s "$SERIAL" shell "/system/bin/pm hide com.phicomm.speaker.airskill 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.exceptionreporter 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.systemtool 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.device 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.otaservice 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.productiontest 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.bugreport 2>/dev/null" >/dev/null 2>&1
 
         echo "   -> Cài đặt AutoDLNA + Unisound..."
-        adb -s "$SERIAL" shell "
-            /system/bin/pm install -r /data/local/tmp/autodlna.apk
-            /system/bin/pm install -r /data/local/tmp/unisound.apk
-            rm -f /data/local/tmp/autodlna.apk /data/local/tmp/unisound.apk
-        " >/dev/null 2>&1
+        adb -s "$SERIAL" shell "/system/bin/pm install -r /data/local/tmp/autodlna.apk; /system/bin/pm install -r /data/local/tmp/unisound.apk; rm -f /data/local/tmp/autodlna.apk /data/local/tmp/unisound.apk" >/dev/null 2>&1
 
         echo "   -> Khởi động AutoDLNA + Unisound..."
-        adb -s "$SERIAL" shell "
-            am startservice com.phicomm.speaker.player/.EchoService 2>/dev/null
-            am start com.phicomm.speaker.device/.ui.MainActivity 2>/dev/null
-        " >/dev/null 2>&1
+        adb -s "$SERIAL" shell "am startservice com.phicomm.speaker.player/.EchoService 2>/dev/null; am start com.phicomm.speaker.device/.ui.MainActivity 2>/dev/null" >/dev/null 2>&1
         sleep 2
 
         echo "   -> Khôi phục ijetty & netctl..."
-        adb -s "$SERIAL" shell "
-            /system/bin/pm unhide com.phicomm.speaker.ijetty 2>/dev/null
-            /system/bin/pm unhide com.phicomm.speaker.netctl 2>/dev/null
-        " >/dev/null 2>&1
+        adb -s "$SERIAL" shell "/system/bin/pm unhide com.phicomm.speaker.ijetty 2>/dev/null; /system/bin/pm unhide com.phicomm.speaker.netctl 2>/dev/null" >/dev/null 2>&1
 
         echo "   -> Gỡ bản AI cũ và cài đặt AI Tiếng Việt mới..."
-        adb -s "$SERIAL" shell "
-            /system/bin/pm uninstall info.dourok.voicebot 2>/dev/null
-            /system/bin/pm install -r /data/local/tmp/AIBoxPlus_DLNA.apk
-            rm -f /data/local/tmp/AIBoxPlus_DLNA.apk
-        " >/dev/null 2>&1
+        adb -s "$SERIAL" shell "/system/bin/pm uninstall info.dourok.voicebot 2>/dev/null; /system/bin/pm install -r /data/local/tmp/AIBoxPlus_DLNA.apk; rm -f /data/local/tmp/AIBoxPlus_DLNA.apk" >/dev/null 2>&1
 
         echo "   -> Khởi động AI Box Plus & cấu hình đèn LED..."
-        adb -s "$SERIAL" shell "
-            am start -n info.dourok.voicebot/.java.activities.MainActivity 2>/dev/null
-            settings put global bluetooth_on 1 2>/dev/null
-            service call bluetooth_manager 6 2>/dev/null
-            setprop persist.sys.r1_led 0 2>/dev/null
-            lights_test set 7fffff8000 0 2>/dev/null
-            lights_test set 7fffff0000 ffffff 2>/dev/null
-        " >/dev/null 2>&1
+        adb -s "$SERIAL" shell "am start -n info.dourok.voicebot/.java.activities.MainActivity 2>/dev/null; settings put global bluetooth_on 1 2>/dev/null; service call bluetooth_manager 6 2>/dev/null; setprop persist.sys.r1_led 0 2>/dev/null; lights_test set 7fffff8000 0 2>/dev/null; lights_test set 7fffff0000 ffffff 2>/dev/null" >/dev/null 2>&1
 
         LAN_IP=$(adb -s "$SERIAL" shell "getprop dhcp.wlan0.ipaddress" 2>/dev/null | tr -d '\r\n')
     else
         echo "   -> [DRY-RUN] Đã thực thi chuỗi lệnh new.bat chuẩn xác!"
         LAN_IP=""
     fi
-
-    # Dọn dẹp cache
-    rm -rf "$CACHE_DIR" 2>/dev/null || true
-    for tmp_sh in ./r1.sh ./r1*.sh /tmp/r1*.sh /tmp/install*.sh; do
-        [ -f "$tmp_sh" ] && rm -f "$tmp_sh" 2>/dev/null || true
-    done
 
     echo ""
     echo "=========================================================="
@@ -663,7 +658,9 @@ show_menu() {
     echo "=========================================================="
     printf "Chọn [1-4]: "
     CHOICE=""
-    read -r CHOICE 2>/dev/null || CHOICE=""
+    if ! read -r CHOICE 2>/dev/null; then
+        CHOICE="4"
+    fi
     CHOICE=$(printf '%s' "$CHOICE" | tr -d ' \r\n')
 }
 
@@ -705,12 +702,16 @@ while :; do
             printf "Nhấn Enter để quay lại menu: "
             read -r _ 2>/dev/null || true
             ;;
-        4|"q"|"Q"|"exit"|"")
+        4|"q"|"Q"|"exit")
             echo "Thoát chương trình."
             break
             ;;
+        "")
+            # Người dùng bấm Enter mà không nhập số -> hiện lại menu
+            continue
+            ;;
         *)
-            echo "Lựa chọn không hợp lệ."
+            echo "Lựa chọn không hợp lệ. Vui lòng nhập số từ 1 đến 4."
             sleep 1
             ;;
     esac
