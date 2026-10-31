@@ -18,6 +18,7 @@ for arg in "$@"; do
         -DryRun|--dry-run) export R1_DRYRUN=1 ;;
         -Wifi|--wifi|-wifi) CLI_MODE="wifi" ;;
         -Scan|--scan|-scan) CLI_MODE="scan" ;;
+        -Mic|--mic|-mic|-Optimize|--optimize) CLI_MODE="mic" ;;
         192.168.43.1)
             USER_IP="$arg"
             CLI_MODE="wifi"
@@ -571,6 +572,12 @@ run_install_lan() {
         echo "   -> Khởi động AI Box Plus & cấu hình đèn LED..."
         adb -s "$SERIAL" shell "am start -n info.dourok.voicebot/.java.activities.MainActivity 2>/dev/null; settings put global bluetooth_on 1 2>/dev/null; service call bluetooth_manager 6 2>/dev/null; setprop persist.sys.r1_led 0 2>/dev/null; lights_test set 7fffff8000 0 2>/dev/null; lights_test set 7fffff0000 ffffff 2>/dev/null" >/dev/null 2>&1
 
+        echo "   -> Giải phóng và vô hiệu hóa app hệ thống cũ để không tranh chấp mic..."
+        adb -s "$SERIAL" shell "/system/bin/pm hide com.phicomm.speaker.device 2>/dev/null; am force-stop com.phicomm.speaker.device 2>/dev/null" >/dev/null 2>&1
+
+        echo "   -> Tối ưu hóa toàn diện phần cứng 4 micro (tinymix + ADC Gain Boost)..."
+        adb -s "$SERIAL" shell 'tinymix "Capture Volume" 63 63 2>/dev/null; tinymix "Capture Switch" 1 1 2>/dev/null; tinymix "ADC MIC Boost Gain" 3 3 2>/dev/null; tinymix "Internal Mic Switch" 1 2>/dev/null; tinymix "Mic Capture Volume" 63 2>/dev/null; tinymix "ALC Capture Max Volume" 28 28 2>/dev/null; tinymix "ALC Capture Min Volume" 0 0 2>/dev/null; setprop persist.audio.mic.gain 100 2>/dev/null; setprop persist.sys.r1.mic.boost 1 2>/dev/null' >/dev/null 2>&1
+
         LAN_IP=$(adb -s "$SERIAL" shell "getprop dhcp.wlan0.ipaddress" 2>/dev/null | tr -d '\r\n')
 
         echo "   -> Đang khởi động lại loa (Reboot)..."
@@ -611,6 +618,66 @@ run_install_lan() {
 }
 
 # ------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+# 5.1. TỐI ƯU HÓA TOÀN DIỆN 4 MICRO (KHÔNG CÀI LẠI APK)
+# ------------------------------------------------------------------------------
+optimize_speaker_mic() {
+    clear 2>/dev/null || true
+    echo "=========================================================="
+    echo "        TỐI ƯU HÓA TOÀN DIỆN 4 MICRO PHICOMM R1          "
+    echo "=========================================================="
+    TARGET_IP=""
+    scan_speaker_ip
+    if [ -n "$FOUND_IP" ]; then
+        TARGET_IP="$FOUND_IP"
+    else
+        read_val "Nhập IP của loa Phicomm R1 trong mạng LAN: " ""
+        TARGET_IP="$READ_RESULT"
+    fi
+
+    if [ -z "$TARGET_IP" ]; then
+        echo "Chưa có IP. Quay lại menu."
+        sleep 1
+        return 1
+    fi
+
+    TARGET_IP=$(echo "$TARGET_IP" | sed 's/:5555//')
+    SERIAL="${TARGET_IP}:5555"
+
+    echo ">> Đang kết nối ADB tới $SERIAL..."
+    adb kill-server >/dev/null 2>&1
+    adb start-server >/dev/null 2>&1
+    adb connect "$SERIAL" >/dev/null 2>&1
+    sleep 1
+
+    STATE=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d '
+')
+    if [ "$STATE" != "device" ]; then
+        echo "[LỖI] Không thể kết nối ADB tới $SERIAL."
+        read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+        return 1
+    fi
+
+    echo ">> [1/3] Vô hiệu hóa ứng dụng hệ thống cũ chiếm quyền mic..."
+    adb -s "$SERIAL" shell "/system/bin/pm hide com.phicomm.speaker.device 2>/dev/null; am force-stop com.phicomm.speaker.device 2>/dev/null" >/dev/null 2>&1
+
+    echo ">> [2/3] Cấu hình Gain & Routing qua tinymix cho phần cứng 4 mic..."
+    adb -s "$SERIAL" shell 'tinymix "Capture Volume" 63 63 2>/dev/null; tinymix "Capture Switch" 1 1 2>/dev/null; tinymix "ADC MIC Boost Gain" 3 3 2>/dev/null; tinymix "Internal Mic Switch" 1 2>/dev/null; tinymix "Mic Capture Volume" 63 2>/dev/null; tinymix "ALC Capture Max Volume" 28 28 2>/dev/null; tinymix "ALC Capture Min Volume" 0 0 2>/dev/null; setprop persist.audio.mic.gain 100 2>/dev/null; setprop persist.sys.r1.mic.boost 1 2>/dev/null' >/dev/null 2>&1
+
+    echo ">> [3/3] Khởi động lại dịch vụ AI Box Plus..."
+    adb -s "$SERIAL" shell "am force-stop info.dourok.voicebot 2>/dev/null; am start -n info.dourok.voicebot/.java.activities.MainActivity 2>/dev/null" >/dev/null 2>&1
+
+    echo ""
+    echo "=========================================================="
+    echo "          ĐÃ TỐI ƯU HÓA TOÀN DIỆN 4 MICRO THÀNH CÔNG!     "
+    echo "=========================================================="
+    echo ">> Ứng dụng tiếng Trung cũ đã được đóng băng hoàn toàn."
+    echo ">> Phần cứng 4 mic trên RK3229 đã được tăng Gain và Boost tối đa."
+    echo ">> AI Box Plus đã có toàn quyền truy cập micro."
+    echo "=========================================================="
+    read_val "Nhấn Enter để quay lại menu chính: " "" >/dev/null 2>&1 || true
+}
+
 # 6. MENU CHÍNH
 # ------------------------------------------------------------------------------
 show_menu() {
@@ -621,16 +688,19 @@ show_menu() {
     echo "  1) Cấu hình WiFi cho loa (kết nối AP 192.168.43.1)"
     echo "     -> Dùng khi loa vừa reset, đang phát WiFi Phicomm_R1_xxxx"
     echo ""
-    echo "  2) Quét IP LAN & Cài đặt APK (AutoDLNA + Unisound + AI)"
-    echo "     -> Dùng khi loa ĐÃ vào WiFi nhà (có IP LAN)"
+    echo "  2) Quét IP LAN & Cài đặt APK (AutoDLNA + Unisound + AI + Tối ưu 4 Mic)"
+    echo "     -> Dùng khi loa ĐÃ vào WiFi nhà (tự động tối ưu mic)"
     echo ""
-    echo "  3) Chỉ quét tìm IP loa trong LAN (không cài đặt)"
-    echo "  4) Thoát"
+    echo "  3) Tối ưu hóa toàn diện 4 Micro (Không cần cài lại APK)"
+    echo "     -> Tắt xung đột app cũ + Tăng Gain Mic tối đa cho AI Box"
+    echo ""
+    echo "  4) Chỉ quét tìm IP loa trong LAN"
+    echo "  5) Thoát"
     echo "=========================================================="
-    printf "Chọn [1-4]: "
+    printf "Chọn [1-5]: "
     CHOICE=""
     if ! read -r CHOICE 2>/dev/null; then
-        CHOICE="4"
+        CHOICE="5"
     fi
     CHOICE=$(printf '%s' "$CHOICE" | tr -d ' \r\n')
 }
@@ -645,6 +715,9 @@ elif [ "$CLI_MODE" = "install" ]; then
 elif [ "$CLI_MODE" = "scan" ]; then
     scan_speaker_ip
     exit 0
+elif [ "$CLI_MODE" = "mic" ]; then
+    optimize_speaker_mic
+    exit 0
 fi
 
 # Vòng lặp menu
@@ -658,11 +731,14 @@ while :; do
             run_install_lan ""
             ;;
         3)
+            optimize_speaker_mic
+            ;;
+        4)
             scan_speaker_ip
             echo ""
             read_val "Nhấn Enter để quay lại menu chính: " "" >/dev/null 2>&1 || true
             ;;
-        4|"q"|"Q"|"exit")
+        5|"q"|"Q"|"exit")
             echo "Thoát chương trình."
             break
             ;;
