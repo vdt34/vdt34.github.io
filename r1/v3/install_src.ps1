@@ -35,7 +35,7 @@ if ($args.Count -gt 0) {
 $ScriptDir = if ($MyInvocation.MyCommand.Path) { Split-Path -Parent $MyInvocation.MyCommand.Path } else { (Get-Location).Path }
 $TempDir = Join-Path $env:TEMP "r1_cache"
 New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
-$BaseUrl = "https://vdt34.github.io/r1"
+$BaseUrl = "https://vdt34.github.io/r1/v3"
 
 # 1. Đảm bảo có công cụ ADB
 function Ensure-Adb {
