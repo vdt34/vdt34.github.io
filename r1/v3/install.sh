@@ -4,7 +4,7 @@
 # Tự động cấu hình WiFi AP, quét tìm loa trong LAN, cài đặt AutoDLNA + Unisound + AI
 # ==============================================================================
 
-BASE_URL="https://vdt34.github.io/r1"
+BASE_URL="https://vdt34.github.io/r1/v3"
 CACHE_DIR="/tmp/r1_cache"
 SCRIPT_DIR=$(cd "$(dirname -- "$0")" 2>/dev/null && pwd)
 
