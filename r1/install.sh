@@ -689,14 +689,6 @@ run_install_lan() {
         progress_update 97 "Đang khởi chạy AI Box Plus"
         adb -s "$SERIAL" shell am start -n info.dourok.voicebot/.java.activities.MainActivity >/dev/null 2>&1
         sleep 5
-        progress_update 97 "Đang kiểm tra WebUI trước khi reboot"
-        WEBUI_PRE_REBOOT_READY=0
-        if wait_for_webui; then
-            WEBUI_PRE_REBOOT_READY=1
-        else
-            progress_finish
-            echo ">> [CẢNH BÁO] WebUI chưa phản hồi trước reboot tại cổng 8081."
-        fi
 
         progress_finish
         echo ""
@@ -719,6 +711,7 @@ run_install_lan() {
             launch_status=$?
             if [ "$launch_status" -eq 0 ] && ! printf '%s\n' "$launch_output" | grep -Eqi '(^|[[:space:]])(Error:|Exception|does not exist)'; then
                 POST_REBOOT_AI_OK=1
+                sleep 5
                 if wait_for_webui; then
                     WEBUI_READY=1
                 fi
@@ -736,7 +729,6 @@ run_install_lan() {
         POST_REBOOT_AI_OK=0
         WEBUI_READY=0
         progress_update 100 "[DRY-RUN] Hoàn tất, loa chưa reboot"
-        WEBUI_PRE_REBOOT_READY=0
         LAN_IP=""
     fi
 
@@ -755,11 +747,6 @@ run_install_lan() {
     else
         echo ">> Đã gửi lệnh khởi động lại (Reboot) loa."
         echo ">> Loa đang khởi động lại (thường mất khoảng 30 - 45 giây)."
-        if [ "$WEBUI_PRE_REBOOT_READY" = "1" ]; then
-            echo ">> WebUI đã phản hồi trước reboot tại cổng 8081."
-        else
-            echo ">> [CẢNH BÁO] WebUI chưa được xác minh trước reboot."
-        fi
         if [ "$POST_REBOOT_AI_OK" = "1" ]; then
             echo ">> AI đã được khởi chạy sau reboot."
         else
