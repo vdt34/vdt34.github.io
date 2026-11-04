@@ -34,6 +34,7 @@ done
 # ------------------------------------------------------------------------------
 setup_tools() {
     mkdir -p "$HOME/.android" "$CACHE_DIR" 2>/dev/null || true
+    [ "$R1_DRYRUN" = "1" ] && return 0
 
     # Đảm bảo có curl để tải file và gửi API cấu hình WiFi
     if ! command -v curl >/dev/null 2>&1; then
@@ -75,7 +76,7 @@ read_val() {
     printf "%s" "$prompt" >&2
     val=""
     read -r val 2>/dev/null || val=""
-    val=$(printf '%s' "$val" | tr -d ' \r\n')
+    val=$(printf '%s' "$val" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
     [ -z "$val" ] && val="$def"
     echo "$val"
 }
@@ -358,21 +359,21 @@ configure_wifi_ap() {
     echo ""
     echo "Nhập thông tin mạng WiFi nhà để loa kết nối:"
     echo "----------------------------------------------------------"
+    ssid_default=""
+    pass_default=""
+    if [ "$ASSUME_YES" = "1" ] || [ "$R1_DRYRUN" = "1" ]; then
+        ssid_default="MyWiFi"
+        pass_default="12345678"
+    fi
     ssid=""
     while [ -z "$ssid" ]; do
-        ssid=$(read_val ">> Tên WiFi nhà (SSID, phân biệt HOA/thường): " "")
-        if [ "$R1_DRYRUN" = "1" ] && [ -z "$ssid" ]; then
-            ssid="MyWiFi"
-        fi
+        ssid=$(read_val ">> Tên WiFi nhà (SSID, phân biệt HOA/thường): " "$ssid_default")
         if [ -z "$ssid" ]; then
             echo "   [!] Tên WiFi không được để trống!"
         fi
     done
 
-    pass=$(read_val ">> Mật khẩu WiFi (nhấn Enter nếu WiFi không có pass): " "")
-    if [ "$R1_DRYRUN" = "1" ] && [ -z "$pass" ]; then
-        pass="12345678"
-    fi
+    pass=$(read_val ">> Mật khẩu WiFi (nhấn Enter nếu WiFi không có pass): " "$pass_default")
 
     secure="WPA"
     if [ -z "$pass" ]; then
@@ -688,6 +689,14 @@ run_install_lan() {
         progress_update 97 "Đang khởi chạy AI Box Plus"
         adb -s "$SERIAL" shell am start -n info.dourok.voicebot/.java.activities.MainActivity >/dev/null 2>&1
         sleep 5
+        progress_update 97 "Đang kiểm tra WebUI trước khi reboot"
+        WEBUI_PRE_REBOOT_READY=0
+        if wait_for_webui; then
+            WEBUI_PRE_REBOOT_READY=1
+        else
+            progress_finish
+            echo ">> [CẢNH BÁO] WebUI chưa phản hồi trước reboot tại cổng 8081."
+        fi
 
         progress_finish
         echo ""
@@ -727,6 +736,7 @@ run_install_lan() {
         POST_REBOOT_AI_OK=0
         WEBUI_READY=0
         progress_update 100 "[DRY-RUN] Hoàn tất, loa chưa reboot"
+        WEBUI_PRE_REBOOT_READY=0
         LAN_IP=""
     fi
 
@@ -745,6 +755,11 @@ run_install_lan() {
     else
         echo ">> Đã gửi lệnh khởi động lại (Reboot) loa."
         echo ">> Loa đang khởi động lại (thường mất khoảng 30 - 45 giây)."
+        if [ "$WEBUI_PRE_REBOOT_READY" = "1" ]; then
+            echo ">> WebUI đã phản hồi trước reboot tại cổng 8081."
+        else
+            echo ">> [CẢNH BÁO] WebUI chưa được xác minh trước reboot."
+        fi
         if [ "$POST_REBOOT_AI_OK" = "1" ]; then
             echo ">> AI đã được khởi chạy sau reboot."
         else
