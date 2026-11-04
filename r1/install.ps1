@@ -3,7 +3,6 @@
 # Source code: https://github.com/vdt34/vdt34.github.io/blob/main/r1/install_src.ps1
 # Tu dong cau hinh WiFi, quet tim loa trong LAN, toi uu hoa 4 Micro, giao dien Tieng Viet
 # ==============================================================================
-param()
 try { chcp 65001 >$null } catch {}
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 try { $OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
