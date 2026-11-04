@@ -37,6 +37,90 @@ $TempDir = Join-Path $env:TEMP "r1_cache"
 New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
 $BaseUrl = "https://vdt34.github.io/r1"
 
+function Set-R1InstallProgress {
+    param(
+        [int]$Percent,
+        [string]$Status
+    )
+
+    if ([Console]::IsOutputRedirected) { return }
+
+    $filled = [Math]::Floor($Percent / 2)
+    $bar = ("█" * $filled) + ("░" * (50 - $filled))
+    $bufferWidth = [Console]::BufferWidth
+    if (-not $script:R1ProgressActive) {
+        $script:R1ProgressTop = [Math]::Min([Console]::CursorTop, [Console]::BufferHeight - 3)
+    }
+
+    $top = $script:R1ProgressTop
+    foreach ($line in @("   $Status", ("   [{0}] {1,3}%" -f $bar, $Percent))) {
+        [Console]::SetCursorPosition(0, $top)
+        [Console]::Write((' ' * ($bufferWidth - 1)))
+        [Console]::SetCursorPosition(0, $top)
+        [Console]::ForegroundColor = [ConsoleColor]::Cyan
+        [Console]::WriteLine($line)
+        $top++
+    }
+    [Console]::ResetColor()
+    $script:R1ProgressActive = $true
+}
+
+function Complete-R1InstallProgress {
+    if ([Console]::IsOutputRedirected -or -not $script:R1ProgressActive) { return }
+
+    $bufferWidth = [Console]::BufferWidth
+    $top = $script:R1ProgressTop
+    for ($i = 0; $i -lt 2; $i++) {
+        [Console]::SetCursorPosition(0, $top + $i)
+        [Console]::Write((' ' * ($bufferWidth - 1)))
+    }
+    [Console]::SetCursorPosition(0, $top)
+    $script:R1ProgressActive = $false
+}
+
+function Wait-R1SpeakerBoot {
+    param(
+        [string]$Serial,
+        [int]$Attempts = 45
+    )
+
+    for ($try = 1; $try -le $Attempts; $try++) {
+        & adb connect $Serial 2>$null | Out-Null
+        $state = (& adb -s $Serial get-state 2>$null | Out-String).Trim()
+        if ($state -eq "device") {
+            $bootState = (& adb -s $Serial shell getprop sys.boot_completed 2>$null | Out-String).Trim()
+            if ($bootState -eq "1") { return $true }
+        }
+
+        Set-R1InstallProgress -Percent 98 -Status "Đang chờ loa khởi động lại ($try/$Attempts)"
+        Start-Sleep -Seconds 2
+    }
+
+    return $false
+}
+
+function Test-R1TcpPort {
+    param(
+        [string]$HostName,
+        [int]$Port,
+        [int]$TimeoutMilliseconds = 1000
+    )
+
+    $client = New-Object System.Net.Sockets.TcpClient
+    $asyncResult = $null
+    try {
+        $asyncResult = $client.BeginConnect($HostName, $Port, $null, $null)
+        if (-not $asyncResult.AsyncWaitHandle.WaitOne($TimeoutMilliseconds)) { return $false }
+        $client.EndConnect($asyncResult)
+        return $true
+    } catch {
+        return $false
+    } finally {
+        if ($asyncResult) { $asyncResult.AsyncWaitHandle.Close() }
+        $client.Close()
+    }
+}
+
 # 1. Đảm bảo có công cụ ADB
 function Ensure-Adb {
     if ($DryRun -or $env:R1_DRYRUN -eq "1") { return $true }
@@ -309,7 +393,7 @@ function Scan-SpeakerIp {
 function Ensure-Apks {
     $Apks = @("autodlna.apk", "unisound.apk", "AIBoxPlus_DLNA.apk")
     Write-Host ""
-    Write-Host ">> [1/4] Chuẩn bị bộ 3 file APK cài đặt từ GitHub..." -ForegroundColor Cyan
+    Write-Host ">> Đang chuẩn bị và tự động cài AI..." -ForegroundColor Cyan
 
     foreach ($f in $Apks) {
         $oldFile = Join-Path $TempDir $f
@@ -320,35 +404,59 @@ function Ensure-Apks {
 
     $Missing = $false
     $UnixTs = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-    foreach ($f in $Apks) {
+    for ($i = 0; $i -lt $Apks.Count; $i++) {
+        $f = $Apks[$i]
+        Set-R1InstallProgress -Percent (5 + ($i * 10)) -Status "Đang chuẩn bị $f"
         $cacheFile = Join-Path $TempDir $f
         $localFile = Join-Path $ScriptDir $f
 
         if ($DryRun -and (Test-Path $localFile)) {
             Copy-Item $localFile $cacheFile -Force
-            Write-Host "   [OK] (DryRun) Dùng file $f có sẵn." -ForegroundColor Green
         } else {
-            Write-Host "   -> Đang tải bản mới nhất: $f..." -ForegroundColor Yellow
             try {
                 $old = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
                 Invoke-WebRequest -Uri "$BaseUrl/$f`?t=$UnixTs" -OutFile "$cacheFile.tmp" -TimeoutSec 45 -UseBasicParsing
                 Move-Item "$cacheFile.tmp" $cacheFile -Force
                 $ProgressPreference = $old
-                Write-Host "   [OK] Đã tải bản mới nhất $f thành công." -ForegroundColor Green
             } catch {
-                Write-Host "   [LỖI] Không tải được $f từ GitHub!" -ForegroundColor Red
+                $ProgressPreference = $old
                 $Missing = $true
             }
         }
+        Set-R1InstallProgress -Percent (15 + ($i * 10)) -Status "Đã xử lý $f"
     }
 
     if ($Missing) {
+        Complete-R1InstallProgress
         Write-Host ""
         Write-Host "==========================================================" -ForegroundColor Red
         Write-Host "  [LỖI THIẾU FILE CÀI ĐẶT DO CHƯA CÓ INTERNET]" -ForegroundColor Red
         Write-Host "==========================================================" -ForegroundColor Red
         Write-Host "Vui lòng kiểm tra kết nối mạng để tải đủ 3 file APK." -ForegroundColor Yellow
         Read-Host "Nhấn Enter để quay lại menu"
+        return $false
+    }
+    return $true
+}
+
+function Invoke-AdbInstallStep {
+    param(
+        [string[]]$Arguments,
+        [switch]$RequirePackageSuccess
+    )
+
+    $output = & adb @Arguments 2>&1
+    $exitCode = $LASTEXITCODE
+    $packageInstallFailed = $RequirePackageSuccess -and (($output -join "`n") -notmatch '(?m)^Success\s*$')
+    if ($exitCode -ne 0 -or $packageInstallFailed) {
+        if ($output) {
+            $output | ForEach-Object { Write-Host $_ }
+        }
+        if ($exitCode -ne 0) {
+            Write-Host ">> [LỖI] ADB kết thúc với mã lỗi $exitCode." -ForegroundColor Red
+        } elseif ($packageInstallFailed) {
+            Write-Host ">> [LỖI] ADB không xác nhận cài đặt thành công." -ForegroundColor Red
+        }
         return $false
     }
     return $true
@@ -450,8 +558,9 @@ function Run-Install {
     if (-not (Ensure-Apks)) { return }
 
     # [2/4] Bắt đầu kết nối thiết bị ADB
+    Complete-R1InstallProgress
     Write-Host ""
-    Write-Host ">> [2/4] Bắt đầu kết nối thiết bị [$Serial]..." -ForegroundColor Cyan
+    Set-R1InstallProgress -Percent 38 -Status "Đang kết nối với loa"
 
     if (-not $DryRun -and $env:R1_DRYRUN -ne "1") {
         Stop-Process -Name adb -Force -ErrorAction SilentlyContinue
@@ -460,7 +569,6 @@ function Run-Install {
         Start-Sleep -Seconds 1
 
         $connected = $false
-        Write-Host "   [Kết nối] Thử kết nối trực tiếp..." -ForegroundColor Yellow
         adb connect $Serial 2>$null | Out-Null
         Start-Sleep -Milliseconds 1200
 
@@ -471,12 +579,12 @@ function Run-Install {
         }
 
         if (-not $connected) {
-            Write-Host "   -> Loa chưa phản hồi, đang gửi tín hiệu kích hoạt ADB qua cổng 8080..." -ForegroundColor Cyan
+            Set-R1InstallProgress -Percent 40 -Status "Đang đánh thức loa"
             Revive-Speaker -TargetIp $TargetIp
             Start-Sleep -Milliseconds 1800
 
             for ($try = 1; $try -le 5; $try++) {
-                Write-Host "   [Thử lại] Lần $try/5 tới $Serial..." -ForegroundColor Yellow
+                Set-R1InstallProgress -Percent (40 + ($try * 2)) -Status "Đang chờ loa phản hồi ($try/5)"
                 adb connect $Serial 2>$null | Out-Null
                 Start-Sleep -Milliseconds 1200
 
@@ -493,6 +601,7 @@ function Run-Install {
         }
 
         if (-not $connected) {
+            Complete-R1InstallProgress
             Write-Host ""
             Write-Host "==========================================================" -ForegroundColor Red
             Write-Host "  [LỖI] KẾT NỐI THẤT BẠI TỚI LOA TẠI $Serial" -ForegroundColor Red
@@ -507,63 +616,163 @@ function Run-Install {
             return
         }
     }
-    Write-Host ">> [OK] Kết nối thành công tới loa ($Serial)!" -ForegroundColor Green
+    Set-R1InstallProgress -Percent 52 -Status "Đã kết nối với loa"
 
     # [3/4] Đẩy APK lên bộ nhớ tạm của loa
-    $Apks = @("autodlna.apk", "unisound.apk", "AIBoxPlus_DLNA.apk")
-    Write-Host ""
-    Write-Host ">> [3/4] Đang dọn sạch bộ nhớ tạm trên loa & nạp 3 file APK mới lên (/data/local/tmp/)..." -ForegroundColor Cyan
+    $Apks = @("autodlna.apk", "unisound.apk")
+    Set-R1InstallProgress -Percent 54 -Status "Đang dọn dẹp và chuẩn bị loa"
     if (-not $DryRun -and $env:R1_DRYRUN -ne "1") {
+        adb -s $Serial shell rm /sdcard/otaprop.txt 2>$null | Out-Null
+        adb -s $Serial shell rm /sdcard/incremental*.zip 2>$null | Out-Null
+        adb -s $Serial shell /system/bin/pm clear com.phicomm.speaker.otaservice 2>$null | Out-Null
         adb -s $Serial shell "rm -rf /data/local/tmp/* 2>/dev/null" 2>$null | Out-Null
+        adb -s $Serial shell settings put secure install_non_market_apps 1 2>$null | Out-Null
+
+        Set-R1InstallProgress -Percent 58 -Status "Đang tắt ứng dụng xung đột"
+        adb -s $Serial shell /system/bin/pm hide com.phicomm.speaker.airskill 2>$null | Out-Null
+        adb -s $Serial shell /system/bin/pm hide com.phicomm.speaker.exceptionreporter 2>$null | Out-Null
+        adb -s $Serial shell /system/bin/pm hide com.phicomm.speaker.systemtool 2>$null | Out-Null
+        adb -s $Serial shell /system/bin/pm hide com.phicomm.speaker.device 2>$null | Out-Null
+        adb -s $Serial shell /system/bin/pm hide com.phicomm.speaker.otaservice 2>$null | Out-Null
+        adb -s $Serial shell /system/bin/pm hide com.phicomm.speaker.productiontest 2>$null | Out-Null
+        adb -s $Serial shell /system/bin/pm hide com.phicomm.speaker.bugreport 2>$null | Out-Null
     }
 
-    foreach ($f in $Apks) {
-        Write-Host "   -> Nạp $f..." -ForegroundColor White
+    for ($i = 0; $i -lt $Apks.Count; $i++) {
+        $f = $Apks[$i]
+        Set-R1InstallProgress -Percent (60 + ($i * 4)) -Status "Đang chuyển $f vào loa"
         if (-not $DryRun -and $env:R1_DRYRUN -ne "1") {
-            adb -s $Serial push (Join-Path $TempDir $f) "/data/local/tmp/$f" 2>$null | Out-Null
+            $localApk = Join-Path $TempDir $f
+            if (-not (Test-Path -LiteralPath $localApk -PathType Leaf)) {
+                Complete-R1InstallProgress
+                Write-Host ">> [LỖI] Không tìm thấy file APK trên máy: $localApk" -ForegroundColor Red
+                Read-Host "Nhấn Enter để quay lại menu"
+                return
+            }
+
+            if (-not (Invoke-AdbInstallStep -Arguments @("-s", $Serial, "push", $localApk, "/data/local/tmp/$f"))) {
+                Complete-R1InstallProgress
+                Write-Host ">> [LỖI] Tải file lên loa thất bại: $f" -ForegroundColor Red
+                Read-Host "Nhấn Enter để quay lại menu"
+                return
+            }
         }
     }
-    Write-Host ">> [OK] Đã đưa trọn vẹn 3 file mới lên loa!" -ForegroundColor Green
+    if ($DryRun -or $env:R1_DRYRUN -eq "1") {
+        Set-R1InstallProgress -Percent 68 -Status "[DRY-RUN] Đã mô phỏng chuẩn bị loa"
+    }
 
     # [4/4] Thực thi chuỗi lệnh cài đặt hệ thống chuẩn theo new.bat
-    Write-Host ""
-    Write-Host ">> [4/4] Bắt đầu cài đặt hệ thống..." -ForegroundColor Cyan
 
     if (-not $DryRun -and $env:R1_DRYRUN -ne "1") {
-        Write-Host "   -> Đang dọn dẹp bộ nhớ đệm..." -ForegroundColor White
-        adb -s $Serial shell "rm -f /sdcard/otaprop.txt /sdcard/incremental*.zip 2>/dev/null; /system/bin/pm clear com.phicomm.speaker.otaservice 2>/dev/null; settings put secure install_non_market_apps 1 2>/dev/null" 2>$null | Out-Null
+        $PostRebootAiStarted = $false
+        $WebUiReady = $false
+        for ($i = 0; $i -lt $Apks.Count; $i++) {
+            $f = $Apks[$i]
+            Set-R1InstallProgress -Percent (70 + ($i * 5)) -Status "Đang cài $f"
+            if (-not (Invoke-AdbInstallStep -Arguments @("-s", $Serial, "shell", "/system/bin/pm", "install", "-r", "/data/local/tmp/$f") -RequirePackageSuccess)) {
+                Complete-R1InstallProgress
+                Write-Host ">> [LỖI] Cài đặt thất bại: $f" -ForegroundColor Red
+                Read-Host "Nhấn Enter để quay lại menu"
+                return
+            }
+        }
+        foreach ($f in $Apks) {
+            adb -s $Serial shell rm "/data/local/tmp/$f" 2>$null | Out-Null
+        }
 
-        Write-Host "   -> Tắt các ứng dụng chiếm quyền..." -ForegroundColor White
-        adb -s $Serial shell "/system/bin/pm hide com.phicomm.speaker.airskill 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.exceptionreporter 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.systemtool 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.device 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.otaservice 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.productiontest 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.bugreport 2>/dev/null" 2>$null | Out-Null
+        Set-R1InstallProgress -Percent 80 -Status "Đang khởi chạy dịch vụ loa"
+        adb -s $Serial shell am startservice com.phicomm.speaker.player/.EchoService 2>$null | Out-Null
+        adb -s $Serial shell am start com.phicomm.speaker.device/.ui.MainActivity 2>$null | Out-Null
+        Start-Sleep -Seconds 3
 
-        Write-Host "   -> Cài đặt AutoDLNA + Unisound..." -ForegroundColor White
-        adb -s $Serial shell "/system/bin/pm install -r /data/local/tmp/autodlna.apk; /system/bin/pm install -r /data/local/tmp/unisound.apk; rm -f /data/local/tmp/autodlna.apk /data/local/tmp/unisound.apk" 2>$null | Out-Null
+        Set-R1InstallProgress -Percent 83 -Status "Đang khôi phục dịch vụ hệ thống"
+        adb -s $Serial shell /system/bin/pm unhide com.phicomm.speaker.ijetty 2>$null | Out-Null
+        adb -s $Serial shell /system/bin/pm unhide com.phicomm.speaker.netctl 2>$null | Out-Null
 
-        Write-Host "   -> Khởi động AutoDLNA + Unisound..." -ForegroundColor White
-        adb -s $Serial shell "am startservice com.phicomm.speaker.player/.EchoService 2>/dev/null; am start com.phicomm.speaker.device/.ui.MainActivity 2>/dev/null" 2>$null | Out-Null
+        Set-R1InstallProgress -Percent 85 -Status "Đang gỡ phiên bản AI cũ"
+        adb -s $Serial shell /system/bin/pm uninstall info.dourok.voicebot 2>$null | Out-Null
+
+        $aiApk = "AIBoxPlus_DLNA.apk"
+        $localAiApk = Join-Path $TempDir $aiApk
+        if (-not (Test-Path -LiteralPath $localAiApk -PathType Leaf)) {
+            Complete-R1InstallProgress
+            Write-Host ">> [LỖI] Không tìm thấy file APK trên máy: $localAiApk" -ForegroundColor Red
+            Read-Host "Nhấn Enter để quay lại menu"
+            return
+        }
+
+        Set-R1InstallProgress -Percent 88 -Status "Đang chuyển AI Box vào loa"
+        if (-not (Invoke-AdbInstallStep -Arguments @("-s", $Serial, "push", $localAiApk, "/data/local/tmp/$aiApk"))) {
+            Complete-R1InstallProgress
+            Write-Host ">> [LỖI] Tải file lên loa thất bại: $aiApk" -ForegroundColor Red
+            Read-Host "Nhấn Enter để quay lại menu"
+            return
+        }
+
+        Set-R1InstallProgress -Percent 92 -Status "Đang cài AI Box Plus"
+        if (-not (Invoke-AdbInstallStep -Arguments @("-s", $Serial, "shell", "/system/bin/pm", "install", "-r", "/data/local/tmp/$aiApk") -RequirePackageSuccess)) {
+            Complete-R1InstallProgress
+            Write-Host ">> [LỖI] Cài đặt thất bại: $aiApk" -ForegroundColor Red
+            Read-Host "Nhấn Enter để quay lại menu"
+            return
+        }
+        adb -s $Serial shell rm "/data/local/tmp/$aiApk" 2>$null | Out-Null
+
+        Set-R1InstallProgress -Percent 95 -Status "Đang khởi chạy AI Box Plus"
+        adb -s $Serial shell am start -n info.dourok.voicebot/.java.activities.MainActivity 2>$null | Out-Null
+        Start-Sleep -Seconds 5
+
+        Complete-R1InstallProgress
+        Write-Host ""
+        Write-Host "------------------------------------------------------------------------"
+        Write-Host "Truy cập Xiaozhi.me để nhập mã 6 số và cấu hình AI."
+        Write-Host "Nếu AI đã được cấu hình trước đó, có thể bỏ qua bước này."
+        Write-Host "------------------------------------------------------------------------"
         Start-Sleep -Seconds 2
 
-        Write-Host "   -> Khôi phục ijetty & netctl..." -ForegroundColor White
-        adb -s $Serial shell "/system/bin/pm unhide com.phicomm.speaker.ijetty 2>/dev/null; /system/bin/pm unhide com.phicomm.speaker.netctl 2>/dev/null" 2>$null | Out-Null
+        adb -s $Serial shell "settings put global bluetooth_on 1 2>/dev/null; service call bluetooth_manager 6 2>/dev/null; setprop persist.sys.r1_led 0 2>/dev/null; lights_test set 7fffff8000 0 2>/dev/null; lights_test set 7fffff0000 ffffff 2>/dev/null" 2>$null | Out-Null
 
-        Write-Host "   -> Gỡ bản AI cũ và cài đặt AI Tiếng Việt mới..." -ForegroundColor White
-        adb -s $Serial shell "/system/bin/pm uninstall info.dourok.voicebot 2>/dev/null; /system/bin/pm install -r /data/local/tmp/AIBoxPlus_DLNA.apk; rm -f /data/local/tmp/AIBoxPlus_DLNA.apk" 2>$null | Out-Null
-
-        Write-Host "   -> Khởi động AI Box Plus..." -ForegroundColor White
-        adb -s $Serial shell "am start -n info.dourok.voicebot/.java.activities.MainActivity 2>/dev/null; settings put global bluetooth_on 1 2>/dev/null; service call bluetooth_manager 6 2>/dev/null; setprop persist.sys.r1_led 0 2>/dev/null; lights_test set 7fffff8000 0 2>/dev/null; lights_test set 7fffff0000 ffffff 2>/dev/null" 2>$null | Out-Null
-
+        Write-Host ">> Cài đặt thành công, loa sẽ tự khởi động lại." -ForegroundColor Green
         $SpeakerLanIp = (adb -s $Serial shell "getprop dhcp.wlan0.ipaddress 2>/dev/null" 2>$null | Out-String).Trim()
 
-        Write-Host "   -> Đang khởi động lại loa (Reboot)..." -ForegroundColor White
+        Set-R1InstallProgress -Percent 98 -Status "Đang khởi động lại loa"
         adb -s $Serial reboot 2>$null | Out-Null
+        if (Wait-R1SpeakerBoot -Serial $Serial) {
+            Set-R1InstallProgress -Percent 99 -Status "Đang khởi chạy AI sau reboot"
+            $launchOutput = & adb -s $Serial shell am start -n info.dourok.voicebot/.java.activities.MainActivity 2>&1
+            $launchExitCode = $LASTEXITCODE
+            $launchFailed = (($launchOutput -join "`n") -match '(?im)^\s*(Error:|Exception|.*does not exist)')
+            if ($launchExitCode -eq 0 -and -not $launchFailed) {
+                $PostRebootAiStarted = $true
+                Start-Sleep -Seconds 5
+                for ($try = 1; $try -le 15; $try++) {
+                    if (Test-R1TcpPort -HostName $TargetIp -Port 8081) {
+                        $WebUiReady = $true
+                        break
+                    }
+                    Set-R1InstallProgress -Percent 99 -Status "Đang chờ WebUI khởi động ($try/15)"
+                    Start-Sleep -Seconds 1
+                }
+            } else {
+                Complete-R1InstallProgress
+                Write-Host ">> [CẢNH BÁO] Không khởi chạy được AI sau reboot:" -ForegroundColor Yellow
+                if ($launchOutput) { $launchOutput | ForEach-Object { Write-Host $_ } }
+            }
+        } else {
+            Complete-R1InstallProgress
+            Write-Host ">> [CẢNH BÁO] Loa chưa kết nối lại sau reboot; không xác minh được AI/WebUI." -ForegroundColor Yellow
+        }
+        Set-R1InstallProgress -Percent 100 -Status "Hoàn tất"
     } else {
-        Write-Host "   -> [DRY-RUN] Đã thực thi chuỗi lệnh new.bat chuẩn xác!" -ForegroundColor Yellow
-        Write-Host "   -> [DRY-RUN] Đã gửi lệnh khởi động lại (Reboot) loa!" -ForegroundColor Yellow
+        $PostRebootAiStarted = $false
+        $WebUiReady = $false
+        Set-R1InstallProgress -Percent 100 -Status "[DRY-RUN] Hoàn tất, loa chưa reboot"
         $SpeakerLanIp = ""
     }
 
     # Dọn dẹp cache
-    foreach ($f in $Apks) {
+    foreach ($f in @("autodlna.apk", "unisound.apk", "AIBoxPlus_DLNA.apk")) {
         $tmpFile = Join-Path $TempDir $f
         if (Test-Path $tmpFile) { Remove-Item $tmpFile -Force -ErrorAction SilentlyContinue }
     }
@@ -574,10 +783,28 @@ function Run-Install {
     Write-Host "==========================================================" -ForegroundColor Green
     Write-Host "                    CÀI ĐẶT HOÀN TẤT!                     " -ForegroundColor Yellow
     Write-Host "==========================================================" -ForegroundColor Green
-    Write-Host ">> Đã gửi lệnh khởi động lại (Reboot) loa thành công!" -ForegroundColor Green
-    Write-Host ">> Loa đang khởi động lại (thường mất khoảng 30 - 45 giây)." -ForegroundColor White
+    if ($DryRun -or $env:R1_DRYRUN -eq "1") {
+        Write-Host ">> Chạy thử hoàn tất; loa chưa được reboot." -ForegroundColor Yellow
+    } else {
+        Write-Host ">> Đã gửi lệnh khởi động lại (Reboot) loa." -ForegroundColor Green
+        Write-Host ">> Loa đang khởi động lại (thường mất khoảng 30 - 45 giây)." -ForegroundColor White
+        if ($PostRebootAiStarted) {
+            Write-Host ">> AI đã được khởi chạy sau reboot." -ForegroundColor Green
+        } else {
+            Write-Host ">> [CẢNH BÁO] Chưa xác minh được AI chạy sau reboot." -ForegroundColor Yellow
+        }
+        if ($WebUiReady) {
+            Write-Host ">> WebUI đã phản hồi tại cổng 8081." -ForegroundColor Green
+        } else {
+            Write-Host ">> [CẢNH BÁO] WebUI chưa phản hồi tại cổng 8081." -ForegroundColor Yellow
+        }
+    }
     Write-Host ""
-    Write-Host ">> Sau khi loa khởi động xong, truy cập bảng điều khiển tại:" -ForegroundColor White
+    if ($DryRun -or $env:R1_DRYRUN -eq "1") {
+        Write-Host ">> Khi cài thật, truy cập bảng điều khiển sau khi loa khởi động:" -ForegroundColor White
+    } else {
+        Write-Host ">> Sau khi loa khởi động xong, truy cập bảng điều khiển tại:" -ForegroundColor White
+    }
     Write-Host "   👉 http://$($UiIp):8081/" -ForegroundColor Cyan
     Write-Host "==========================================================" -ForegroundColor Green
     Write-Host ""

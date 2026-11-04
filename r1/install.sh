@@ -80,6 +80,39 @@ read_val() {
     echo "$val"
 }
 
+progress_update() {
+    [ -t 1 ] || return
+    percent="$1"
+    label="$2"
+    filled=$((percent / 2))
+    empty=$((50 - filled))
+    bar=""
+    idx=0
+    while [ "$idx" -lt "$filled" ]; do
+        bar="${bar}█"
+        idx=$((idx + 1))
+    done
+    idx=0
+    while [ "$idx" -lt "$empty" ]; do
+        bar="${bar}░"
+        idx=$((idx + 1))
+    done
+
+    if [ "$R1_PROGRESS_ACTIVE" = "1" ]; then
+        printf '\033[2A\033[2K'
+    fi
+    printf '   %s\n' "$label"
+    printf '   [%s] %3s%%\n' "$bar" "$percent"
+    R1_PROGRESS_ACTIVE=1
+}
+
+progress_finish() {
+    if [ -t 1 ] && [ "$R1_PROGRESS_ACTIVE" = "1" ]; then
+        printf '\033[2A\033[2K\033[1B\033[2K'
+        R1_PROGRESS_ACTIVE=""
+    fi
+}
+
 # ------------------------------------------------------------------------------
 # 2. HÀM DÒ TÌM DẢI MẠNG LAN & QUÉT TỰ ĐỘNG TÌM LOA PHICOMM R1
 # ------------------------------------------------------------------------------
@@ -219,6 +252,34 @@ check_connected() {
         adb -s "$SERIAL" shell ls /data >/dev/null 2>&1
         return $?
     fi
+    return 1
+}
+
+wait_for_speaker_boot() {
+    try=1
+    while [ "$try" -le 45 ]; do
+        adb connect "$SERIAL" >/dev/null 2>&1 || true
+        if check_connected; then
+            boot_state=$(adb -s "$SERIAL" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r\n')
+            [ "$boot_state" = "1" ] && return 0
+        fi
+        progress_update 98 "Đang chờ loa khởi động lại ($try/45)"
+        sleep 2
+        try=$((try + 1))
+    done
+    return 1
+}
+
+wait_for_webui() {
+    try=1
+    while [ "$try" -le 15 ]; do
+        if command -v curl >/dev/null 2>&1 && curl -sS -m 1 -o /dev/null "http://$TARGET_IP:8081/" 2>/dev/null; then
+            return 0
+        fi
+        progress_update 99 "Đang chờ WebUI khởi động ($try/15)"
+        sleep 1
+        try=$((try + 1))
+    done
     return 1
 }
 
@@ -432,25 +493,25 @@ run_install_lan() {
 
     # [1/4] Chuẩn bị bộ 3 file APK cài đặt từ GitHub
     echo ""
-    echo ">> [1/4] Chuẩn bị bộ 3 file APK cài đặt từ GitHub..."
+    echo ">> Đang chuẩn bị và tự động cài AI..."
     rm -rf "$CACHE_DIR" 2>/dev/null || true
     mkdir -p "$CACHE_DIR"
 
     TS=$(date +%s 2>/dev/null || echo "1")
+    download_percent=0
     for f in autodlna.apk unisound.apk AIBoxPlus_DLNA.apk; do
         if [ "$R1_DRYRUN" = "1" ] && [ -f "$SCRIPT_DIR/$f" ]; then
             cp -f "$SCRIPT_DIR/$f" "$CACHE_DIR/$f" 2>/dev/null || true
-            echo "   [OK] (DryRun) Dùng file $f có sẵn."
         else
-            echo "   -> Đang tải bản mới nhất: $f..."
             if command -v curl >/dev/null 2>&1; then
-                curl -k -fL --connect-timeout 20 -# -o "$CACHE_DIR/$f.tmp" "$BASE_URL/$f?t=$TS" && mv -f "$CACHE_DIR/$f.tmp" "$CACHE_DIR/$f"
+                curl -k -fsSL --connect-timeout 20 -o "$CACHE_DIR/$f.tmp" "$BASE_URL/$f?t=$TS" && mv -f "$CACHE_DIR/$f.tmp" "$CACHE_DIR/$f"
             elif command -v wget >/dev/null 2>&1; then
                 wget -q --no-check-certificate -O "$CACHE_DIR/$f" "$BASE_URL/$f?t=$TS"
             fi
         fi
 
         if [ ! -f "$CACHE_DIR/$f" ] || [ "$(wc -c < "$CACHE_DIR/$f" 2>/dev/null)" -lt 1000000 ]; then
+            progress_finish
             echo ""
             echo "=========================================================="
             echo "  [LỖI] KHÔNG THỂ TẢI FILE $f TỪ GITHUB!"
@@ -461,12 +522,15 @@ run_install_lan() {
             read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
             return 1
         fi
-        echo "   [OK] Đã chuẩn bị file $f thành công."
+        download_percent=$((download_percent + 20))
+        progress_update "$download_percent" "Đã chuẩn bị $f"
     done
+    progress_finish
 
     # [2/4] Bắt đầu kết nối thiết bị ADB
     echo ""
     echo ">> [2/4] Bắt đầu kết nối thiết bị [$SERIAL]..."
+    progress_update 62 "Đang kết nối với loa"
 
     if [ "$R1_DRYRUN" != "1" ] && ! command -v adb >/dev/null 2>&1; then
         echo ""
@@ -487,20 +551,17 @@ run_install_lan() {
 
         echo "   [Kết nối] Thử kết nối trực tiếp..."
         OUT_CONN=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
-        echo "   -> $OUT_CONN"
         sleep 1.2
 
         if check_connected; then
             CONNECTED=1
         else
-            echo "   -> Loa chưa phản hồi, đang gửi tín hiệu kích hoạt ADB qua cổng 8080..."
             revive_speaker "$TARGET_IP"
             sleep 1.8
 
             for try in 1 2 3 4 5; do
-                echo "   [Thử lại] Lần $try/5 tới $SERIAL..."
+                progress_update 62 "Đang chờ loa phản hồi ($try/5)"
                 OUT_CONN=$(adb connect "$SERIAL" 2>&1 | tr -d '\r\n')
-                echo "   -> $OUT_CONN"
                 sleep 1.2
                 if check_connected; then
                     CONNECTED=1
@@ -511,6 +572,7 @@ run_install_lan() {
         fi
 
         if [ "$CONNECTED" != "1" ]; then
+            progress_finish
             echo ""
             echo "=========================================================="
             echo "  [LỖI] KẾT NỐI THẤT BẠI TỚI LOA TẠI $SERIAL"
@@ -525,59 +587,146 @@ run_install_lan() {
             return 1
         fi
     fi
+    progress_update 68 "Đã kết nối với loa"
+    progress_finish
     echo ">> [OK] Kết nối thành công tới loa ($SERIAL)!"
 
-    # [3/4] Đẩy 3 file APK lên bộ nhớ tạm của loa
+    # [3/4] Dọn loa, tắt ứng dụng cũ và nạp AutoDLNA + Unisound
     echo ""
-    echo ">> [3/4] Đang dọn sạch bộ nhớ tạm của loa & nạp 3 file APK mới lên (/data/local/tmp/)..."
+    echo ">> [3/4] Đang dọn bộ nhớ tạm và chuẩn bị loa..."
 
     if [ "$R1_DRYRUN" != "1" ]; then
+        progress_update 70 "Đang dọn dẹp và chuẩn bị loa"
+        adb -s "$SERIAL" shell rm /sdcard/otaprop.txt >/dev/null 2>&1
+        adb -s "$SERIAL" shell rm /sdcard/incremental\*.zip >/dev/null 2>&1
+        adb -s "$SERIAL" shell /system/bin/pm clear com.phicomm.speaker.otaservice >/dev/null 2>&1
         adb -s "$SERIAL" shell rm -rf "/data/local/tmp/*" >/dev/null 2>&1
-        for f in autodlna.apk unisound.apk AIBoxPlus_DLNA.apk; do
-            echo "   -> Nạp $f..."
-            adb -s "$SERIAL" push "$CACHE_DIR/$f" "/data/local/tmp/$f" >/dev/null 2>&1
+        adb -s "$SERIAL" shell settings put secure install_non_market_apps 1 >/dev/null 2>&1
+
+        progress_update 74 "Đang tắt ứng dụng xung đột"
+        adb -s "$SERIAL" shell /system/bin/pm hide com.phicomm.speaker.airskill >/dev/null 2>&1
+        adb -s "$SERIAL" shell /system/bin/pm hide com.phicomm.speaker.exceptionreporter >/dev/null 2>&1
+        adb -s "$SERIAL" shell /system/bin/pm hide com.phicomm.speaker.systemtool >/dev/null 2>&1
+        adb -s "$SERIAL" shell /system/bin/pm hide com.phicomm.speaker.device >/dev/null 2>&1
+        adb -s "$SERIAL" shell /system/bin/pm hide com.phicomm.speaker.otaservice >/dev/null 2>&1
+        adb -s "$SERIAL" shell /system/bin/pm hide com.phicomm.speaker.productiontest >/dev/null 2>&1
+        adb -s "$SERIAL" shell /system/bin/pm hide com.phicomm.speaker.bugreport >/dev/null 2>&1
+
+        push_percent=76
+        for f in autodlna.apk unisound.apk; do
+            progress_update "$push_percent" "Đang chuyển $f vào loa"
+            push_output=$(adb -s "$SERIAL" push "$CACHE_DIR/$f" "/data/local/tmp/$f" 2>&1)
+            if [ $? -ne 0 ]; then
+                progress_finish
+                echo ">> [LỖI] Tải file lên loa thất bại: $f"
+                [ -n "$push_output" ] && printf '%s\n' "$push_output"
+                read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+                return 1
+            fi
+            push_percent=$((push_percent + 4))
         done
     else
-        echo "   -> Nạp autodlna.apk..."
-        echo "   -> Nạp unisound.apk..."
-        echo "   -> Nạp AIBoxPlus_DLNA.apk..."
+        progress_update 84 "[DRY-RUN] Đã mô phỏng chuẩn bị loa"
     fi
-    echo ">> [OK] Đã đưa trọn vẹn 3 file mới lên loa!"
 
-    # [4/4] Bắt đầu cài đặt hệ thống chuẩn xác theo new.bat
+    # [4/4] Cài APK theo đúng trình tự của new.bat
+    progress_finish
     echo ""
-    echo ">> [4/4] Bắt đầu cài đặt hệ thống..."
+    echo ">> [4/4] Đang cài đặt hệ thống..."
 
     if [ "$R1_DRYRUN" != "1" ]; then
-        echo "   -> Đang dọn dẹp bộ nhớ đệm..."
-        adb -s "$SERIAL" shell "rm -f /sdcard/otaprop.txt /sdcard/incremental*.zip 2>/dev/null; /system/bin/pm clear com.phicomm.speaker.otaservice 2>/dev/null; settings put secure install_non_market_apps 1 2>/dev/null" >/dev/null 2>&1
+        POST_REBOOT_AI_OK=0
+        WEBUI_READY=0
+        install_percent=84
+        for f in autodlna.apk unisound.apk; do
+            progress_update "$install_percent" "Đang cài $f"
+            install_output=$(adb -s "$SERIAL" shell /system/bin/pm install -r "/data/local/tmp/$f" 2>&1)
+            if [ $? -ne 0 ] || ! printf '%s\n' "$install_output" | grep -q '^Success'; then
+                progress_finish
+                echo ">> [LỖI] Cài đặt thất bại: $f"
+                [ -n "$install_output" ] && printf '%s\n' "$install_output"
+                read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+                return 1
+            fi
+            adb -s "$SERIAL" shell rm "/data/local/tmp/$f" >/dev/null 2>&1
+            install_percent=$((install_percent + 3))
+        done
 
-        echo "   -> Tắt các ứng dụng chiếm quyền..."
-        adb -s "$SERIAL" shell "/system/bin/pm hide com.phicomm.speaker.airskill 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.exceptionreporter 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.systemtool 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.device 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.otaservice 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.productiontest 2>/dev/null; /system/bin/pm hide com.phicomm.speaker.bugreport 2>/dev/null" >/dev/null 2>&1
+        progress_update 90 "Đang khởi chạy dịch vụ loa"
+        adb -s "$SERIAL" shell am startservice com.phicomm.speaker.player/.EchoService >/dev/null 2>&1
+        adb -s "$SERIAL" shell am start com.phicomm.speaker.device/.ui.MainActivity >/dev/null 2>&1
+        sleep 3
 
-        echo "   -> Cài đặt AutoDLNA + Unisound..."
-        adb -s "$SERIAL" shell "/system/bin/pm install -r /data/local/tmp/autodlna.apk; /system/bin/pm install -r /data/local/tmp/unisound.apk; rm -f /data/local/tmp/autodlna.apk /data/local/tmp/unisound.apk" >/dev/null 2>&1
+        progress_update 91 "Đang khôi phục dịch vụ hệ thống"
+        adb -s "$SERIAL" shell /system/bin/pm unhide com.phicomm.speaker.ijetty >/dev/null 2>&1
+        adb -s "$SERIAL" shell /system/bin/pm unhide com.phicomm.speaker.netctl >/dev/null 2>&1
 
-        echo "   -> Khởi động AutoDLNA + Unisound..."
-        adb -s "$SERIAL" shell "am startservice com.phicomm.speaker.player/.EchoService 2>/dev/null; am start com.phicomm.speaker.device/.ui.MainActivity 2>/dev/null" >/dev/null 2>&1
+        progress_update 92 "Đang gỡ phiên bản AI cũ"
+        adb -s "$SERIAL" shell /system/bin/pm uninstall info.dourok.voicebot >/dev/null 2>&1
+
+        progress_update 93 "Đang chuyển AI Box vào loa"
+        push_output=$(adb -s "$SERIAL" push "$CACHE_DIR/AIBoxPlus_DLNA.apk" "/data/local/tmp/AIBoxPlus_DLNA.apk" 2>&1)
+        if [ $? -ne 0 ]; then
+            progress_finish
+            echo ">> [LỖI] Tải file lên loa thất bại: AIBoxPlus_DLNA.apk"
+            [ -n "$push_output" ] && printf '%s\n' "$push_output"
+            read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+            return 1
+        fi
+
+        progress_update 95 "Đang cài AI Box Plus"
+        install_output=$(adb -s "$SERIAL" shell /system/bin/pm install -r /data/local/tmp/AIBoxPlus_DLNA.apk 2>&1)
+        if [ $? -ne 0 ] || ! printf '%s\n' "$install_output" | grep -q '^Success'; then
+            progress_finish
+            echo ">> [LỖI] Cài đặt thất bại: AIBoxPlus_DLNA.apk"
+            [ -n "$install_output" ] && printf '%s\n' "$install_output"
+            read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+            return 1
+        fi
+        adb -s "$SERIAL" shell rm /data/local/tmp/AIBoxPlus_DLNA.apk >/dev/null 2>&1
+
+        progress_update 97 "Đang khởi chạy AI Box Plus"
+        adb -s "$SERIAL" shell am start -n info.dourok.voicebot/.java.activities.MainActivity >/dev/null 2>&1
+        sleep 5
+
+        progress_finish
+        echo ""
+        echo "------------------------------------------------------------------------"
+        echo "Truy cập Xiaozhi.me để nhập mã 6 số và cấu hình AI."
+        echo "Nếu AI đã được cấu hình trước đó, có thể bỏ qua bước này."
+        echo "------------------------------------------------------------------------"
         sleep 2
 
-        echo "   -> Khôi phục ijetty & netctl..."
-        adb -s "$SERIAL" shell "/system/bin/pm unhide com.phicomm.speaker.ijetty 2>/dev/null; /system/bin/pm unhide com.phicomm.speaker.netctl 2>/dev/null" >/dev/null 2>&1
+        adb -s "$SERIAL" shell "settings put global bluetooth_on 1 2>/dev/null; service call bluetooth_manager 6 2>/dev/null; setprop persist.sys.r1_led 0 2>/dev/null; lights_test set 7fffff8000 0 2>/dev/null; lights_test set 7fffff0000 ffffff 2>/dev/null" >/dev/null 2>&1
 
-        echo "   -> Gỡ bản AI cũ và cài đặt AI Tiếng Việt mới..."
-        adb -s "$SERIAL" shell "/system/bin/pm uninstall info.dourok.voicebot 2>/dev/null; /system/bin/pm install -r /data/local/tmp/AIBoxPlus_DLNA.apk; rm -f /data/local/tmp/AIBoxPlus_DLNA.apk" >/dev/null 2>&1
-
-        echo "   -> Khởi động AI Box Plus & cấu hình đèn LED..."
-        adb -s "$SERIAL" shell "am start -n info.dourok.voicebot/.java.activities.MainActivity 2>/dev/null; settings put global bluetooth_on 1 2>/dev/null; service call bluetooth_manager 6 2>/dev/null; setprop persist.sys.r1_led 0 2>/dev/null; lights_test set 7fffff8000 0 2>/dev/null; lights_test set 7fffff0000 ffffff 2>/dev/null" >/dev/null 2>&1
-
+        echo ">> Cài đặt thành công, loa sẽ tự khởi động lại."
+        progress_update 98 "Đang khởi động lại loa"
         LAN_IP=$(adb -s "$SERIAL" shell "getprop dhcp.wlan0.ipaddress" 2>/dev/null | tr -d '\r\n')
 
-        echo "   -> Đang khởi động lại loa (Reboot)..."
         adb -s "$SERIAL" reboot >/dev/null 2>&1 || true
+        if wait_for_speaker_boot; then
+            progress_update 99 "Đang khởi chạy AI sau reboot"
+            launch_output=$(adb -s "$SERIAL" shell am start -n info.dourok.voicebot/.java.activities.MainActivity 2>&1)
+            launch_status=$?
+            if [ "$launch_status" -eq 0 ] && ! printf '%s\n' "$launch_output" | grep -Eqi '(^|[[:space:]])(Error:|Exception|does not exist)'; then
+                POST_REBOOT_AI_OK=1
+                if wait_for_webui; then
+                    WEBUI_READY=1
+                fi
+            else
+                progress_finish
+                echo ">> [CẢNH BÁO] Không khởi chạy được AI sau reboot:"
+                [ -n "$launch_output" ] && printf '%s\n' "$launch_output"
+            fi
+        else
+            progress_finish
+            echo ">> [CẢNH BÁO] Loa chưa kết nối lại sau reboot; không xác minh được AI/WebUI."
+        fi
+        progress_update 100 "Hoàn tất"
     else
-        echo "   -> [DRY-RUN] Đã thực thi chuỗi lệnh new.bat chuẩn xác!"
-        echo "   -> [DRY-RUN] Đã gửi lệnh khởi động lại (Reboot) loa!"
+        POST_REBOOT_AI_OK=0
+        WEBUI_READY=0
+        progress_update 100 "[DRY-RUN] Hoàn tất, loa chưa reboot"
         LAN_IP=""
     fi
 
@@ -591,10 +740,27 @@ run_install_lan() {
     echo "=========================================================="
     echo "                    CÀI ĐẶT HOÀN TẤT!                     "
     echo "=========================================================="
-    echo ">> Đã gửi lệnh khởi động lại (Reboot) loa thành công!"
-    echo ">> Loa đang khởi động lại (thường mất khoảng 30 - 45 giây)."
+    if [ "$R1_DRYRUN" = "1" ]; then
+        echo ">> Chạy thử hoàn tất; loa chưa được reboot."
+    else
+        echo ">> Đã gửi lệnh khởi động lại (Reboot) loa."
+        echo ">> Loa đang khởi động lại (thường mất khoảng 30 - 45 giây)."
+        if [ "$POST_REBOOT_AI_OK" = "1" ]; then
+            echo ">> AI đã được khởi chạy sau reboot."
+        else
+            echo ">> [CẢNH BÁO] Chưa xác minh được AI chạy sau reboot."
+        fi
+        if [ "$WEBUI_READY" = "1" ]; then
+            echo ">> WebUI đã phản hồi tại cổng 8081."
+        else
+            echo ">> [CẢNH BÁO] WebUI chưa phản hồi tại cổng 8081."
+        fi
+    fi
     echo ""
-    if [ -n "$LAN_IP" ]; then
+    if [ "$R1_DRYRUN" = "1" ]; then
+        echo ">> Khi cài thật, truy cập bảng điều khiển sau khi loa khởi động:"
+        echo "   👉 http://$TARGET_IP:8081/"
+    elif [ -n "$LAN_IP" ]; then
         echo ">> Sau khi loa khởi động xong, truy cập bảng điều khiển tại:"
         echo "   👉 http://$LAN_IP:8081/"
     else
