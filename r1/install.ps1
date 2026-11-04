@@ -1,4 +1,4 @@
-﻿# ==============================================================================
+# ==============================================================================
 # BO CAI DAT PHICOMM R1 CHO WINDOWS (POWERSHELL)
 # Source code: https://github.com/vdt34/vdt34.github.io/blob/main/r1/install_src.ps1
 # Tu dong cau hinh WiFi, quet tim loa trong LAN, toi uu hoa 4 Micro, giao dien Tieng Viet
