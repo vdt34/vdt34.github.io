@@ -568,17 +568,39 @@ wait_for_speaker_boot() {
 
 wait_for_webui() {
     check_ip="${1:-$TARGET_IP}"
+    max_wait="${2:-15}"
+    pct="${3:-99}"
+    label_prefix="${4:-Đang chờ WebUI khởi động}"
     try=1
-    while [ "$try" -le 15 ]; do
+    while [ "$try" -le "$max_wait" ]; do
         if test_tcp_port "$check_ip" 8081 1; then
             return 0
         fi
         if command -v curl >/dev/null 2>&1 && curl -sS -m 1 -o /dev/null "http://$check_ip:8081/" 2>/dev/null; then
             return 0
         fi
-        progress_update 99 "Đang chờ WebUI khởi động ($try/15)"
+        progress_update "$pct" "$label_prefix ($try/$max_wait)"
         sleep 1
         try=$((try + 1))
+    done
+    return 1
+}
+
+# Khởi chạy AI Box Plus và xác minh tiến trình info.dourok.voicebot đã thực sự chạy
+start_ai_box() {
+    [ "$R1_DRYRUN" = "1" ] && return 0
+    try_ai=1
+    while [ "$try_ai" -le 3 ]; do
+        ensure_adb_alive >/dev/null 2>&1 || true
+        adb -s "$SERIAL" shell am start -W -n info.dourok.voicebot/.java.activities.MainActivity >/dev/null 2>&1 || \
+        adb -s "$SERIAL" shell am start -n info.dourok.voicebot/.java.activities.MainActivity >/dev/null 2>&1 || true
+        adb -s "$SERIAL" shell monkey -p info.dourok.voicebot -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
+        sleep 2
+        ai_running=$(adb -s "$SERIAL" shell "ps 2>/dev/null | grep info.dourok.voicebot" 2>/dev/null | tr -d '\r\n')
+        if [ -n "$ai_running" ]; then
+            return 0
+        fi
+        try_ai=$((try_ai + 1))
     done
     return 1
 }
@@ -956,7 +978,9 @@ run_install_lan() {
         done
 
         progress_update 80 "Đang khởi chạy dịch vụ loa"
+        ensure_adb_alive >/dev/null 2>&1 || true
         adb -s "$SERIAL" shell am startservice com.phicomm.speaker.player/.EchoService >/dev/null 2>&1
+        adb -s "$SERIAL" shell am start -n com.phicomm.speaker.device/.ui.MainActivity >/dev/null 2>&1
         adb -s "$SERIAL" shell am start com.phicomm.speaker.device/.ui.MainActivity >/dev/null 2>&1
         sleep 3
 
@@ -991,18 +1015,28 @@ run_install_lan() {
         fi
         adb -s "$SERIAL" shell rm "/data/local/tmp/$ai_apk" >/dev/null 2>&1
 
-        progress_update 95 "Đang khởi chạy AI Box Plus"
-        adb -s "$SERIAL" shell am start -n info.dourok.voicebot/.java.activities.MainActivity >/dev/null 2>&1
-        sleep 5
+        progress_update 95 "Đang khởi chạy AI Box Plus trước khi reboot"
+        PRE_REBOOT_AI_OK=0
+        if start_ai_box; then
+            PRE_REBOOT_AI_OK=1
+        fi
+        sleep 3
+        wait_for_webui "$TARGET_IP" 10 96 "Đang chờ AI Box khởi tạo lần đầu" >/dev/null 2>&1 || true
 
         progress_finish
         echo ""
+        if [ "$PRE_REBOOT_AI_OK" = "1" ]; then
+            printf '%s>> Đã khởi chạy AI Box Plus lần đầu thành công.%s\n' "$C_GREEN" "$C_RESET"
+        else
+            printf '%s>> [CẢNH BÁO] Đã gửi lệnh mở AI Box Plus nhưng chưa xác nhận được tiến trình.%s\n' "$C_YELLOW" "$C_RESET"
+        fi
         echo "------------------------------------------------------------------------"
         echo "Truy cập Xiaozhi.me để nhập mã 6 số và cấu hình AI."
         echo "Nếu AI đã được cấu hình trước đó, có thể bỏ qua bước này."
         echo "------------------------------------------------------------------------"
-        sleep 2
+        sleep 3
 
+        ensure_adb_alive >/dev/null 2>&1 || true
         adb -s "$SERIAL" shell "settings put global bluetooth_on 1 2>/dev/null; service call bluetooth_manager 6 2>/dev/null; setprop persist.sys.r1_led 0 2>/dev/null; lights_test set 7fffff8000 0 2>/dev/null; lights_test set 7fffff0000 ffffff 2>/dev/null" >/dev/null 2>&1
 
         printf '%s>> Cài đặt thành công, loa sẽ tự khởi động lại.%s\n' "$C_GREEN" "$C_RESET"
@@ -1012,18 +1046,15 @@ run_install_lan() {
         adb -s "$SERIAL" reboot >/dev/null 2>&1 || true
         if wait_for_speaker_boot; then
             progress_update 99 "Đang khởi chạy AI sau reboot"
-            launch_output=$(adb -s "$SERIAL" shell am start -n info.dourok.voicebot/.java.activities.MainActivity 2>&1)
-            launch_status=$?
-            if [ "$launch_status" -eq 0 ] && ! printf '%s\n' "$launch_output" | grep -Eqi '(^|[[:space:]])(Error:|Exception|does not exist)'; then
+            if start_ai_box; then
                 POST_REBOOT_AI_OK=1
-                sleep 5
-                if wait_for_webui "${LAN_IP:-$TARGET_IP}"; then
+                sleep 3
+                if wait_for_webui "${LAN_IP:-$TARGET_IP}" 15 99 "Đang chờ WebUI khởi động"; then
                     WEBUI_READY=1
                 fi
             else
                 progress_finish
-                printf '%s>> [CẢNH BÁO] Không khởi chạy được AI sau reboot:%s\n' "$C_YELLOW" "$C_RESET"
-                [ -n "$launch_output" ] && printf '%s\n' "$launch_output"
+                printf '%s>> [CẢNH BÁO] Không khởi chạy được AI sau reboot.%s\n' "$C_YELLOW" "$C_RESET"
             fi
         else
             progress_finish
