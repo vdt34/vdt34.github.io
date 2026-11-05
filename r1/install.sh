@@ -75,8 +75,19 @@ progress_update() {
     [ "$percent" -gt 100 ] && percent=100
     [ "$percent" -lt 0 ] && percent=0
 
-    filled=$((percent / 2))
-    empty=$((50 - filled))
+    cols="${COLUMNS:-}"
+    if [ -z "$cols" ] && command -v tput >/dev/null 2>&1; then
+        cols=$(tput cols 2>/dev/null)
+    fi
+    case "$cols" in
+        ''|*[!0-9]*) cols=60 ;;
+    esac
+    bar_width=$((cols - 16))
+    [ "$bar_width" -gt 36 ] && bar_width=36
+    [ "$bar_width" -lt 12 ] && bar_width=12
+
+    filled=$((percent * bar_width / 100))
+    empty=$((bar_width - filled))
     bar=""
     idx=0
     while [ "$idx" -lt "$filled" ]; do
@@ -90,16 +101,16 @@ progress_update() {
     done
 
     if [ "$R1_PROGRESS_ACTIVE" = "1" ]; then
-        printf '\033[2A\r\033[2K'
+        printf '\033[2A\r\033[J'
     fi
-    printf '%s   %s%s\n' "$C_CYAN" "$label" "$C_RESET"
-    printf '\r\033[2K%s   [%s] %3s%%%s\n' "$C_CYAN" "$bar" "$percent" "$C_RESET"
+    printf '\033[?7l%s   %s%s\n' "$C_CYAN" "$label" "$C_RESET"
+    printf '%s   [%s] %3s%%%s\033[?7h\n' "$C_CYAN" "$bar" "$percent" "$C_RESET"
     R1_PROGRESS_ACTIVE=1
 }
 
 progress_finish() {
     if [ -t 1 ] && [ "$R1_PROGRESS_ACTIVE" = "1" ]; then
-        printf '\033[2A\r\033[2K\033[1B\r\033[2K\033[1A\r'
+        printf '\033[2A\r\033[J'
         R1_PROGRESS_ACTIVE=""
     fi
 }
@@ -898,8 +909,6 @@ run_install_lan() {
     fi
 
     # [2/4] Bắt đầu kết nối thiết bị ADB
-    progress_finish
-    echo ""
     progress_update 38 "Đang kết nối với loa"
 
     if ! connect_speaker_adb "$TARGET_IP" "$TARGET_PORT"; then
@@ -1023,23 +1032,10 @@ run_install_lan() {
         sleep 3
         wait_for_webui "$TARGET_IP" 10 96 "Đang chờ AI Box khởi tạo lần đầu" >/dev/null 2>&1 || true
 
-        progress_finish
-        echo ""
-        if [ "$PRE_REBOOT_AI_OK" = "1" ]; then
-            printf '%s>> Đã khởi chạy AI Box Plus lần đầu thành công.%s\n' "$C_GREEN" "$C_RESET"
-        else
-            printf '%s>> [CẢNH BÁO] Đã gửi lệnh mở AI Box Plus nhưng chưa xác nhận được tiến trình.%s\n' "$C_YELLOW" "$C_RESET"
-        fi
-        echo "------------------------------------------------------------------------"
-        echo "Truy cập Xiaozhi.me để nhập mã 6 số và cấu hình AI."
-        echo "Nếu AI đã được cấu hình trước đó, có thể bỏ qua bước này."
-        echo "------------------------------------------------------------------------"
-        sleep 3
-
+        progress_update 97 "Đang tối ưu cấu hình đèn & Bluetooth"
         ensure_adb_alive >/dev/null 2>&1 || true
         adb -s "$SERIAL" shell "settings put global bluetooth_on 1 2>/dev/null; service call bluetooth_manager 6 2>/dev/null; setprop persist.sys.r1_led 0 2>/dev/null; lights_test set 7fffff8000 0 2>/dev/null; lights_test set 7fffff0000 ffffff 2>/dev/null" >/dev/null 2>&1
 
-        printf '%s>> Cài đặt thành công, loa sẽ tự khởi động lại.%s\n' "$C_GREEN" "$C_RESET"
         LAN_IP=$(adb -s "$SERIAL" shell "getprop dhcp.wlan0.ipaddress 2>/dev/null" 2>/dev/null | tr -d ' \r\n')
 
         progress_update 98 "Đang khởi động lại loa"
@@ -1052,13 +1048,7 @@ run_install_lan() {
                 if wait_for_webui "${LAN_IP:-$TARGET_IP}" 15 99 "Đang chờ WebUI khởi động"; then
                     WEBUI_READY=1
                 fi
-            else
-                progress_finish
-                printf '%s>> [CẢNH BÁO] Không khởi chạy được AI sau reboot.%s\n' "$C_YELLOW" "$C_RESET"
             fi
-        else
-            progress_finish
-            printf '%s>> [CẢNH BÁO] Loa chưa kết nối lại sau reboot; không xác minh được AI/WebUI.%s\n' "$C_YELLOW" "$C_RESET"
         fi
         progress_update 100 "Hoàn tất"
         progress_finish
