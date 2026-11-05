@@ -128,8 +128,35 @@ progress_update() {
     [ -t 1 ] || return
     percent="$1"
     label="$2"
-    filled=$((percent / 2))
-    empty=$((50 - filled))
+    case "$percent" in
+        ''|*[!0-9]*) percent=0 ;;
+    esac
+    [ "$percent" -gt 100 ] && percent=100
+    [ "$percent" -lt 0 ] && percent=0
+
+    if [ "$R1_PROGRESS_ACTIVE" != "1" ]; then
+        R1_TERM_ROWS=$(tput lines 2>/dev/null)
+        case "$R1_TERM_ROWS" in
+            ''|*[!0-9]*) R1_TERM_ROWS=24 ;;
+        esac
+        [ "$R1_TERM_ROWS" -lt 6 ] && R1_TERM_ROWS=24
+
+        R1_TERM_COLS=$(tput cols 2>/dev/null)
+        case "$R1_TERM_COLS" in
+            ''|*[!0-9]*) R1_TERM_COLS=80 ;;
+        esac
+        R1_BAR_WIDTH=$((R1_TERM_COLS - 16))
+        [ "$R1_BAR_WIDTH" -gt 50 ] && R1_BAR_WIDTH=50
+        [ "$R1_BAR_WIDTH" -lt 10 ] && R1_BAR_WIDTH=10
+        R1_STATUS_ROW=$((R1_TERM_ROWS - 1))
+
+        printf '\033[1;%sr' "$((R1_TERM_ROWS - 2))"
+        printf '\033[%s;1H\033[2K' "$((R1_TERM_ROWS - 2))"
+        R1_PROGRESS_ACTIVE=1
+    fi
+
+    filled=$((percent * R1_BAR_WIDTH / 100))
+    empty=$((R1_BAR_WIDTH - filled))
     bar=""
     idx=0
     while [ "$idx" -lt "$filled" ]; do
@@ -142,17 +169,18 @@ progress_update() {
         idx=$((idx + 1))
     done
 
-    if [ "$R1_PROGRESS_ACTIVE" = "1" ]; then
-        printf '\033[2A\033[2K'
-    fi
-    printf '   %s\n' "$label"
-    printf '   [%s] %3s%%\n' "$bar" "$percent"
-    R1_PROGRESS_ACTIVE=1
+    printf '\033[?7l\033[s'
+    printf '\033[%s;1H\033[2K%s' "$R1_STATUS_ROW" "$label"
+    printf '\033[%s;1H\033[2K[%s] %3s%%' "$R1_TERM_ROWS" "$bar" "$percent"
+    printf '\033[u\033[?7h'
 }
 
 progress_finish() {
     if [ -t 1 ] && [ "$R1_PROGRESS_ACTIVE" = "1" ]; then
-        printf '\033[2A\033[2K\033[1B\033[2K'
+        printf '\033[s'
+        printf '\033[%s;1H\033[2K' "$R1_STATUS_ROW"
+        printf '\033[%s;1H\033[2K' "$R1_TERM_ROWS"
+        printf '\033[r\033[u'
         R1_PROGRESS_ACTIVE=""
     fi
 }
@@ -560,6 +588,7 @@ run_install_lan() {
     progress_update 62 "Đang kết nối với loa"
 
     if [ "$R1_DRYRUN" != "1" ] && ! command -v adb >/dev/null 2>&1; then
+        progress_finish
         ui_status error "Không tìm thấy ADB."
         echo "Cài đặt bằng lệnh: apk add android-tools"
         read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
@@ -574,6 +603,7 @@ run_install_lan() {
         adb kill-server >/dev/null 2>&1 || true
         ADB_SERVER_OUTPUT=$(adb start-server 2>&1)
         if [ $? -ne 0 ]; then
+            progress_finish
             ui_status error "Không khởi động được ADB server."
             [ -n "$ADB_SERVER_OUTPUT" ] && printf '%s\n' "$ADB_SERVER_OUTPUT"
             return 1
