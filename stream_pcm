@@ -1,0 +1,16 @@
+{
+  "success": true,
+  "audio_url": "https://str.vov.gov.vn/vovlive/vov1vov5Vietnamese.sdp_aac/playlist.m3u8",
+  "channel": "VOV1",
+  "name": "VOV1 - Thời sự & Chính trị",
+  "note": "Default audio_url is VOV1. For specific channels on static hosting or via query params, see channels map below.",
+  "channels": {
+    "vov1": "https://str.vov.gov.vn/vovlive/vov1vov5Vietnamese.sdp_aac/playlist.m3u8",
+    "vov2": "https://str.vov.gov.vn/vovlive/vov2.sdp_aac/playlist.m3u8",
+    "vov3": "https://str.vov.gov.vn/vovlive/vov3.sdp_aac/playlist.m3u8",
+    "vov5": "https://str.vov.gov.vn/vovlive/vov5.sdp_aac/playlist.m3u8",
+    "vov_gt_hn": "https://play.vovgiaothong.vn/live/gthn/playlist.m3u8",
+    "vov_gt_hcm": "https://play.vovgiaothong.vn/live/gthcm/playlist.m3u8",
+    "vov_mekong": "https://play.vovgiaothong.vn/live/mekong/playlist.m3u8"
+  }
+}

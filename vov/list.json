@@ -1,0 +1,48 @@
+{
+  "success": true,
+  "total": 7,
+  "radios": [
+    {
+      "channel": "VOV1",
+      "name": "VOV1 - Thời sự & Chính trị",
+      "description": "Kênh Thời sự, Chính trị, Tổng hợp - Đài Tiếng nói Việt Nam",
+      "audio_url": "https://str.vov.gov.vn/vovlive/vov1vov5Vietnamese.sdp_aac/playlist.m3u8"
+    },
+    {
+      "channel": "VOV2",
+      "name": "VOV2 - Văn hóa & Xã hội",
+      "description": "Kênh Văn hóa, Đời sống, Xã hội, Giáo dục, Dân tộc",
+      "audio_url": "https://str.vov.gov.vn/vovlive/vov2.sdp_aac/playlist.m3u8"
+    },
+    {
+      "channel": "VOV3",
+      "name": "VOV3 - Âm nhạc & Giải trí",
+      "description": "Kênh Âm nhạc và Thông tin giải trí thanh thiếu niên",
+      "audio_url": "https://str.vov.gov.vn/vovlive/vov3.sdp_aac/playlist.m3u8"
+    },
+    {
+      "channel": "VOV5",
+      "name": "VOV5 - Kênh Đối ngoại",
+      "description": "Kênh Phát thanh Đối ngoại - Phát sóng đa ngôn ngữ",
+      "audio_url": "https://str.vov.gov.vn/vovlive/vov5.sdp_aac/playlist.m3u8"
+    },
+    {
+      "channel": "VOV_GT_HN",
+      "name": "VOV Giao thông Hà Nội (FM 91 MHz)",
+      "description": "Kênh thông tin giao thông đô thị Hà Nội và các tỉnh phía Bắc",
+      "audio_url": "https://play.vovgiaothong.vn/live/gthn/playlist.m3u8"
+    },
+    {
+      "channel": "VOV_GT_HCM",
+      "name": "VOV Giao thông TP.HCM (FM 90 MHz)",
+      "description": "Kênh thông tin giao thông đô thị TP. Hồ Chí Minh và Nam Bộ",
+      "audio_url": "https://play.vovgiaothong.vn/live/gthcm/playlist.m3u8"
+    },
+    {
+      "channel": "VOV_MEKONG",
+      "name": "VOV Giao thông Mekong",
+      "description": "Kênh thông tin giao thông khu vực Đồng bằng sông Cửu Long",
+      "audio_url": "https://play.vovgiaothong.vn/live/mekong/playlist.m3u8"
+    }
+  ]
+}
