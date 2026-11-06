@@ -8,7 +8,8 @@ title Phicomm R1 - AIBoxPlus Installer
 set "APK_DLNA=autodlna.apk"
 set "APK_UNI=unisound.apk"
 set "APK_AI=AIBoxPlus_DLNA.apk"
-set "DEFAULT_IP="
+if exist "AIBoxPlus_DLNA_VOV_Patched.apk" set "APK_AI=AIBoxPlus_DLNA_VOV_Patched.apk"
+set "DEFAULT_IP=192.168.1.4"
 
 for /F "tokens=1,2 delims=#" %%a in ('"prompt #$H#$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%b"
 
@@ -195,6 +196,8 @@ adb -s "%SERIAL%" shell rm "/data/local/tmp/%APK_AI%" >nul 2>&1
 
 echo.
 echo Dang khoi dong AIBoxPlus...
+adb -s "%SERIAL%" shell tinymix -D 2 0 8 >nul 2>&1
+adb -s "%SERIAL%" shell tinymix -D 2 1 8 >nul 2>&1
 adb -s "%SERIAL%" shell am start -n info.dourok.voicebot/.java.activities.MainActivity
 timeout /t 5 /nobreak >nul
 
@@ -238,7 +241,7 @@ echo.
 echo Dang xac dinh mang LAN va quet cac cong 5555, 8080, 8081...
 echo Vui long doi trong khi quet.
 echo.
-powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand JABFAHIAcgBvAHIAQQBjAHQAaQBvAG4AUAByAGUAZgBlAHIAcgBlAG4AYwBlACAAPQAgACcAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAnAAoAJABvAHUAdABGAGkAbABlACAAPQAgACQAZQBuAHYAOgBSADEAXwBTAEMAQQBOAF8ATwBVAFQACgAkAGEAZABkAHIAZQBzAHMAZQBzACAAPQAgAEAAKABHAGUAdAAtAE4AZQB0AEkAUABBAGQAZAByAGUAcwBzACAALQBBAEQAZAByAGUAcwBzAEYAYQBtAGkAbAB5ACAASQBQAHYANAA<SECRET>
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scan_r1.ps1"
 if errorlevel 1 (
     echo.
     echo Khong the quet mang tu dong. Hay nhap IP thu cong.

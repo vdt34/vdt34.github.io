@@ -44,7 +44,7 @@ Toàn bộ giao diện Music Player đã được tái cấu trúc thành 4 tầ
 │  [-] ═══════════════════●════ 15  [+] (Mức 5)          │
 ├────────────────────────────────────────────────────────┤
 │  TẦNG 4: KHU VỰC NGUỒN NHẠC (MUSIC SOURCES & DLNA)     │
-│  [YouTube] [Playlist YT] [Zing MP3] [DLNA] [Playlists] │
+│  [Songs] [Playlist] [Zing MP3] [Playlists] │
 │  Khung tìm kiếm bài hát / Bật tắt DLNA / Quản lý danh sách│
 └────────────────────────────────────────────────────────┘
 ```
@@ -75,7 +75,7 @@ Toàn bộ giao diện Music Player đã được tái cấu trúc thành 4 tầ
 - **Gói ứng dụng**: `info.dourok.voicebot`
 - **Mã SHA-256**:
   ```
-  4A62B8D4D867EE2DC6B909335E18557AA8CFFA296EA8736A4772DA068A27ACFC
+  11199640E03E90E9983F44E41429C63D8E65F5C07650C91DE9C3D95921EFDBA4
   ```
 - **Các tính năng bảo toàn**:
   - Hệ thống 4 Microphone độ nhạy cao.
