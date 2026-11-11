@@ -1,5 +1,10 @@
 [
   {
+    "version": "5.3.1",
+    "date": "2026-11-12",
+    "description": "Cập nhật trang Voice (/voice): đổi tiêu đề thành 'Cài đặt Đàm thoại 2 chiều • PIN & Thiết bị', bổ sung hướng dẫn cài đặt chứng chỉ .cer / Hồ sơ iOS chi tiết cho cả iOS và Android, cùng các lưu ý tạo mã PIN và bảo mật giới hạn 1 thiết bị duy nhất."
+  },
+  {
     "version": "5.3.0",
     "date": "2026-11-12",
     "description": "Tích hợp Remote Audio (/voice HTTPS :8443 + WSS cùng cổng) hỗ trợ nghe 4-mic từ xa & đàm thoại 2 chiều thời gian thực qua Opus WASM, tự lọc ồn/AGC âm lượng rõ, loa R1 mặc định 50% tối đa 100%, lối tắt Voice/Update trên thanh điều hướng, nút Home (:8081) và bảo mật PIN 1 lần + chỉ 1 thiết bị duy nhất."
