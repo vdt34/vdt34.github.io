@@ -1,0 +1,12 @@
+[
+  {
+    "version": "5.2.1",
+    "date": "2026-11-11",
+    "description": "Chuyển hệ thống OTA sang vdt34.github.io/r1, bật banner báo bản mới trên trang chính, thu gọn nền albumArt phía trên Player và đồng bộ CSS Web UI."
+  },
+  {
+    "version": "5.2.0",
+    "date": "2026-11-10",
+    "description": "Phiên bản chuẩn ban đầu."
+  }
+]
