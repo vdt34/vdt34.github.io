@@ -1,0 +1,26 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "changli.moc3",
+		"Textures": [
+			"changli.2048/texture_00.png",
+			"changli.2048/texture_01.png",
+			"changli.2048/texture_02.png",
+			"changli.2048/texture_03.png"
+		],
+		"Physics": "changli.physics3.json",
+		"DisplayInfo": "changli.cdi3.json"
+	},
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "LipSync",
+			"Ids": []
+		},
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": []
+		}
+	]
+}
