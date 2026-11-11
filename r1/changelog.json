@@ -1,5 +1,10 @@
 [
   {
+    "version": "5.2.2",
+    "date": "2026-11-11",
+    "description": "Đổi ảnh bìa album mặc định sang vdt34.github.io/lienhe_files/632b30b4264cc_2032x2032.webp."
+  },
+  {
     "version": "5.2.1",
     "date": "2026-11-11",
     "description": "Chuyển hệ thống OTA sang vdt34.github.io/r1, bật banner báo bản mới trên trang chính, thu gọn nền albumArt phía trên Player và đồng bộ CSS Web UI."
