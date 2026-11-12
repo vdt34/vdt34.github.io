@@ -1,5 +1,10 @@
 ﻿[
     {
+        "version":  "1.0.8",
+        "date":  "2026-11-12",
+        "description":  "Tối ưu chuyên sâu bộ xử lý âm thanh XiaozhiMicDenoiser: hạ High-Pass xuống 85Hz để giữ trọn phụ âm đầu (b, d, g), mở rộng Low-Pass lên 7500Hz giữ âm gió/âm xát, nâng tốc độ mở cổng micro (Fast Attack Gate \u003c 10ms) và nới lỏng sàn suy hao nền giúp loa nghe chuẩn âm thanh tiếng Việt từ xa không bị cụt chữ."
+    },
+    {
         "version":  "1.0.7",
         "date":  "2026-11-12",
         "description":  "Nâng cấp R1_get_device_status (thông tin thiết bị thật, bổ sung ip_read và version_read giúp AI đọc số chuẩn), sửa lỗi font tiếng Việt ở R1_stop_listen, dọn code thừa schema, đồng bộ mô tả các công cụ sang tiếng Việt chuẩn."
