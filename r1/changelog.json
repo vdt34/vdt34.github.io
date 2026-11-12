@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "version": "1.0.5",
+    "date": "2026-11-12",
+    "changes": [
+      "Tích hợp Radio VOV vào chung trình phát Media (hỗ trợ Next/Prev chuyển kênh, Stop dừng phát, tự động dừng khi phát nhạc YouTube/Zing/DLNA và ngược lại)",
+      "Ưu tiên tối đa Wake Word: tự động tạm dừng mọi nguồn phát media, radio và TTS khi đánh thức loa",
+      "Sửa lỗi và hoàn thiện Tự động hóa thông minh (Bản tin buổi sáng Thời tiết + Tin RSS, Chế độ Ban đêm tự giảm/tăng âm lượng, Nhắc lịch bằng giọng nói)",
+      "Nâng cấp giọng đọc tiếng Việt sang Microsoft Edge Neural TTS (vi-VN-HoaiMyNeural) tự nhiên, truyền cảm"
+    ]
+  }
+]
