@@ -1,5 +1,10 @@
 [
   {
+    "version": "5.3.6",
+    "date": "2026-11-12",
+    "description": "Nâng cấp bộ xử lý micro Xiaozhi lên WebRTC Audio Processing v1.3 NEON (libxiaozhi_apm.so: lọc thông cao, khử nhiễu NS, AGC2 thích nghi giữ thanh điệu/âm tiết tiếng Việt và VAD; giữ nguyên luồng /voice, WakeWord và phát nhạc) và thêm mục chọn chế độ Lọc Ồn Micro (Xiaozhi) ngay dưới phần chỉnh Wake Word trên Web UI kèm lưu cấu hình qua khởi động lại."
+  },
+  {
     "version": "5.3.4",
     "date": "2026-11-12",
     "description": "Chuyển nguồn tải mô hình Live2D sang vdt34.github.io/r1/live2d, loại bỏ kiểm tra bank.json / QR miễn phí trong premium_status, gỡ công cụ radio VOV (vov.truongblack.me) và xóa toàn bộ liên kết truongblack.me còn lại."
