@@ -1,21 +1,26 @@
-[
-  {
-    "version": "1.0.6",
-    "date": "2026-11-12",
-    "changes": [
-      "Chặn triệt để phát chồng chéo 2 luồng nhạc (VOV Radio ↔ YouTube, Zing MP3, Playlist, DLNA nội bộ/ngoại bộ, Resume)",
-      "Xóa nút Dừng trong ô VOV (dùng nút Stop trên Player chung), thêm kênh VOV5 và thay VOV GT HCM bằng VOV Sonata - FM89",
-      "Thêm nút + trong ô URL stream khác để lưu tên và link kênh radio tùy chọn"
-    ]
-  },
-  {
-    "version": "1.0.5",
-    "date": "2026-11-12",
-    "changes": [
-      "Tích hợp Radio VOV vào chung trình phát Media (hỗ trợ Next/Prev chuyển kênh, Stop dừng phát, tự động dừng khi phát nhạc YouTube/Zing/DLNA và ngược lại)",
-      "Ưu tiên tối đa Wake Word: tự động tạm dừng mọi nguồn phát media, radio và TTS khi đánh thức loa",
-      "Sửa lỗi và hoàn thiện Tự động hóa thông minh (Bản tin buổi sáng Thời tiết + Tin RSS, Chế độ Ban đêm tự giảm/tăng âm lượng, Nhắc lịch bằng giọng nói)",
-      "Nâng cấp giọng đọc tiếng Việt sang Microsoft Edge Neural TTS (vi-VN-HoaiMyNeural) tự nhiên, truyền cảm"
-    ]
-  }
+﻿[
+    {
+        "version":  "1.0.7",
+        "date":  "2026-11-12",
+        "description":  "Nâng cấp R1_get_device_status (thông tin thiết bị thật, bổ sung ip_read và version_read giúp AI đọc số chuẩn), sửa lỗi font tiếng Việt ở R1_stop_listen, dọn code thừa schema, đồng bộ mô tả các công cụ sang tiếng Việt chuẩn."
+    },
+    {
+        "version":  "1.0.6",
+        "date":  "2026-11-12",
+        "changes":  [
+                        "Chặn triệt để phát chồng chéo 2 luồng nhạc (VOV Radio ↔ YouTube, Zing MP3, Playlist, DLNA nội bộ/ngoại bộ, Resume)",
+                        "Xóa nút Dừng trong ô VOV (dùng nút Stop trên Player chung), thêm kênh VOV5 và thay VOV GT HCM bằng VOV Sonata - FM89",
+                        "Thêm nút + trong ô URL stream khác để lưu tên và link kênh radio tùy chọn"
+                    ]
+    },
+    {
+        "version":  "1.0.5",
+        "date":  "2026-11-12",
+        "changes":  [
+                        "Tích hợp Radio VOV vào chung trình phát Media (hỗ trợ Next/Prev chuyển kênh, Stop dừng phát, tự động dừng khi phát nhạc YouTube/Zing/DLNA và ngược lại)",
+                        "Ưu tiên tối đa Wake Word: tự động tạm dừng mọi nguồn phát media, radio và TTS khi đánh thức loa",
+                        "Sửa lỗi và hoàn thiện Tự động hóa thông minh (Bản tin buổi sáng Thời tiết + Tin RSS, Chế độ Ban đêm tự giảm/tăng âm lượng, Nhắc lịch bằng giọng nói)",
+                        "Nâng cấp giọng đọc tiếng Việt sang Microsoft Edge Neural TTS (vi-VN-HoaiMyNeural) tự nhiên, truyền cảm"
+                    ]
+    }
 ]
