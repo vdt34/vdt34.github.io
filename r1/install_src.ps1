@@ -1,4 +1,4 @@
-# ==============================================================================
+﻿# ==============================================================================
 # BỘ CÀI ĐẶT PHICOMM R1 SIÊU TỐC - WINDOWS POWERSHELL
 # Tự động cấu hình WiFi AP, quét tìm loa trong LAN, dọn sạch file cũ, giao diện UTF-8
 # ==============================================================================
@@ -12,6 +12,7 @@ if (-not (Test-Path variable:Yes)) { $Yes = $false }
 if (-not (Test-Path variable:DryRun)) { $DryRun = $false }
 $RunWifiCli = $false
 $RunScanCli = $false
+$RunAiOnlyCli = $false
 
 if ($args.Count -gt 0) {
     foreach ($a in $args) {
@@ -28,11 +29,32 @@ if ($args.Count -gt 0) {
             $RunWifiCli = $true
         } elseif ($a -eq "-Scan" -or $a -eq "--scan") {
             $RunScanCli = $true
+        } elseif ($a -eq "-AiOnly" -or $a -eq "--ai-only" -or $a -eq "-ai") {
+            $RunAiOnlyCli = $true
         }
     }
 }
 
-$ScriptDir = if ($MyInvocation.MyCommand.Path) { Split-Path -Parent $MyInvocation.MyCommand.Path } else { (Get-Location).Path }
+$script:ScriptInput = @($input)
+function Read-R1Input {
+    param([string]$Prompt)
+    if ($null -ne $script:ScriptInput -and $script:ScriptInput.Count -gt 0) {
+        $val = $script:ScriptInput[0]
+        $script:ScriptInput = if ($script:ScriptInput.Count -gt 1) { $script:ScriptInput[1..($script:ScriptInput.Count - 1)] } else { @() }
+        return [string]$val
+    }
+    return (Read-Host $Prompt)
+}
+
+$ScriptDir = $PSScriptRoot
+if (-not $ScriptDir -and $MyInvocation.MyCommand.Path) { $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path }
+if (-not $ScriptDir -or -not (Test-Path (Join-Path $ScriptDir "adb.exe"))) {
+    if (Test-Path "C:\Users\VDT\Documents\GitHub\vdt34.github.io\r1\adb.exe") {
+        $ScriptDir = "C:\Users\VDT\Documents\GitHub\vdt34.github.io\r1"
+    } else {
+        $ScriptDir = (Get-Location).Path
+    }
+}
 $TempDir = Join-Path $env:TEMP "r1_cache"
 New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
 $BaseUrl = "https://vdt34.github.io/r1"
@@ -296,6 +318,17 @@ function Run-WifiConfig {
 # 4. Hàm dò tìm dải mạng LAN & Quét loa Phicomm R1
 function Get-LocalSubnet {
     try {
+        $udp = [System.Net.Sockets.Socket]::new([System.Net.Sockets.AddressFamily]::InterNetwork, [System.Net.Sockets.SocketType]::Dgram, [System.Net.Sockets.ProtocolType]::Udp)
+        $udp.Connect("8.8.8.8", 80)
+        $localIp = $udp.LocalEndPoint.Address.IPAddressToString
+        $udp.Close()
+        if ($localIp) {
+            $parts = $localIp.Split('.')
+            return "$($parts[0]).$($parts[1]).$($parts[2])"
+        }
+    } catch {}
+
+    try {
         $ip = (Get-CimInstance Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled -and $_.DefaultIPGateway } | Select-Object -ExpandProperty IPAddress | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' -and $_ -notlike '127.*' -and $_ -notlike '169.254.*' } | Select-Object -First 1)
         if ($ip) {
             $parts = $ip.Split('.')
@@ -309,93 +342,182 @@ function Scan-SpeakerIp {
     param([string]$Subnet = "")
     if (-not $Subnet) { $Subnet = Get-LocalSubnet }
     Write-Host ""
-    Write-Host ">> Đang quét tự động dải mạng LAN ($Subnet.1 -> 254) tìm loa Phicomm R1..." -ForegroundColor Cyan
+    Write-Host "╔════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "║                         🔍 ĐANG TÌM KIẾM LOA                       ║" -ForegroundColor Yellow
+    Write-Host "╚════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "   📡 Mạng: $Subnet.0/24" -ForegroundColor White
+    Write-Host "   ⏱️  Thời gian: khoảng 5-10 giây" -ForegroundColor Gray
+    Write-Host ""
 
-    $Candidates = [System.Collections.Generic.List[string]]::new()
-    $Tasks = [System.Collections.Generic.List[object]]::new()
+    $clients = @{}
+    $handles = @{}
 
-    1..254 | ForEach-Object {
-        $ipStr = "$Subnet.$_"
-        $client = New-Object System.Net.Sockets.TcpClient
+    for ($i = 1; $i -le 254; $i++) {
+        $targetIp = "$Subnet.$i"
+        $c = [System.Net.Sockets.TcpClient]::new()
+        $c.LingerState = [System.Net.Sockets.LingerOption]::new($false, 0)
+        $clients[$targetIp] = $c
         try {
-            $ar = $client.BeginConnect($ipStr, 5555, $null, $null)
-            $Tasks.Add([PSCustomObject]@{ IP = $ipStr; Client = $client })
+            $handles[$targetIp] = $c.BeginConnect($targetIp, 5555, $null, $null)
         } catch {}
     }
 
-    Start-Sleep -Milliseconds 800
+    $adbIps = @()
+    $checked = [System.Collections.Generic.HashSet[string]]::new()
+    $start = [DateTime]::UtcNow
+    $totalDuration = 2.5
 
-    foreach ($t in $Tasks) {
-        try {
-            if ($t.Client.Connected) {
-                if (-not $Candidates.Contains($t.IP)) { $Candidates.Add($t.IP) }
+    while (([DateTime]::UtcNow - $start).TotalSeconds -lt $totalDuration) {
+        $elapsed = ([DateTime]::UtcNow - $start).TotalSeconds
+        $percent = [Math]::Min(100, [int](($elapsed / $totalDuration) * 100))
+
+        foreach ($ip in @($clients.Keys)) {
+            if (-not $checked.Contains($ip)) {
+                $h = $handles[$ip]
+                if ($h -ne $null -and $h.IsCompleted) {
+                    $checked.Add($ip) | Out-Null
+                    try {
+                        $clients[$ip].EndConnect($h)
+                        $adbIps += $ip
+                    } catch {}
+                }
             }
-        } catch {}
-        finally { $t.Client.Close() }
+        }
+
+        $filled = [int]($percent / 2)
+        $bar = ('█' * $filled) + ('░' * (50 - $filled))
+        Write-Host -NoNewline "`r   [$bar] $percent% • Đã tìm thấy: $($adbIps.Count) loa   "
+        Start-Sleep -Milliseconds 50
     }
 
-    $Tasks8080 = [System.Collections.Generic.List[object]]::new()
-    1..254 | ForEach-Object {
-        $ipStr = "$Subnet.$_"
-        if (-not $Candidates.Contains($ipStr)) {
-            $client = New-Object System.Net.Sockets.TcpClient
-            try {
-                $ar = $client.BeginConnect($ipStr, 8080, $null, $null)
-                $Tasks8080.Add([PSCustomObject]@{ IP = $ipStr; Client = $client })
-            } catch {}
+    Write-Host -NoNewline "`r   [$('█' * 50)] 100% • Đã tìm thấy: $($adbIps.Count) loa   "
+    Write-Host ""
+    Write-Host ""
+
+    foreach ($ip in $adbIps) {
+        if ($clients.ContainsKey($ip)) {
+            try { $clients[$ip].Client.Close(0) } catch {}
+            try { $clients[$ip].Close() } catch {}
         }
     }
+    [System.Threading.Tasks.Task]::Run([Action]{
+        foreach ($c in $clients.Values) {
+            try { $c.Close() } catch {}
+        }
+    }) | Out-Null
 
-    Start-Sleep -Milliseconds 800
+    Start-Sleep -Milliseconds 300
 
-    foreach ($t in $Tasks8080) {
-        try {
-            if ($t.Client.Connected) {
-                if (-not $Candidates.Contains($t.IP)) { $Candidates.Add($t.IP) }
-            }
-        } catch {}
-        finally { $t.Client.Close() }
+    $candidates = @(
+        (Join-Path $ScriptDir "adb.exe"),
+        (Join-Path $ScriptDir "src\adb.exe"),
+        "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe",
+        "$env:USERPROFILE\AppData\Local\Android\Sdk\platform-tools\adb.exe",
+        (Get-Command adb -ErrorAction SilentlyContinue).Source,
+        "C:\Windows\adb.exe"
+    )
+    $adbExe = $null
+    foreach ($cand in $candidates) {
+        if ($cand -and (Test-Path $cand)) { $adbExe = (Resolve-Path $cand).Path; break }
     }
 
     $FoundSpeakers = [System.Collections.Generic.List[object]]::new()
-    foreach ($cand in $Candidates) {
-        $has5555 = $false
-        $has8080 = $false
-        $has8081 = $false
+    $phicommDevices = @()
+    $otherDevices = @()
 
-        foreach ($p in 5555, 8080, 8081) {
-            $c = New-Object System.Net.Sockets.TcpClient
-            try {
-                $ar = $c.BeginConnect($cand, $p, $null, $null)
-                if ($ar.AsyncWaitHandle.WaitOne(300)) {
-                    $c.EndConnect($ar)
-                    if ($p -eq 5555) { $has5555 = $true }
-                    elseif ($p -eq 8080) { $has8080 = $true }
-                    elseif ($p -eq 8081) { $has8081 = $true }
+    if ($adbIps.Count -gt 0) {
+        Write-Host "   Tìm thấy $($adbIps.Count) thiết bị, đang lấy thông tin..." -ForegroundColor Cyan
+        foreach ($ip in $adbIps) {
+            $endpoint = "$($ip):5555"
+            $model = ""
+            $hostname = ""
+            $androidVer = ""
+
+            if ($adbExe) {
+                & $adbExe start-server >$null 2>&1
+                $connRaw = (& $adbExe connect $endpoint 2>&1) -join "`n"
+                if ($connRaw -match "connected") {
+                    $model = ((& $adbExe -s $endpoint shell getprop ro.product.model 2>&1) -join "`n").Trim()
+                    $hostname = ((& $adbExe -s $endpoint shell getprop net.hostname 2>&1) -join "`n").Trim()
+                    $androidVer = ((& $adbExe -s $endpoint shell getprop ro.build.version.release 2>&1) -join "`n").Trim()
+                    & $adbExe disconnect $endpoint >$null 2>&1
                 }
-            } catch {}
-            finally { $c.Close() }
-        }
+            }
 
-        if ($has5555 -or ($has8080 -and $has8081)) {
-            $ports = @()
-            if ($has5555) { $ports += "ADB: 5555" }
-            if ($has8081) { $ports += "Web AI Box: 8081" }
-            if ($has8080) { $ports += "R1: 8080" }
-            $FoundSpeakers.Add([PSCustomObject]@{ IP = $cand; Ports = ($ports -join ", ") })
+            $devInfo = [PSCustomObject]@{
+                IP = $ip
+                Ports = "ADB: 5555"
+                Model = $model
+                Hostname = $hostname
+                Android = $androidVer
+            }
+
+            $isPhicomm = ($model -match "(?i)r1|rk322x") -or ($hostname -match "(?i)phicomm_r1|r1")
+            if ($isPhicomm) {
+                $phicommDevices += $devInfo
+            } else {
+                $otherDevices += $devInfo
+            }
+            $FoundSpeakers.Add($devInfo)
         }
     }
 
-    return $FoundSpeakers
+    Write-Host ""
+    Write-Host "╔════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "║                            🎯 KẾT QUẢ QUÉT                         ║" -ForegroundColor Yellow
+    Write-Host "╚════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host ""
+
+    if ($phicommDevices.Count -gt 0) {
+        Write-Host "   ✅ Tìm thấy $($phicommDevices.Count) loa Phicomm R1:" -ForegroundColor Green
+        Write-Host ""
+        $idx = 1
+        foreach ($dev in $phicommDevices) {
+            Write-Host "   ┌─── Loa #$idx ──────────────────────────────────────────────────────" -ForegroundColor Green
+            Write-Host "   │  📍 IP:         $($dev.IP)" -ForegroundColor Yellow
+            if ($dev.Hostname) { Write-Host "   │  🏷️  Hostname:   $($dev.Hostname)" -ForegroundColor White }
+            if ($dev.Model)    { Write-Host "   │  📱 Model:      $($dev.Model)" -ForegroundColor White }
+            if ($dev.Android)  { Write-Host "   │  🤖 Android:    $($dev.Android)" -ForegroundColor White }
+            Write-Host "   └────────────────────────────────────────────────────────────────" -ForegroundColor Green
+            Write-Host ""
+            $idx++
+        }
+    } else {
+        Write-Host "   ⚠️  Không tìm thấy loa Phicomm R1." -ForegroundColor Yellow
+        Write-Host ""
+    }
+
+    if ($otherDevices.Count -gt 0) {
+        Write-Host "   ℹ️  Tìm thấy $($otherDevices.Count) thiết bị khác có ADB:" -ForegroundColor Yellow
+        foreach ($dev in $otherDevices) {
+            $mStr = if ($dev.Model) { $dev.Model } else { "Unknown" }
+            Write-Host "      • $($dev.IP) - $mStr" -ForegroundColor Gray
+        }
+        Write-Host ""
+    }
+
+    Write-Host "   ──────────────────────────────────────────────────────────────────" -ForegroundColor Gray
+    Write-Host "   Tổng số thiết bị:    $($adbIps.Count)" -ForegroundColor White
+    Write-Host "   Loa Phicomm R1:      $($phicommDevices.Count)" -ForegroundColor White
+    Write-Host "   ──────────────────────────────────────────────────────────────────" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "   ✓ Quét hoàn tất!" -ForegroundColor Green
+    Write-Host ""
+
+    if ($phicommDevices.Count -gt 0) {
+        return @($phicommDevices)
+    }
+    return @($otherDevices)
 }
 
 # 5. Tải và chuẩn bị 3 file APK từ GitHub
 function Ensure-Apks {
-    $Apks = @("autodlna.apk", "unisound.apk", "AIBoxPlus_DLNA.apk")
+    $Apks = @("autodlna.apk", "unisound.apk")
     Write-Host ""
-    Write-Host ">> Đang chuẩn bị và tự động cài AI..." -ForegroundColor Cyan
+    Write-Host ">> Đang chuẩn bị và tự động tải bộ cài từ vdt34.github.io/r1..." -ForegroundColor Cyan
 
-    foreach ($f in $Apks) {
+    foreach ($f in @("autodlna.apk", "unisound.apk", "AIBoxPlus_DLNA.apk")) {
         $oldFile = Join-Path $TempDir $f
         if (Test-Path $oldFile) { Remove-Item $oldFile -Force -ErrorAction SilentlyContinue }
     }
@@ -408,23 +530,25 @@ function Ensure-Apks {
         $f = $Apks[$i]
         Set-R1InstallProgress -Percent (5 + ($i * 10)) -Status "Đang chuẩn bị $f"
         $cacheFile = Join-Path $TempDir $f
-        $localFile = Join-Path $ScriptDir $f
 
-        if ($DryRun -and (Test-Path $localFile)) {
-            Copy-Item $localFile $cacheFile -Force
-        } else {
-            try {
-                $old = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
-                Invoke-WebRequest -Uri "$BaseUrl/$f`?t=$UnixTs" -OutFile "$cacheFile.tmp" -TimeoutSec 45 -UseBasicParsing
-                Move-Item "$cacheFile.tmp" $cacheFile -Force
-                $ProgressPreference = $old
-            } catch {
-                $ProgressPreference = $old
-                $Missing = $true
-            }
+        try {
+            $old = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
+            Invoke-WebRequest -Uri "$BaseUrl/$f`?t=$UnixTs" -OutFile "$cacheFile.tmp" -TimeoutSec 45 -UseBasicParsing
+            Move-Item "$cacheFile.tmp" $cacheFile -Force
+            $ProgressPreference = $old
+        } catch {
+            $ProgressPreference = $old
+            $Missing = $true
         }
         Set-R1InstallProgress -Percent (15 + ($i * 10)) -Status "Đã xử lý $f"
     }
+
+    # Tải AIBoxPlus mới nhất trực tiếp từ version.json trên GitHub
+    Set-R1InstallProgress -Percent 25 -Status "Đang kiểm tra AIBoxPlus mới nhất"
+    if (-not (Ensure-Apk-AiOnly)) {
+        $Missing = $true
+    }
+    Set-R1InstallProgress -Percent 35 -Status "Đã chuẩn bị AIBoxPlus"
 
     if ($Missing) {
         Complete-R1InstallProgress
@@ -432,11 +556,47 @@ function Ensure-Apks {
         Write-Host "==========================================================" -ForegroundColor Red
         Write-Host "  [LỖI THIẾU FILE CÀI ĐẶT DO CHƯA CÓ INTERNET]" -ForegroundColor Red
         Write-Host "==========================================================" -ForegroundColor Red
-        Write-Host "Vui lòng kiểm tra kết nối mạng để tải đủ 3 file APK." -ForegroundColor Yellow
+        Write-Host "Vui lòng kiểm tra kết nối mạng để tải đủ các file APK từ GitHub." -ForegroundColor Yellow
         Read-Host "Nhấn Enter để quay lại menu"
         return $false
     }
     return $true
+}
+
+function Ensure-Apk-AiOnly {
+    $f = "AIBoxPlus_DLNA.apk"
+    $cacheFile = Join-Path $TempDir $f
+    if (Test-Path $cacheFile) { Remove-Item $cacheFile -Force -ErrorAction SilentlyContinue }
+
+    Write-Host ""
+    Write-Host ">> Đang kiểm tra phiên bản AIBoxPlus mới nhất từ GitHub ($BaseUrl/version.json)..." -ForegroundColor Cyan
+
+    try {
+        $UnixTs = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+        $jsonRaw = (Invoke-RestMethod -Uri "$BaseUrl/version.json`?t=$UnixTs" -UseBasicParsing -TimeoutSec 15)
+        if ($jsonRaw -is [string]) {
+            $meta = $jsonRaw.TrimStart([char]0xFEFF) | ConvertFrom-Json
+        } else {
+            $meta = $jsonRaw
+        }
+
+        $aiDownloadUrl = $meta.files[0].url
+        $aiApkName = $meta.files[0].name
+        $aiVersion = $meta.version
+        Write-Host ">> Phiên bản mới nhất trên GitHub: $aiApkName (v$aiVersion)" -ForegroundColor Green
+        Write-Host ">> Đang tải: $aiDownloadUrl..." -ForegroundColor Cyan
+
+        $old = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
+        Invoke-WebRequest -Uri "$aiDownloadUrl`?t=$UnixTs" -OutFile "$cacheFile.tmp" -TimeoutSec 60 -UseBasicParsing
+        Move-Item "$cacheFile.tmp" $cacheFile -Force
+        $ProgressPreference = $old
+        return $true
+    } catch {
+        $ProgressPreference = $old
+        Write-Host ">> [LỖI] Không thể tải phiên bản AIBoxPlus mới nhất từ GitHub ($($_.Exception.Message))." -ForegroundColor Red
+        Read-R1Input "Nhấn Enter để quay lại menu"
+        return $false
+    }
 }
 
 function Invoke-AdbInstallStep {
@@ -468,59 +628,23 @@ function Run-Install {
     $TargetIp = $TargetIpParam
 
     if (-not $TargetIp) {
-        Write-Host ""
-        Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
-        Write-Host "                  TÌM IP CỦA LOA TRONG LAN                " -ForegroundColor Yellow
-        Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
-        Write-Host " [S] hoặc [Enter]: Tự động QUÉT tìm IP loa trong WiFi nhà (LAN)" -ForegroundColor Cyan
-        Write-Host " Hoặc gõ trực tiếp IP của loa (Ví dụ: 192.168.1.94)" -ForegroundColor Gray
-        Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
-
-        while (-not $TargetIp) {
-            $u = Read-Host "Nhập IP hoặc 'S' để quét [Mặc định: S]"
-            $u = if ($u) { $u.Trim() } else { "S" }
-
-            if ($u -eq "s" -or $u -eq "S" -or $u -eq "scan") {
-                $foundList = Scan-SpeakerIp
-                if ($foundList -and $foundList.Count -gt 0) {
-                    Write-Host ""
-                    Write-Host ">> Phát hiện $($foundList.Count) loa Phicomm R1 trong mạng LAN:" -ForegroundColor Green
-                    for ($i = 0; $i -lt $foundList.Count; $i++) {
-                        $item = $foundList[$i]
-                        Write-Host "   [$($i+1)] $($item.IP) ($($item.Ports))" -ForegroundColor Yellow
-                    }
-                    Write-Host ""
-                    $pick = Read-Host "Chọn số thứ tự loa (1-$($foundList.Count)) hoặc nhập IP khác [Mặc định: 1]"
-                    $pick = if ($pick) { $pick.Trim() } else { "" }
-                    if ($pick -match '^\d+$' -and [int]$pick -ge 1 -and [int]$pick -le $foundList.Count) {
-                        $TargetIp = $foundList[[int]$pick - 1].IP
-                    } elseif ($pick -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}') {
-                        $TargetIp = $pick
-                    } else {
-                        $TargetIp = $foundList[0].IP
-                    }
-                } else {
-                    Write-Host ""
-                    Write-Host ">> Không tìm thấy loa trong mạng LAN." -ForegroundColor Yellow
-                    $manual = Read-Host "Hoặc nhập IP loa thủ công (Enter=quay lại menu)"
-                    if ($manual -and $manual.Trim()) {
-                        $TargetIp = $manual.Trim()
-                    } else {
-                        return
-                    }
-                }
-            } elseif ($u -eq "1" -or $u -eq "192.168.43.1") {
-                Write-Host ""
-                Write-Host "==========================================================" -ForegroundColor Red
-                Write-Host "  [CẢNH BÁO] KHÔNG THỂ CÀI ĐẶT APK QUA AP 192.168.43.1!" -ForegroundColor Yellow
-                Write-Host "==========================================================" -ForegroundColor Red
-                Write-Host "  WiFi AP của loa tự tắt sau ~60-90 giây, push APK sẽ rớt mạng." -ForegroundColor White
-                Write-Host "  -> Hãy chọn [1] trên Menu để cấu hình WiFi cho loa trước!" -ForegroundColor White
-                Write-Host "==========================================================" -ForegroundColor Red
-                Read-Host "Nhấn Enter để quay lại menu"
-                return
+        $foundList = Scan-SpeakerIp
+        if ($foundList -and $foundList.Count -gt 0) {
+            $pick = Read-R1Input "   Chọn số thứ tự loa để cài APK (1-$($foundList.Count)) hoặc nhập IP khác [Mặc định: 1]"
+            $pick = if ($pick) { $pick.Trim() } else { "1" }
+            if ($pick -match '^\d+$' -and [int]$pick -ge 1 -and [int]$pick -le $foundList.Count) {
+                $TargetIp = $foundList[[int]$pick - 1].IP
+            } elseif ($pick -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') {
+                $TargetIp = $pick
             } else {
-                $TargetIp = $u
+                $TargetIp = $foundList[0].IP
+            }
+        } else {
+            $manual = Read-R1Input "   Không tìm thấy loa. Nhập IP loa thủ công (Enter để quay lại menu)"
+            if ($manual -and $manual.Trim()) {
+                $TargetIp = $manual.Trim()
+            } else {
+                return
             }
         }
     }
@@ -813,6 +937,125 @@ function Run-Install {
     }
 }
 
+function Run-Install-AiOnly {
+    param([string]$TargetIpParam = "")
+    $TargetIp = $TargetIpParam
+
+    if (-not $TargetIp) {
+        $foundList = Scan-SpeakerIp
+        if ($foundList -and $foundList.Count -gt 0) {
+            $pick = Read-R1Input "   Chọn số thứ tự loa để cập nhật AIBoxPlus (1-$($foundList.Count)) hoặc nhập IP khác [Mặc định: 1]"
+            $pick = if ($pick) { $pick.Trim() } else { "1" }
+            if ($pick -match '^\d+$' -and [int]$pick -ge 1 -and [int]$pick -le $foundList.Count) {
+                $TargetIp = $foundList[[int]$pick - 1].IP
+            } elseif ($pick -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') {
+                $TargetIp = $pick
+            } else {
+                $TargetIp = $foundList[0].IP
+            }
+        } else {
+            $manual = Read-R1Input "   Không tìm thấy loa. Nhập IP loa thủ công (Enter để quay lại menu)"
+            if ($manual -and $manual.Trim()) {
+                $TargetIp = $manual.Trim()
+            } else {
+                return
+            }
+        }
+    }
+
+    if ($TargetIp -eq "192.168.43.1") {
+        Write-Host ""
+        Write-Host "==========================================================" -ForegroundColor Red
+        Write-Host "  [CẢNH BÁO] KHÔNG THỂ CẬP NHẬT APK QUA AP 192.168.43.1!" -ForegroundColor Yellow
+        Write-Host "==========================================================" -ForegroundColor Red
+        Read-R1Input "Nhấn Enter để quay lại menu"
+        return
+    }
+
+    $TargetIp = $TargetIp.Trim().Replace(":5555", "")
+    $Serial = "$($TargetIp):5555"
+
+    Write-Host ""
+    Write-Host ">> Sẽ kết nối tới loa: $TargetIp" -ForegroundColor Cyan
+
+    if (-not (Ensure-Adb)) {
+        Write-Host ">> [LỖI] Không thể khởi tạo công cụ ADB." -ForegroundColor Red
+        Read-R1Input "Nhấn Enter để quay lại menu"
+        return
+    }
+
+    if (-not (Ensure-Apk-AiOnly)) { return }
+
+    Write-Host ""
+    Write-Host ">> Đang kết nối tới loa qua ADB ($Serial)..." -ForegroundColor Cyan
+
+    if (-not $DryRun -and $env:R1_DRYRUN -ne "1") {
+        adb connect $Serial 2>$null | Out-Null
+        Start-Sleep -Milliseconds 1200
+        $state = (adb -s $Serial get-state 2>$null | Out-String).Trim()
+        if ($state -ne "device") {
+            Revive-Speaker -TargetIp $TargetIp
+            adb connect $Serial 2>$null | Out-Null
+            Start-Sleep -Seconds 1
+            $state = (adb -s $Serial get-state 2>$null | Out-String).Trim()
+        }
+
+        if ($state -ne "device") {
+            Write-Host ""
+            Write-Host ">> [LỖI] Không thể kết nối tới loa tại $Serial." -ForegroundColor Red
+            Read-R1Input "Nhấn Enter để quay lại menu"
+            return
+        }
+
+        Write-Host ">> Đã kết nối thành công tới loa." -ForegroundColor Green
+        Write-Host ">> Đang bật quyền cài đặt ứng dụng..." -ForegroundColor Cyan
+        adb -s $Serial shell settings put secure install_non_market_apps 1 2>$null | Out-Null
+
+        $aiApk = "AIBoxPlus_DLNA.apk"
+        $localAiApk = Join-Path $TempDir $aiApk
+
+        Write-Host ">> Đang tải AIBoxPlus lên loa..." -ForegroundColor Cyan
+        if (-not (Invoke-AdbInstallStep -Arguments @("-s", $Serial, "push", $localAiApk, "/data/local/tmp/$aiApk"))) {
+            Write-Host ">> [LỖI] Tải file lên loa thất bại: $aiApk" -ForegroundColor Red
+            Read-R1Input "Nhấn Enter để quay lại menu"
+            return
+        }
+
+        Write-Host ">> Đang cài đặt / cập nhật AIBoxPlus (giữ nguyên token Xiaozhi)..." -ForegroundColor Cyan
+        if (-not (Invoke-AdbInstallStep -Arguments @("-s", $Serial, "shell", "/system/bin/pm", "install", "-r", "/data/local/tmp/$aiApk") -RequirePackageSuccess)) {
+            Write-Host ">> [LỖI] Cài đặt thất bại: $aiApk" -ForegroundColor Red
+            Read-R1Input "Nhấn Enter để quay lại menu"
+            return
+        }
+        adb -s $Serial shell rm "/data/local/tmp/$aiApk" 2>$null | Out-Null
+
+        Write-Host ">> Đang cấu hình âm thanh & khởi động AIBoxPlus..." -ForegroundColor Cyan
+        adb -s $Serial shell tinymix -D 2 0 8 2>$null | Out-Null
+        adb -s $Serial shell tinymix -D 2 1 8 2>$null | Out-Null
+        adb -s $Serial shell am start -n info.dourok.voicebot/.java.activities.MainActivity 2>$null | Out-Null
+        Start-Sleep -Seconds 4
+    }
+
+    Write-Host ""
+    Write-Host "==========================================================" -ForegroundColor Green
+    Write-Host "             CẬP NHẬT AIBOXPLUS HOÀN TẤT!                 " -ForegroundColor Yellow
+    Write-Host "==========================================================" -ForegroundColor Green
+    Write-Host ">> AIBoxPlus đã được cài đặt / cập nhật thành công (giữ nguyên dữ liệu)." -ForegroundColor Green
+    Write-Host ">> Bảng điều khiển WebUI: http://$($TargetIp):8081/" -ForegroundColor Cyan
+    Write-Host "==========================================================" -ForegroundColor Green
+    Write-Host ""
+
+    if (-not $Yes) {
+        $reboot = Read-R1Input "Khởi động lại loa ngay bây giờ? [y/N]: "
+        if ($reboot -eq "y" -or $reboot -eq "Y") {
+            adb -s $Serial reboot 2>$null | Out-Null
+            Write-Host ">> Đã gửi lệnh khởi động lại loa." -ForegroundColor Green
+        }
+        Write-Host ""
+        Read-R1Input "Nhấn Enter để quay lại menu chính"
+    }
+}
+
 # 7. Hàm hiển thị Menu chính
 function Show-Menu {
     Write-Host ""
@@ -822,14 +1065,17 @@ function Show-Menu {
     Write-Host "  1) Cấu hình WiFi cho loa (kết nối AP 192.168.43.1)" -ForegroundColor White
     Write-Host "     -> Dùng khi loa vừa reset, đang phát WiFi Phicomm_R1_xxxx" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "  2) Quét IP LAN & Cài đặt APK (AutoDLNA + Unisound + AI)" -ForegroundColor White
-    Write-Host "     -> Dùng khi loa ĐÃ vào WiFi nhà (có IP LAN)" -ForegroundColor Gray
+    Write-Host "  2) Cài đặt đầy đủ 3 ứng dụng (AutoDLNA + Unisound + AI)" -ForegroundColor White
+    Write-Host "     -> Dùng khi cài mới hoàn toàn cho loa" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "  3) Chỉ quét tìm IP loa trong LAN (không cài đặt)" -ForegroundColor White
-    Write-Host "  4) Thoát" -ForegroundColor White
+    Write-Host "  3) Chỉ cài đặt / cập nhật AIBoxPlus (giữ nguyên token & app cũ)" -ForegroundColor White
+    Write-Host "     -> Nâng cấp AIBoxPlus nhanh, không ảnh hưởng DLNA/Unisound" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  4) Quét tìm IP loa Phicomm R1 trong LAN (chỉ kiểm tra)" -ForegroundColor White
+    Write-Host "  5) Thoát" -ForegroundColor White
     Write-Host "==========================================================" -ForegroundColor Cyan
-    $choice = Read-Host "Chọn [1-4]"
-    if ($null -eq $choice) { return "4" }
+    $choice = Read-R1Input "Chọn [1-5]"
+    if ($null -eq $choice) { return "5" }
     if ($choice) { return $choice.Trim() }
     return ""
 }
@@ -837,6 +1083,11 @@ function Show-Menu {
 # Xử lý tham số dòng lệnh trực tiếp (Automation / Scripts)
 if ($RunWifiCli) {
     Run-WifiConfig | Out-Null
+    return
+}
+
+if ($RunAiOnlyCli) {
+    Run-Install-AiOnly -TargetIpParam $Ip
     return
 }
 
@@ -861,27 +1112,17 @@ while ($true) {
     } elseif ($c -eq "2") {
         Run-Install ""
     } elseif ($c -eq "3") {
-        $foundList = Scan-SpeakerIp
-        if ($foundList -and $foundList.Count -gt 0) {
-            Write-Host ""
-            Write-Host ">> Phát hiện $($foundList.Count) loa Phicomm R1 trong mạng LAN:" -ForegroundColor Green
-            for ($i = 0; $i -lt $foundList.Count; $i++) {
-                $item = $foundList[$i]
-                Write-Host "   [$($i+1)] $($item.IP) ($($item.Ports))" -ForegroundColor Yellow
-            }
-        } else {
-            Write-Host ""
-            Write-Host ">> Không tìm thấy loa R1 trong dải mạng hiện tại." -ForegroundColor Yellow
-        }
-        Write-Host ""
-        Read-Host "Nhấn Enter để quay lại menu chính"
-    } elseif ($c -eq "4" -or $c -eq "q" -or $c -eq "Q" -or $c -eq "exit") {
+        Run-Install-AiOnly ""
+    } elseif ($c -eq "4") {
+        $null = Scan-SpeakerIp
+        Read-R1Input "   Nhấn Enter để quay lại menu chính"
+    } elseif ($c -eq "5" -or $c -eq "q" -or $c -eq "Q" -or $c -eq "exit") {
         Write-Host "Thoát chương trình." -ForegroundColor Yellow
         break
     } elseif ($c -eq "") {
         continue
     } else {
-        Write-Host "Lựa chọn không hợp lệ. Vui lòng nhập số từ 1 đến 4." -ForegroundColor Yellow
+        Write-Host "Lựa chọn không hợp lệ. Vui lòng nhập số từ 1 đến 5." -ForegroundColor Yellow
         Start-Sleep -Milliseconds 600
     }
 }
