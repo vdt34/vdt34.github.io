@@ -1029,9 +1029,7 @@ function Run-Install-AiOnly {
         }
         adb -s $Serial shell rm "/data/local/tmp/$aiApk" 2>$null | Out-Null
 
-        Write-Host ">> Đang cấu hình âm thanh & khởi động AIBoxPlus..." -ForegroundColor Cyan
-        adb -s $Serial shell tinymix -D 2 0 8 2>$null | Out-Null
-        adb -s $Serial shell tinymix -D 2 1 8 2>$null | Out-Null
+        Write-Host ">> Đang khởi động AIBoxPlus..." -ForegroundColor Cyan
         adb -s $Serial shell am start -n info.dourok.voicebot/.java.activities.MainActivity 2>$null | Out-Null
         Start-Sleep -Seconds 4
     }

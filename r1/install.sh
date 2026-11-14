@@ -1228,8 +1228,6 @@ run_install_ai_only() {
         adb -s "$SERIAL" shell rm "//data/local/tmp/$ai_apk" >/dev/null 2>&1 || true
 
         printf '%s>> Đang khởi động AIBoxPlus...%s\n' "$C_CYAN" "$C_RESET"
-        adb -s "$SERIAL" shell tinymix -D 2 0 8 >/dev/null 2>&1 || true
-        adb -s "$SERIAL" shell tinymix -D 2 1 8 >/dev/null 2>&1 || true
         start_ai_box >/dev/null 2>&1 || true
         sleep 3
     fi
