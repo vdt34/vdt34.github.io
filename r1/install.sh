@@ -631,6 +631,8 @@ wait_for_webui() {
 # Khởi chạy AI Box Plus và xác minh tiến trình info.dourok.voicebot đã thực sự chạy
 start_ai_box() {
     [ "$R1_DRYRUN" = "1" ] && return 0
+    ensure_adb_alive >/dev/null 2>&1 || true
+    adb -s "$SERIAL" shell "tinymix -D 2 0 5; tinymix -D 2 1 5; tinymix -D 2 6 207; tinymix -D 2 7 207; tinymix -D 2 8 207; tinymix -D 2 9 207; tinymix -D 2 17 1; tinymix -D 2 18 1; tinymix -D 2 46 1; tinymix -D 2 47 1" >/dev/null 2>&1 || true
     try_ai=1
     while [ "$try_ai" -le 3 ]; do
         ensure_adb_alive >/dev/null 2>&1 || true

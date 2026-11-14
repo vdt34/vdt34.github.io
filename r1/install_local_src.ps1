@@ -854,6 +854,7 @@ function Run-Install {
         adb -s $Serial shell rm "/data/local/tmp/$aiApk" 2>$null | Out-Null
 
         Set-R1InstallProgress -Percent 95 -Status "Đang khởi chạy AI Box Plus"
+        adb -s $Serial shell "tinymix -D 2 0 5; tinymix -D 2 1 5; tinymix -D 2 6 207; tinymix -D 2 7 207; tinymix -D 2 8 207; tinymix -D 2 9 207; tinymix -D 2 17 1; tinymix -D 2 18 1; tinymix -D 2 46 1; tinymix -D 2 47 1" 2>$null | Out-Null
         adb -s $Serial shell am start -n info.dourok.voicebot/.java.activities.MainActivity 2>$null | Out-Null
         Start-Sleep -Seconds 5
 
@@ -874,6 +875,7 @@ function Run-Install {
         adb -s $Serial reboot 2>$null | Out-Null
         if (Wait-R1SpeakerBoot -Serial $Serial) {
             Set-R1InstallProgress -Percent 99 -Status "Đang khởi chạy AI sau reboot"
+            adb -s $Serial shell "tinymix -D 2 0 5; tinymix -D 2 1 5; tinymix -D 2 6 207; tinymix -D 2 7 207; tinymix -D 2 8 207; tinymix -D 2 9 207; tinymix -D 2 17 1; tinymix -D 2 18 1; tinymix -D 2 46 1; tinymix -D 2 47 1" 2>$null | Out-Null
             $launchOutput = & adb -s $Serial shell am start -n info.dourok.voicebot/.java.activities.MainActivity 2>&1
             $launchExitCode = $LASTEXITCODE
             $launchFailed = (($launchOutput -join "`n") -match '(?im)^\s*(Error:|Exception|.*does not exist)')
@@ -1040,6 +1042,7 @@ function Run-Install-AiOnly {
         adb -s $Serial shell rm "/data/local/tmp/$aiApk" 2>$null | Out-Null
 
         Write-Host ">> Đang khởi động AIBoxPlus..." -ForegroundColor Cyan
+        adb -s $Serial shell "tinymix -D 2 0 5; tinymix -D 2 1 5; tinymix -D 2 6 207; tinymix -D 2 7 207; tinymix -D 2 8 207; tinymix -D 2 9 207; tinymix -D 2 17 1; tinymix -D 2 18 1; tinymix -D 2 46 1; tinymix -D 2 47 1" 2>$null | Out-Null
         adb -s $Serial shell am start -n info.dourok.voicebot/.java.activities.MainActivity 2>$null | Out-Null
         Start-Sleep -Seconds 4
     }
