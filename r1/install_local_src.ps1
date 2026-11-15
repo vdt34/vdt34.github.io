@@ -160,15 +160,49 @@ function Ensure-Adb {
     return $false
 }
 
-# 2. Hàm đánh thức loa R1 qua cổng 8080/8081
+# 2. Hàm đánh thức loa R1 qua cổng 8080/8081 (bật lại adbd 5555 qua WebSocket 8080)
 function Revive-Speaker {
     param([string]$TargetIp)
-    if (-not $TargetIp) { return }
+    if (-not $TargetIp) { return $false }
+    $wsWoke = $false
     try {
-        $c8080 = New-Object System.Net.Sockets.TcpClient
-        $ar1 = $c8080.BeginConnect($TargetIp, 8080, $null, $null)
-        if ($ar1.AsyncWaitHandle.WaitOne(800)) { $c8080.EndConnect($ar1) }
-        $c8080.Close()
+        $tcp = New-Object System.Net.Sockets.TcpClient
+        $ar = $tcp.BeginConnect($TargetIp, 8080, $null, $null)
+        if ($ar.AsyncWaitHandle.WaitOne(1000)) {
+            $tcp.EndConnect($ar)
+            $stream = $tcp.GetStream()
+            $stream.ReadTimeout = 1000
+            $stream.WriteTimeout = 1000
+            $req = "GET / HTTP/1.1`r`nHost: $($TargetIp):8080`r`nUpgrade: websocket`r`nConnection: Upgrade`r`nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==`r`nSec-WebSocket-Version: 13`r`n`r`n"
+            $reqBytes = [System.Text.Encoding]::ASCII.GetBytes($req)
+            $stream.Write($reqBytes, 0, $reqBytes.Length)
+            $buf = New-Object byte[] 1024
+            $read = $stream.Read($buf, 0, $buf.Length)
+            $resp = [System.Text.Encoding]::ASCII.GetString($buf, 0, [Math]::Max(0, $read))
+            if ($resp -match "101") {
+                $wsWoke = $true
+                $payload = [System.Text.Encoding]::UTF8.GetBytes('{"type":"shell","type_id":"myshell","shell":"setprop service.adb.tcp.port 5555; stop adbd; start adbd"}')
+                $mask = [byte[]](0x12, 0x34, 0x56, 0x78)
+                $frame = New-Object System.Collections.Generic.List[byte]
+                $frame.Add(0x81)
+                if ($payload.Length -lt 126) {
+                    $frame.Add([byte](0x80 -bor $payload.Length))
+                } else {
+                    $frame.Add([byte](0x80 -bor 126))
+                    $frame.Add([byte](($payload.Length -shr 8) -band 0xFF))
+                    $frame.Add([byte]($payload.Length -band 0xFF))
+                }
+                $frame.AddRange($mask)
+                for ($i = 0; $i -lt $payload.Length; $i++) {
+                    $frame.Add([byte]($payload[$i] -bxor $mask[$i % 4]))
+                }
+                $frameArr = $frame.ToArray()
+                $stream.Write($frameArr, 0, $frameArr.Length)
+                $stream.Flush()
+                try { $null = $stream.Read($buf, 0, $buf.Length) } catch {}
+            }
+        }
+        $tcp.Close()
     } catch {}
     try {
         $c8081 = New-Object System.Net.Sockets.TcpClient
@@ -181,6 +215,7 @@ function Revive-Speaker {
         $wc.DownloadStringAsync([uri]"http://$($TargetIp):8080/")
         $wc.DownloadStringAsync([uri]"http://$($TargetIp):8081/")
     } catch {}
+    return $wsWoke
 }
 
 # 3. [MỤC 1] Cấu hình WiFi cho loa qua AP API (192.168.43.1:8989)
@@ -315,14 +350,14 @@ function Get-LocalSubnet {
         $udp.Connect("8.8.8.8", 80)
         $localIp = $udp.LocalEndPoint.Address.IPAddressToString
         $udp.Close()
-        if ($localIp) {
+        if ($localIp -and $localIp -notlike '127.*' -and $localIp -notlike '169.254.*' -and $localIp -notmatch '^172\.(1[6-9]|2\d|3[0-1])\.') {
             $parts = $localIp.Split('.')
             return "$($parts[0]).$($parts[1]).$($parts[2])"
         }
     } catch {}
 
     try {
-        $ip = (Get-CimInstance Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled -and $_.DefaultIPGateway } | Select-Object -ExpandProperty IPAddress | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' -and $_ -notlike '127.*' -and $_ -notlike '169.254.*' } | Select-Object -First 1)
+        $ip = (Get-CimInstance Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled -and $_.DefaultIPGateway } | Select-Object -ExpandProperty IPAddress | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' -and $_ -notlike '127.*' -and $_ -notlike '169.254.*' -and $_ -notmatch '^172\.(1[6-9]|2\d|3[0-1])\.' } | Select-Object -First 1)
         if ($ip) {
             $parts = $ip.Split('.')
             return "$($parts[0]).$($parts[1]).$($parts[2])"
@@ -331,16 +366,15 @@ function Get-LocalSubnet {
     return "192.168.1"
 }
 
-function Scan-SpeakerIp {
-    param([string]$Subnet = "")
-    if (-not $Subnet) { $Subnet = Get-LocalSubnet }
+function Scan-SingleSubnet {
+    param([string]$Subnet)
     Write-Host ""
     Write-Host "╔════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
     Write-Host "║                         🔍 ĐANG TÌM KIẾM LOA                       ║" -ForegroundColor Yellow
     Write-Host "╚════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "   📡 Mạng: $Subnet.0/24" -ForegroundColor White
-    Write-Host "   ⏱️  Thời gian: khoảng 5-10 giây" -ForegroundColor Gray
+    Write-Host "   ⏱️  Thời gian: khoảng 3-5 giây" -ForegroundColor Gray
     Write-Host ""
 
     $clients = @{}
@@ -352,14 +386,14 @@ function Scan-SpeakerIp {
         $c.LingerState = [System.Net.Sockets.LingerOption]::new($false, 0)
         $clients[$targetIp] = $c
         try {
-            $handles[$targetIp] = $c.BeginConnect($targetIp, 5555, $null, $null)
+            $handles[$targetIp] = $c.BeginConnect($targetIp, 8080, $null, $null)
         } catch {}
     }
 
-    $adbIps = @()
+    $candidateIps = [System.Collections.Generic.List[string]]::new()
     $checked = [System.Collections.Generic.HashSet[string]]::new()
     $start = [DateTime]::UtcNow
-    $totalDuration = 2.5
+    $totalDuration = 1.8
 
     while (([DateTime]::UtcNow - $start).TotalSeconds -lt $totalDuration) {
         $elapsed = ([DateTime]::UtcNow - $start).TotalSeconds
@@ -372,7 +406,9 @@ function Scan-SpeakerIp {
                     $checked.Add($ip) | Out-Null
                     try {
                         $clients[$ip].EndConnect($h)
-                        $adbIps += $ip
+                        if (-not $candidateIps.Contains($ip)) {
+                            $candidateIps.Add($ip)
+                        }
                     } catch {}
                 }
             }
@@ -380,73 +416,62 @@ function Scan-SpeakerIp {
 
         $filled = [int]($percent / 2)
         $bar = ('█' * $filled) + ('░' * (50 - $filled))
-        Write-Host -NoNewline "`r   [$bar] $percent% • Đã tìm thấy: $($adbIps.Count) loa   "
+        Write-Host -NoNewline "`r   [$bar] $percent% • Đã phát hiện: $($candidateIps.Count) thiết bị   "
         Start-Sleep -Milliseconds 50
     }
 
-    Write-Host -NoNewline "`r   [$('█' * 50)] 100% • Đã tìm thấy: $($adbIps.Count) loa   "
+    Write-Host -NoNewline "`r   [$('█' * 50)] 100% • Đã phát hiện: $($candidateIps.Count) thiết bị   "
     Write-Host ""
     Write-Host ""
 
-    foreach ($ip in $adbIps) {
+    foreach ($ip in $candidateIps) {
         if ($clients.ContainsKey($ip)) {
             try { $clients[$ip].Client.Close(0) } catch {}
             try { $clients[$ip].Close() } catch {}
         }
     }
-    [System.Threading.Tasks.Task]::Run([Action]{
-        foreach ($c in $clients.Values) {
-            try { $c.Close() } catch {}
-        }
-    }) | Out-Null
-
-    Start-Sleep -Milliseconds 300
-
-    $candidates = @(
-        (Join-Path $ScriptDir "adb.exe"),
-        (Join-Path $ScriptDir "src\adb.exe"),
-        "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe",
-        "$env:USERPROFILE\AppData\Local\Android\Sdk\platform-tools\adb.exe",
-        (Get-Command adb -ErrorAction SilentlyContinue).Source,
-        "C:\Windows\adb.exe"
-    )
-    $adbExe = $null
-    foreach ($cand in $candidates) {
-        if ($cand -and (Test-Path $cand)) { $adbExe = (Resolve-Path $cand).Path; break }
+    foreach ($c in $clients.Values) {
+        try {
+            if ($c.Client -ne $null) { $c.Client.Close(0) }
+        } catch {}
     }
 
     $FoundSpeakers = [System.Collections.Generic.List[object]]::new()
     $phicommDevices = @()
     $otherDevices = @()
+    $sortedCandidates = @($candidateIps | Sort-Object { [int]($_.Split('.')[3]) })
 
-    if ($adbIps.Count -gt 0) {
-        Write-Host "   Tìm thấy $($adbIps.Count) thiết bị, đang lấy thông tin..." -ForegroundColor Cyan
-        foreach ($ip in $adbIps) {
-            $endpoint = "$($ip):5555"
-            $model = ""
-            $hostname = ""
-            $androidVer = ""
+    if ($sortedCandidates.Count -gt 0) {
+        Write-Host "   Tìm thấy $($sortedCandidates.Count) ứng viên, đang xác thực và đánh thức ADB (5555)..." -ForegroundColor Cyan
+        foreach ($ip in $sortedCandidates) {
+            $has8080 = $true
+            $has5555 = Test-R1TcpPort -HostName $ip -Port 5555 -TimeoutMilliseconds 400
+            $has8081 = Test-R1TcpPort -HostName $ip -Port 8081 -TimeoutMilliseconds 400
+            $wsVerifiedR1 = Revive-Speaker -TargetIp $ip
 
-            if ($adbExe) {
-                & $adbExe start-server >$null 2>&1
-                $connRaw = (& $adbExe connect $endpoint 2>&1) -join "`n"
-                if ($connRaw -match "connected") {
-                    $model = ((& $adbExe -s $endpoint shell getprop ro.product.model 2>&1) -join "`n").Trim()
-                    $hostname = ((& $adbExe -s $endpoint shell getprop net.hostname 2>&1) -join "`n").Trim()
-                    $androidVer = ((& $adbExe -s $endpoint shell getprop ro.build.version.release 2>&1) -join "`n").Trim()
-                    & $adbExe disconnect $endpoint >$null 2>&1
-                }
+            if (-not $has5555 -and ($wsVerifiedR1 -or $has8081)) {
+                Start-Sleep -Milliseconds 500
+                $has5555 = Test-R1TcpPort -HostName $ip -Port 5555 -TimeoutMilliseconds 500
             }
 
+            if (-not $wsVerifiedR1 -and -not $has8081 -and -not $has5555) {
+                continue
+            }
+
+            $portLabels = @()
+            if ($has5555) { $portLabels += "ADB: 5555" }
+            if ($has8081) { $portLabels += "Web AI Box: 8081" }
+            if ($has8080) { $portLabels += "R1: 8080" }
+
+            $isPhicomm = $wsVerifiedR1 -or $has8081
             $devInfo = [PSCustomObject]@{
                 IP = $ip
-                Ports = "ADB: 5555"
-                Model = $model
-                Hostname = $hostname
-                Android = $androidVer
+                Ports = ($portLabels -join ", ")
+                Model = if ($isPhicomm) { "Phicomm R1" } else { "Android Device" }
+                Hostname = if ($isPhicomm) { "Phicomm_R1" } else { "" }
+                Android = if ($isPhicomm) { "5.1.1" } else { "" }
             }
 
-            $isPhicomm = ($model -match "(?i)r1|rk322x") -or ($hostname -match "(?i)phicomm_r1|r1")
             if ($isPhicomm) {
                 $phicommDevices += $devInfo
             } else {
@@ -469,6 +494,7 @@ function Scan-SpeakerIp {
         foreach ($dev in $phicommDevices) {
             Write-Host "   ┌─── Loa #$idx ──────────────────────────────────────────────────────" -ForegroundColor Green
             Write-Host "   │  📍 IP:         $($dev.IP)" -ForegroundColor Yellow
+            if ($dev.Ports)    { Write-Host "   │  🔌 Cổng mở:    $($dev.Ports)" -ForegroundColor Cyan }
             if ($dev.Hostname) { Write-Host "   │  🏷️  Hostname:   $($dev.Hostname)" -ForegroundColor White }
             if ($dev.Model)    { Write-Host "   │  📱 Model:      $($dev.Model)" -ForegroundColor White }
             if ($dev.Android)  { Write-Host "   │  🤖 Android:    $($dev.Android)" -ForegroundColor White }
@@ -477,7 +503,7 @@ function Scan-SpeakerIp {
             $idx++
         }
     } else {
-        Write-Host "   ⚠️  Không tìm thấy loa Phicomm R1." -ForegroundColor Yellow
+        Write-Host "   ⚠️  Không tìm thấy loa Phicomm R1 trên dải mạng $Subnet.0/24." -ForegroundColor Yellow
         Write-Host ""
     }
 
@@ -491,7 +517,7 @@ function Scan-SpeakerIp {
     }
 
     Write-Host "   ──────────────────────────────────────────────────────────────────" -ForegroundColor Gray
-    Write-Host "   Tổng số thiết bị:    $($adbIps.Count)" -ForegroundColor White
+    Write-Host "   Tổng số thiết bị:    $($FoundSpeakers.Count)" -ForegroundColor White
     Write-Host "   Loa Phicomm R1:      $($phicommDevices.Count)" -ForegroundColor White
     Write-Host "   ──────────────────────────────────────────────────────────────────" -ForegroundColor Gray
     Write-Host ""
@@ -502,6 +528,23 @@ function Scan-SpeakerIp {
         return @($phicommDevices)
     }
     return @($otherDevices)
+}
+
+function Scan-SpeakerIp {
+    param([string]$Subnet = "")
+    if (-not $Subnet) { $Subnet = Get-LocalSubnet }
+    $res = @(Scan-SingleSubnet -Subnet $Subnet)
+    if ($res.Count -eq 0 -and -not $Yes -and -not $RunScanCli) {
+        $customSub = Read-R1Input "   Nhập 3 cụm số đầu dải mạng WiFi nếu muốn quét dải khác (VD: 192.168.50, hoặc Enter để bỏ qua)"
+        $customSub = if ($customSub) { $customSub.Trim() } else { "" }
+        if ($customSub -match '^(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}$') {
+            $customSub = $Matches[1]
+        }
+        if ($customSub -match '^\d{1,3}\.\d{1,3}\.\d{1,3}$') {
+            $res = @(Scan-SingleSubnet -Subnet $customSub)
+        }
+    }
+    return @($res)
 }
 
 # 5. Tải và chuẩn bị 3 file APK từ GitHub

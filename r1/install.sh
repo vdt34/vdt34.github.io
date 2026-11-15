@@ -228,15 +228,56 @@ EOF
     return 1
 }
 
-# Đánh thức loa R1 qua cổng 8080/8081 (TCP + HTTP giống Revive-Speaker trong install.ps1)
+# Đánh thức loa R1 qua cổng 8080/8081 (WebSocket 8080 bật adbd + HTTP giống Revive-Speaker trong install.ps1)
 revive_speaker() {
     tip="$1"
     [ -z "$tip" ] && tip="192.168.43.1"
     [ "$R1_DRYRUN" = "1" ] && return 0
 
-    # Mở kết nối TCP trực tiếp tới 8080 và 8081 như TcpClient.BeginConnect trong install.ps1
-    test_tcp_port "$tip" 8080 1 >/dev/null 2>&1 || true
-    test_tcp_port "$tip" 8081 1 >/dev/null 2>&1 || true
+    if [ -n "$PY_BIN" ]; then
+        "$PY_BIN" - "$tip" << 'EOF' >/dev/null 2>&1 || true
+import sys, socket, base64, os, time
+
+ip = sys.argv[1]
+try:
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(1.2)
+    if s.connect_ex((ip, 8080)) == 0:
+        key = base64.b64encode(os.urandom(16)).decode()
+        req = (
+            f"GET / HTTP/1.1\r\n"
+            f"Host: {ip}:8080\r\n"
+            f"Upgrade: websocket\r\n"
+            f"Connection: Upgrade\r\n"
+            f"Sec-WebSocket-Key: {key}\r\n"
+            f"Sec-WebSocket-Version: 13\r\n\r\n"
+        )
+        s.sendall(req.encode())
+        resp = s.recv(1024)
+        if b"101" in resp:
+            payload = b'{"type":"shell","type_id":"myshell","shell":"setprop service.adb.tcp.port 5555; stop adbd; start adbd"}'
+            mask = os.urandom(4)
+            length = len(payload)
+            header = bytearray([0x81, 0x80 | length]) + mask
+            masked = bytearray(payload[i] ^ mask[i % 4] for i in range(length))
+            s.sendall(header + masked)
+            time.sleep(0.2)
+    s.close()
+except Exception:
+    pass
+EOF
+    fi
+
+    # Mở kết nối TCP & gửi gói WebSocket thô qua nc nếu không có Python
+    if command -v nc >/dev/null 2>&1; then
+        (
+            printf 'GET / HTTP/1.1\r\nHost: %s:8080\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n' "$tip"
+            sleep 0.2
+            # Masked WebSocket frame for: {"type":"shell","type_id":"myshell","shell":"setprop service.adb.tcp.port 5555; stop adbd; start adbd"} (mask = 0x00000000)
+            printf '\201\347\000\000\000\000{"type":"shell","type_id":"myshell","shell":"setprop service.adb.tcp.port 5555; stop adbd; start adbd"}'
+            sleep 0.2
+        ) | nc -w 1 "$tip" 8080 >/dev/null 2>&1 || true
+    fi
 
     # Gửi thêm HTTP request đánh thức dịch vụ trên loa
     if command -v curl >/dev/null 2>&1; then
@@ -251,38 +292,92 @@ revive_speaker() {
 # ------------------------------------------------------------------------------
 # 3. HÀM DÒ TÌM DẢI MẠNG LAN & QUÉT LOA PHICOMM R1 (TƯƠNG ĐỒNG Scan-SpeakerIp)
 # ------------------------------------------------------------------------------
+decode_proc_hex_ip() {
+    hex_ip="$1"
+    [ "${#hex_ip}" -eq 8 ] || return 1
+    b1=$(printf '%d' "0x$(printf '%s' "$hex_ip" | cut -c 7-8)" 2>/dev/null)
+    b2=$(printf '%d' "0x$(printf '%s' "$hex_ip" | cut -c 5-6)" 2>/dev/null)
+    b3=$(printf '%d' "0x$(printf '%s' "$hex_ip" | cut -c 3-4)" 2>/dev/null)
+    b4=$(printf '%d' "0x$(printf '%s' "$hex_ip" | cut -c 1-2)" 2>/dev/null)
+    if [ -n "$b1" ] && [ -n "$b2" ] && [ -n "$b3" ] && [ "$b1" != "127" ] && [ "$b1" != "0" ] && [ "$b1" != "169" ]; then
+        echo "${b1}.${b2}.${b3}"
+        return 0
+    fi
+    return 1
+}
+
 detect_subnet() {
     sub=""
-    if command -v ip >/dev/null 2>&1; then
-        sub=$(ip -4 addr show 2>/dev/null | grep -oE 'inet [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | awk '{print $2}' | grep -vE '^(127\.|169\.254\.)' | head -n 1 | awk -F'.' '{print $1"."$2"."$3}')
+
+    # 1. Nếu có Python: dùng UDP socket connect 8.8.8.8:80 để lấy chính xác IP LAN đang ra Internet
+    if [ -n "$PY_BIN" ]; then
+        sub=$("$PY_BIN" - << 'EOF' 2>/dev/null
+import socket
+try:
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))
+    ip = s.getsockname()[0]
+    s.close()
+    p = ip.split(".")
+    if len(p) == 4 and p[0] not in ("127", "0", "169"):
+        print(f"{p[0]}.{p[1]}.{p[2]}")
+except Exception:
+    pass
+EOF
+)
+    fi
+
+    # 2. Dùng ip route get 8.8.8.8 (Linux / Android)
+    if [ -z "$sub" ] && command -v ip >/dev/null 2>&1; then
+        sub=$(ip -4 route get 8.8.8.8 2>/dev/null | grep -oE 'src [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | awk '{print $2}' | head -n 1 | awk -F'.' '{print $1"."$2"."$3}')
         if [ -z "$sub" ]; then
-            sub=$(ip -4 route show default 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="via") print $(i+1)}' | head -n 1 | awk -F'.' '{print $1"."$2"."$3}')
+            sub=$(ip -4 addr show 2>/dev/null | grep -oE 'inet [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | awk '{print $2}' | grep -vE '^(127\.|169\.254\.|172\.1[6-9]\.|172\.2[0-9]\.|172\.3[0-1]\.)' | head -n 1 | awk -F'.' '{print $1"."$2"."$3}')
         fi
     fi
+
+    # 3. Dùng ifconfig (macOS / BSD / Linux)
     if [ -z "$sub" ] && command -v ifconfig >/dev/null 2>&1; then
-        sub=$(ifconfig 2>/dev/null | grep -oE 'inet (addr:)?[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | grep -vE '^(127\.|169\.254\.)' | head -n 1 | awk -F'.' '{print $1"."$2"."$3}')
+        sub=$(ifconfig 2>/dev/null | grep -oE 'inet (addr:)?[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | grep -vE '^(127\.|169\.254\.|172\.1[6-9]\.|172\.2[0-9]\.|172\.3[0-1]\.)' | head -n 1 | awk -F'.' '{print $1"."$2"."$3}')
     fi
+
+    # 4. Đặc trị cho iSH trên iOS (không có ip addr / ifconfig nhưng có /proc/net/tcp):
+    # Mở 1 kết nối TCP ngắn tới 1.1.1.1:80 hoặc 8.8.8.8:53 rồi đọc địa chỉ local_address từ /proc/net/tcp
+    if [ -z "$sub" ] && [ -r /proc/net/tcp ]; then
+        if command -v curl >/dev/null 2>&1; then
+            curl -s -m 2 --connect-timeout 2 "http://1.1.1.1/" >/dev/null 2>&1 &
+            probe_pid=$!
+        elif command -v nc >/dev/null 2>&1; then
+            nc -w 2 8.8.8.8 53 >/dev/null 2>&1 &
+            probe_pid=$!
+        fi
+        sleep 0.3 2>/dev/null || sleep 1
+        for hex_candidate in $(awk 'NR>1 {split($2,a,":"); print a[1]}' /proc/net/tcp /proc/net/udp 2>/dev/null); do
+            decoded=$(decode_proc_hex_ip "$hex_candidate")
+            if [ -n "$decoded" ]; then
+                sub="$decoded"
+                break
+            fi
+        done
+        [ -n "${probe_pid:-}" ] && kill "$probe_pid" >/dev/null 2>&1 || true
+    fi
+
+    # 5. Dùng route -n
     if [ -z "$sub" ] && command -v route >/dev/null 2>&1; then
         sub=$(route -n 2>/dev/null | grep -E '^0\.0\.0\.0' | awk '{print $2}' | head -n 1 | awk -F'.' '{print $1"."$2"."$3}')
     fi
+
     [ -z "$sub" ] && sub="192.168.1"
     echo "$sub"
 }
 
-scan_speaker_ip() {
+scan_single_subnet() {
     sub="$1"
-    [ -z "$sub" ] && sub=$(detect_subnet)
-    echo ""
+    scan_tmp="$2"
     printf '%s>> Đang quét tự động dải mạng LAN (%s.1 -> 254) tìm loa Phicomm R1...%s\n' "$C_CYAN" "$sub" "$C_RESET"
 
-    scan_tmp="/tmp/r1_scan_$$"
-    rm -rf "$scan_tmp" 2>/dev/null || true
-    mkdir -p "$scan_tmp"
-
-    # Nếu có mạng ARP cache sẵn trên máy, đọc nhanh để ưu tiên kiểm tra trước
     if [ -n "$PY_BIN" ]; then
-        "$PY_BIN" - "$sub" << 'EOF' > "$scan_tmp/result.txt" 2>/dev/null || true
-import sys, socket
+        "$PY_BIN" - "$sub" << 'EOF' >> "$scan_tmp/result.txt" 2>/dev/null || true
+import sys, socket, base64, os, time
 from concurrent.futures import ThreadPoolExecutor
 
 prefix = sys.argv[1]
@@ -300,9 +395,35 @@ def check_port(ip, port, timeout=0.45):
         except Exception:
             pass
 
+def wake_adb_ws(ip):
+    woke = False
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(1.0)
+        if s.connect_ex((ip, 8080)) == 0:
+            key = base64.b64encode(os.urandom(16)).decode()
+            req = (
+                f"GET / HTTP/1.1\r\nHost: {ip}:8080\r\n"
+                f"Upgrade: websocket\r\nConnection: Upgrade\r\n"
+                f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n"
+            )
+            s.sendall(req.encode())
+            if b"101" in s.recv(1024):
+                woke = True
+                payload = b'{"type":"shell","type_id":"myshell","shell":"setprop service.adb.tcp.port 5555; stop adbd; start adbd"}'
+                mask = os.urandom(4)
+                header = bytearray([0x81, 0x80 | len(payload)]) + mask
+                masked = bytearray(payload[i] ^ mask[i % 4] for i in range(len(payload)))
+                s.sendall(header + masked)
+                time.sleep(0.35)
+        s.close()
+    except Exception:
+        pass
+    return woke
+
 def probe_candidate(i):
     ip = f"{prefix}.{i}"
-    if check_port(ip, 5555, 0.5) or check_port(ip, 8080, 0.5) or check_port(ip, 8081, 0.5):
+    if check_port(ip, 8080, 0.3) or check_port(ip, 5555, 0.3):
         return ip
     return None
 
@@ -316,19 +437,13 @@ for cand in candidates:
     has5555 = check_port(cand, 5555, 0.4)
     has8080 = check_port(cand, 8080, 0.4)
     has8081 = check_port(cand, 8081, 0.4)
+    ws_ok = False
     if not has5555 and (has8080 or has8081):
-        # Đánh thức cổng ADB nếu loa đang mở 8080/8081
-        for p in (8080, 8081):
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.settimeout(0.5)
-                if s.connect_ex((cand, p)) == 0:
-                    s.sendall(b"GET / HTTP/1.0\r\n\r\n")
-                s.close()
-            except Exception:
-                pass
-        has5555 = check_port(cand, 5555, 0.5)
-    if has5555 or (has8080 and has8081) or has8080:
+        ws_ok = wake_adb_ws(cand)
+        has5555 = check_port(cand, 5555, 0.6)
+    elif has8080:
+        ws_ok = wake_adb_ws(cand)
+    if has5555 or has8081 or ws_ok:
         ports = []
         if has5555:
             ports.append("ADB: 5555")
@@ -338,61 +453,81 @@ for cand in candidates:
             ports.append("R1: 8080")
         print(f"{cand}|({', '.join(ports)})")
 EOF
+        return 0
     fi
 
     # Fallback thuần shell (dành cho iSH / Alpine không có Python)
-    if [ ! -s "$scan_tmp/result.txt" ]; then
-        idx=1
-        while [ "$idx" -le 254 ]; do
-            bend=$((idx + 42))
-            [ "$bend" -gt 254 ] && bend=254
-            i="$idx"
-            while [ "$i" -le "$bend" ]; do
-                (
-                    target="${sub}.${i}"
-                    has5555=0
-                    has8080=0
-                    has8081=0
+    rm -f "$scan_tmp/raw.txt" 2>/dev/null || true
+    idx=1
+    while [ "$idx" -le 254 ]; do
+        bend=$((idx + 63))
+        [ "$bend" -gt 254 ] && bend=254
+        i="$idx"
+        while [ "$i" -le "$bend" ]; do
+            (
+                target="${sub}.${i}"
+                has5555=0
+                has8080=0
+                has8081=0
 
-                    if test_tcp_port "$target" 5555 1; then
-                        has5555=1
+                # Kiểm tra nhanh cổng 8080 (luôn mở trên mọi loa R1) để quét toàn dải chỉ mất ~4 giây trên iSH
+                if test_tcp_port "$target" 8080 1; then
+                    has8080=1
+                fi
+
+                if [ "$has8080" = "1" ] || [ "$has5555" = "1" ] || [ "$has8081" = "1" ]; then
+                    [ "$has5555" = "0" ] && test_tcp_port "$target" 5555 1 && has5555=1
+                    [ "$has8081" = "0" ] && test_tcp_port "$target" 8081 1 && has8081=1
+                    if [ "$has5555" = "0" ] && [ "$has8080" = "1" ]; then
+                        revive_speaker "$target"
+                        test_tcp_port "$target" 5555 1 && has5555=1
                     fi
-                    if test_tcp_port "$target" 8080 1; then
-                        has8080=1
+                    ports=""
+                    if [ "$has5555" = "1" ]; then
+                        ports="ADB: 5555"
                     fi
-                    if [ "$has5555" = "1" ] || [ "$has8080" = "1" ]; then
-                        if test_tcp_port "$target" 8081 1; then
-                            has8081=1
-                        fi
-                        if [ "$has5555" = "0" ] && [ "$has8080" = "1" ]; then
-                            revive_speaker "$target"
-                            if test_tcp_port "$target" 5555 1; then
-                                has5555=1
-                            fi
-                        fi
-                        ports=""
-                        if [ "$has5555" = "1" ]; then
-                            ports="ADB: 5555"
-                        fi
-                        if [ "$has8081" = "1" ]; then
-                            [ -n "$ports" ] && ports="$ports, "
-                            ports="${ports}Web AI Box: 8081"
-                        fi
-                        if [ "$has8080" = "1" ]; then
-                            [ -n "$ports" ] && ports="$ports, "
-                            ports="${ports}R1: 8080"
-                        fi
-                        printf '%03d|%s|(%s)\n' "$i" "$target" "$ports" >> "$scan_tmp/raw.txt"
+                    if [ "$has8081" = "1" ]; then
+                        [ -n "$ports" ] && ports="$ports, "
+                        ports="${ports}Web AI Box: 8081"
                     fi
-                ) &
-                i=$((i + 1))
-            done
-            wait
-            idx=$((bend + 1))
+                    if [ "$has8080" = "1" ]; then
+                        [ -n "$ports" ] && ports="$ports, "
+                        ports="${ports}R1: 8080"
+                    fi
+                    printf '%03d|%s|(%s)\n' "$i" "$target" "$ports" >> "$scan_tmp/raw.txt"
+                fi
+            ) &
+            i=$((i + 1))
         done
+        wait
+        idx=$((bend + 1))
+    done
 
-        if [ -f "$scan_tmp/raw.txt" ]; then
-            sort "$scan_tmp/raw.txt" | awk -F'|' '{print $2"|"$3}' > "$scan_tmp/result.txt"
+    if [ -f "$scan_tmp/raw.txt" ]; then
+        sort "$scan_tmp/raw.txt" | awk -F'|' '{print $2"|"$3}' >> "$scan_tmp/result.txt"
+    fi
+}
+
+scan_speaker_ip() {
+    sub="$1"
+    [ -z "$sub" ] && sub=$(detect_subnet)
+    echo ""
+
+    scan_tmp="/tmp/r1_scan_$$"
+    rm -rf "$scan_tmp" 2>/dev/null || true
+    mkdir -p "$scan_tmp"
+
+    scan_single_subnet "$sub" "$scan_tmp"
+
+    # Nếu chưa tìm thấy trên dải mạng đầu tiên và không chạy chế độ tự động (-y),
+    # cho phép người dùng nhập dải mạng (hoặc IP mẫu) để quét đúng lớp mạng mong muốn
+    if [ ! -s "$scan_tmp/result.txt" ] && [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
+        printf '%s   [!] Không tìm thấy loa ở dải %s.0/24.%s\n' "$C_YELLOW" "$sub" "$C_RESET"
+        custom_sub=$(read_val "   Nhập 3 số đầu dải mạng WiFi của bạn (VD: 192.168.50) hoặc Enter để bỏ qua: " "")
+        custom_sub=$(printf '%s' "$custom_sub" | awk -F'.' '{if (NF>=3) print $1"."$2"."$3}')
+        if [ -n "$custom_sub" ] && [ "$custom_sub" != "$sub" ]; then
+            sub="$custom_sub"
+            scan_single_subnet "$sub" "$scan_tmp"
         fi
     fi
 
