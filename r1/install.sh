@@ -376,135 +376,109 @@ scan_single_subnet() {
     printf '%s>> Đang quét tự động dải mạng LAN (%s.1 -> 254) tìm loa Phicomm R1...%s\n' "$C_CYAN" "$sub" "$C_RESET"
 
     if [ -n "$PY_BIN" ]; then
-        "$PY_BIN" - "$sub" << 'EOF' >> "$scan_tmp/result.txt" 2>/dev/null || true
-import sys, socket, base64, os, time
+        "$PY_BIN" - "$sub" << 'EOF' >> "$scan_tmp/adb_ips.txt" 2>/dev/null || true
+import sys, socket
 from concurrent.futures import ThreadPoolExecutor
 
 prefix = sys.argv[1]
 
-def check_port(ip, port, timeout=0.45):
+def probe_5555(i):
+    ip = f"{prefix}.{i}"
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.settimeout(timeout)
+    s.settimeout(0.45)
     try:
-        return s.connect_ex((ip, port)) == 0
+        if s.connect_ex((ip, 5555)) == 0:
+            return ip
     except Exception:
-        return False
+        pass
     finally:
         try:
             s.close()
         except Exception:
             pass
-
-def wake_adb_ws(ip):
-    woke = False
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(1.0)
-        if s.connect_ex((ip, 8080)) == 0:
-            key = base64.b64encode(os.urandom(16)).decode()
-            req = (
-                f"GET / HTTP/1.1\r\nHost: {ip}:8080\r\n"
-                f"Upgrade: websocket\r\nConnection: Upgrade\r\n"
-                f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n"
-            )
-            s.sendall(req.encode())
-            if b"101" in s.recv(1024):
-                woke = True
-                payload = b'{"type":"shell","type_id":"myshell","shell":"setprop service.adb.tcp.port 5555; stop adbd; start adbd"}'
-                mask = os.urandom(4)
-                header = bytearray([0x81, 0x80 | len(payload)]) + mask
-                masked = bytearray(payload[i] ^ mask[i % 4] for i in range(len(payload)))
-                s.sendall(header + masked)
-                time.sleep(0.35)
-        s.close()
-    except Exception:
-        pass
-    return woke
-
-def probe_candidate(i):
-    ip = f"{prefix}.{i}"
-    if check_port(ip, 8080, 0.3) or check_port(ip, 5555, 0.3):
-        return ip
     return None
 
-candidates = []
 with ThreadPoolExecutor(max_workers=64) as ex:
-    for res in ex.map(probe_candidate, range(1, 255)):
+    for res in ex.map(probe_5555, range(1, 255)):
         if res:
-            candidates.append(res)
-
-for cand in candidates:
-    has5555 = check_port(cand, 5555, 0.4)
-    has8080 = check_port(cand, 8080, 0.4)
-    has8081 = check_port(cand, 8081, 0.4)
-    ws_ok = False
-    if not has5555 and (has8080 or has8081):
-        ws_ok = wake_adb_ws(cand)
-        has5555 = check_port(cand, 5555, 0.6)
-    elif has8080:
-        ws_ok = wake_adb_ws(cand)
-    if has5555 or has8081 or ws_ok:
-        ports = []
-        if has5555:
-            ports.append("ADB: 5555")
-        if has8081:
-            ports.append("Web AI Box: 8081")
-        if has8080:
-            ports.append("R1: 8080")
-        print(f"{cand}|({', '.join(ports)})")
+            print(res)
 EOF
-        return 0
+    else
+        # Fallback thuần shell (dành cho iSH / Alpine không có Python)
+        rm -f "$scan_tmp/raw.txt" 2>/dev/null || true
+        idx=1
+        while [ "$idx" -le 254 ]; do
+            bend=$((idx + 63))
+            [ "$bend" -gt 254 ] && bend=254
+            i="$idx"
+            while [ "$i" -le "$bend" ]; do
+                (
+                    target="${sub}.${i}"
+                    if test_tcp_port "$target" 5555 1; then
+                        printf '%03d|%s\n' "$i" "$target" >> "$scan_tmp/raw.txt"
+                    fi
+                ) &
+                i=$((i + 1))
+            done
+            wait
+            idx=$((bend + 1))
+        done
+
+        if [ -f "$scan_tmp/raw.txt" ]; then
+            sort "$scan_tmp/raw.txt" | awk -F'|' '{print $2}' >> "$scan_tmp/adb_ips.txt"
+        fi
     fi
 
-    # Fallback thuần shell (dành cho iSH / Alpine không có Python)
-    rm -f "$scan_tmp/raw.txt" 2>/dev/null || true
-    idx=1
-    while [ "$idx" -le 254 ]; do
-        bend=$((idx + 63))
-        [ "$bend" -gt 254 ] && bend=254
-        i="$idx"
-        while [ "$i" -le "$bend" ]; do
-            (
-                target="${sub}.${i}"
-                has5555=0
-                has8080=0
-                has8081=0
+    # Kiểm chứng thực tế từng thiết bị mở cổng 5555 bằng ADB getprop (giống hệt install.ps1)
+    if [ -s "$scan_tmp/adb_ips.txt" ]; then
+        if ! command -v adb >/dev/null 2>&1; then
+            ensure_adb >/dev/null 2>&1 || true
+        fi
+        if command -v adb >/dev/null 2>&1; then
+            adb start-server >/dev/null 2>&1 || true
+        fi
 
-                # Kiểm tra nhanh cổng 8080 (luôn mở trên mọi loa R1) để quét toàn dải chỉ mất ~4 giây trên iSH
-                if test_tcp_port "$target" 8080 1; then
-                    has8080=1
-                fi
+        while IFS= read -r cand_ip || [ -n "$cand_ip" ]; do
+            cand_ip=$(printf '%s' "$cand_ip" | tr -d ' \r\n')
+            [ -z "$cand_ip" ] && continue
+            h_name=""
+            m_name=""
+            a_ver=""
+            if command -v adb >/dev/null 2>&1; then
+                adb connect "$cand_ip:5555" >/dev/null 2>&1 || true
+                m_name=$(adb -s "$cand_ip:5555" shell getprop ro.product.model 2>/dev/null | tr -d '\r\n')
+                h_name=$(adb -s "$cand_ip:5555" shell getprop net.hostname 2>/dev/null | tr -d '\r\n')
+                a_ver=$(adb -s "$cand_ip:5555" shell getprop ro.build.version.release 2>/dev/null | tr -d '\r\n')
+                adb disconnect "$cand_ip:5555" >/dev/null 2>&1 || true
+            fi
 
-                if [ "$has8080" = "1" ] || [ "$has5555" = "1" ] || [ "$has8081" = "1" ]; then
-                    [ "$has5555" = "0" ] && test_tcp_port "$target" 5555 1 && has5555=1
-                    [ "$has8081" = "0" ] && test_tcp_port "$target" 8081 1 && has8081=1
-                    if [ "$has5555" = "0" ] && [ "$has8080" = "1" ]; then
-                        revive_speaker "$target"
-                        test_tcp_port "$target" 5555 1 && has5555=1
-                    fi
-                    ports=""
-                    if [ "$has5555" = "1" ]; then
-                        ports="ADB: 5555"
-                    fi
-                    if [ "$has8081" = "1" ]; then
-                        [ -n "$ports" ] && ports="$ports, "
-                        ports="${ports}Web AI Box: 8081"
-                    fi
-                    if [ "$has8080" = "1" ]; then
-                        [ -n "$ports" ] && ports="$ports, "
-                        ports="${ports}R1: 8080"
-                    fi
-                    printf '%03d|%s|(%s)\n' "$i" "$target" "$ports" >> "$scan_tmp/raw.txt"
-                fi
-            ) &
-            i=$((i + 1))
-        done
-        wait
-        idx=$((bend + 1))
-    done
+            check_str=$(printf '%s %s' "$m_name" "$h_name" | tr 'A-Z' 'a-z')
+            is_verified_r1=0
+            case "$check_str" in
+                *r1*|*rk322x*|*phicomm*)
+                    is_verified_r1=1
+                    ;;
+            esac
 
-    if [ -f "$scan_tmp/raw.txt" ]; then
-        sort "$scan_tmp/raw.txt" | awk -F'|' '{print $2"|"$3}' >> "$scan_tmp/result.txt"
+            # Nếu getprop qua ADB chưa trả về chuỗi (ví dụ trên iSH), kiểm chứng giao thức WebSocket 101 cổng 8080 của R1
+            if [ "$is_verified_r1" = "0" ] && command -v nc >/dev/null 2>&1; then
+                ws_hdr=$(printf 'GET / HTTP/1.1\r\nHost: %s:8080\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n' "$cand_ip" | nc -w 1 "$cand_ip" 8080 2>/dev/null | head -n 1 | tr -d '\r\n')
+                case "$ws_hdr" in
+                    *101*)
+                        is_verified_r1=1
+                        [ -z "$m_name" ] && m_name="Phicomm R1"
+                        [ -z "$h_name" ] && h_name="Phicomm_R1"
+                        [ -z "$a_ver" ] && a_ver="5.1.1"
+                        ;;
+                esac
+            fi
+
+            if [ "$is_verified_r1" = "1" ]; then
+                printf '%s|(ADB: 5555)|%s|%s|%s\n' "$cand_ip" "$h_name" "$m_name" "$a_ver" >> "$scan_tmp/result.txt"
+            else
+                printf '%s|%s\n' "$cand_ip" "${m_name:-Unknown}" >> "$scan_tmp/other.txt"
+            fi
+        done < "$scan_tmp/adb_ips.txt"
     fi
 }
 
@@ -519,21 +493,14 @@ scan_speaker_ip() {
 
     scan_single_subnet "$sub" "$scan_tmp"
 
-    # Nếu chưa tìm thấy trên dải mạng đầu tiên và không chạy chế độ tự động (-y),
-    # cho phép người dùng nhập dải mạng (hoặc IP mẫu) để quét đúng lớp mạng mong muốn
-    if [ ! -s "$scan_tmp/result.txt" ] && [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
-        printf '%s   [!] Không tìm thấy loa ở dải %s.0/24.%s\n' "$C_YELLOW" "$sub" "$C_RESET"
-        custom_sub=$(read_val "   Nhập 3 số đầu dải mạng WiFi của bạn (VD: 192.168.50) hoặc Enter để bỏ qua: " "")
-        custom_sub=$(printf '%s' "$custom_sub" | awk -F'.' '{if (NF>=3) print $1"."$2"."$3}')
-        if [ -n "$custom_sub" ] && [ "$custom_sub" != "$sub" ]; then
-            sub="$custom_sub"
-            scan_single_subnet "$sub" "$scan_tmp"
-        fi
+    TOTAL_ADB=0
+    if [ -s "$scan_tmp/adb_ips.txt" ]; then
+        TOTAL_ADB=$(grep -c '[0-9]' "$scan_tmp/adb_ips.txt" 2>/dev/null || echo 0)
     fi
 
     TOTAL_FOUND=0
     if [ -s "$scan_tmp/result.txt" ]; then
-        while IFS='|' read -r ip_val port_info || [ -n "$ip_val" ]; do
+        while IFS='|' read -r ip_val port_info h_name m_name a_ver || [ -n "$ip_val" ]; do
             ip_val=$(printf '%s' "$ip_val" | tr -d ' \r\n')
             port_info=$(printf '%s' "$port_info" | tr -d '\r\n')
             [ -z "$ip_val" ] && continue
@@ -552,27 +519,28 @@ scan_speaker_ip() {
         printf '%s   ✅ Tìm thấy %s loa Phicomm R1:%s\n' "$C_GREEN" "$TOTAL_FOUND" "$C_RESET"
         echo ""
         d_idx=1
-        while IFS='|' read -r s_ip s_ports || [ -n "$s_ip" ]; do
+        while IFS='|' read -r s_ip s_ports h_name m_name a_ver || [ -n "$s_ip" ]; do
             s_ip=$(printf '%s' "$s_ip" | tr -d ' \r\n')
             [ -z "$s_ip" ] && continue
             printf '%s   ┌─── Loa #%s ──────────────────────────────────────────────────────%s\n' "$C_GREEN" "$d_idx" "$C_RESET"
             printf '%s   │  📍 IP:         %s%s\n' "$C_YELLOW" "$s_ip" "$C_RESET"
-            if command -v adb >/dev/null 2>&1; then
-                adb connect "$s_ip:5555" >/dev/null 2>&1 || true
-                h_name=$(adb -s "$s_ip:5555" shell getprop net.hostname 2>/dev/null | tr -d ' \r\n')
-                m_name=$(adb -s "$s_ip:5555" shell getprop ro.product.model 2>/dev/null | tr -d ' \r\n')
-                a_ver=$(adb -s "$s_ip:5555" shell getprop ro.build.version.release 2>/dev/null | tr -d ' \r\n')
-                adb disconnect "$s_ip:5555" >/dev/null 2>&1 || true
-                [ -n "$h_name" ] && printf '   │  🏷️  Hostname:   %s\n' "$h_name"
-                [ -n "$m_name" ] && printf '   │  📱 Model:      %s\n' "$m_name"
-                [ -n "$a_ver" ] && printf '   │  🤖 Android:    %s\n' "$a_ver"
-            fi
+            [ -n "$h_name" ] && printf '   │  🏷️  Hostname:   %s\n' "$h_name"
+            [ -n "$m_name" ] && printf '   │  📱 Model:      %s\n' "$m_name"
+            [ -n "$a_ver" ] && printf '   │  🤖 Android:    %s\n' "$a_ver"
             printf '%s   └────────────────────────────────────────────────────────────────%s\n' "$C_GREEN" "$C_RESET"
             echo ""
             d_idx=$((d_idx + 1))
         done < "$scan_tmp/result.txt"
+        if [ -s "$scan_tmp/other.txt" ]; then
+            other_cnt=$(grep -c '[0-9]' "$scan_tmp/other.txt" 2>/dev/null || echo 0)
+            printf '%s   ℹ️  Tìm thấy %s thiết bị khác có ADB:%s\n' "$C_YELLOW" "$other_cnt" "$C_RESET"
+            while IFS='|' read -r o_ip o_model || [ -n "$o_ip" ]; do
+                printf '      • %s - %s\n' "$o_ip" "$o_model"
+            done < "$scan_tmp/other.txt"
+            echo ""
+        fi
         printf '%s   ──────────────────────────────────────────────────────────────────%s\n' "$C_GRAY" "$C_RESET"
-        printf '   Tổng số thiết bị:    %s\n' "$TOTAL_FOUND"
+        printf '   Tổng số thiết bị:    %s\n' "$TOTAL_ADB"
         printf '   Loa Phicomm R1:      %s\n' "$TOTAL_FOUND"
         printf '%s   ──────────────────────────────────────────────────────────────────%s\n' "$C_GRAY" "$C_RESET"
         echo ""
@@ -580,7 +548,7 @@ scan_speaker_ip() {
         echo ""
     else
         echo ""
-        printf '%s   ⚠️  Không tìm thấy loa Phicomm R1 trong mạng LAN.%s\n' "$C_YELLOW" "$C_RESET"
+        printf '%s   ⚠️  Không tìm thấy loa Phicomm R1 trong mạng LAN (%s.0/24).%s\n' "$C_YELLOW" "$sub" "$C_RESET"
         echo ""
     fi
 }
