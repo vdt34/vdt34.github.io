@@ -1,5 +1,10 @@
 ﻿[
     {
+        "version":  "1.1.1",
+        "date":  "2026-11-15",
+        "description":  "Mở lại và nâng cấp toàn diện tính năng TikTok Live Reply: bổ sung cài đặt kênh TikTok \u0026 Server URL tùy chỉnh trong Web UI, hỗ trợ điều khiển HTTP POST khi bật/tắt (tương thích máy chủ crawler riêng) và lệnh WebSocket tiktok_chat để AI đọc và trả lời bình luận livestream theo thời gian thực."
+    },
+    {
         "version":  "1.1.0",
         "date":  "2026-11-15",
         "description":  "Bổ sung cơ chế Tự động cập nhật ngầm trong im lặng (Silent Auto-OTA): tự động tải trước APK khi có bản mới trên GitHub và tự cài đặt ngầm + khởi động lại ứng dụng (am start) khi loa rảnh trong khung giờ đêm (02:00 - 05:00 sáng) hoặc ngay khi vừa bật loa."
@@ -7,7 +12,7 @@
     {
         "version":  "1.0.9",
         "date":  "2026-11-14",
-        "description":  "Bổ sung bộ điều phối lệnh văn bản thông minh (TextCommandDispatcher) cho khung chat Web UI: hỗ trợ phát/tìm nhạc YouTube & Zing trực tiếp, điều khiển nhà thông minh (Home Assistant) và trả lời trọn vẹn các câu hỏi phức hợp dài (Chào buổi sáng + Dự báo thời tiết 63 tỉnh thành + Tin tức mới nhất trong ngày); chuẩn hóa hiển thị tiếng Việt cho các kênh Radio VOV."
+        "description":  "Bổ sung bộ điều phối lệnh văn bản thông minh (TextCommandDispatcher) cho khung chat Web UI: hỗ trợ phát/tìm nhạc YouTube \u0026 Zing trực tiếp, điều khiển nhà thông minh (Home Assistant) và trả lời trọn vẹn các câu hỏi phức hợp dài (Chào buổi sáng + Dự báo thời tiết 63 tỉnh thành + Tin tức mới nhất trong ngày); chuẩn hóa hiển thị tiếng Việt cho các kênh Radio VOV."
     },
     {
         "version":  "1.0.8",
