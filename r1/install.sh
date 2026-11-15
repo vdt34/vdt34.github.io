@@ -309,8 +309,19 @@ decode_proc_hex_ip() {
 detect_subnet() {
     sub=""
 
-    # 1. Nếu có Python: dùng UDP socket connect 8.8.8.8:80 để lấy chính xác IP LAN đang ra Internet
-    if [ -n "$PY_BIN" ]; then
+    # 1. Dùng curl %{local_ip} (Chuẩn xác 100% trên mọi hệ điều hành, đặc biệt là iSH iOS nơi không có /proc/net hay ip route)
+    if command -v curl >/dev/null 2>&1; then
+        lip=$(curl -s -w "%{local_ip}" -o /dev/null --connect-timeout 2 --max-time 3 "http://1.1.1.1/" 2>/dev/null || true)
+        if [ -z "$lip" ] || [ "$lip" = "0.0.0.0" ] || [ "$lip" = "127.0.0.1" ]; then
+            lip=$(curl -s -w "%{local_ip}" -o /dev/null --connect-timeout 3 --max-time 4 "https://vdt34.github.io/r1/version.json" 2>/dev/null || true)
+        fi
+        if [ -n "$lip" ]; then
+            sub=$(printf '%s' "$lip" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | grep -vE '^(127\.|0\.|169\.254\.)' | awk -F'.' '{print $1"."$2"."$3}')
+        fi
+    fi
+
+    # 2. Nếu có Python: dùng UDP socket connect 8.8.8.8:80 để lấy chính xác IP LAN đang ra Internet
+    if [ -z "$sub" ] && [ -n "$PY_BIN" ]; then
         sub=$("$PY_BIN" - << 'EOF' 2>/dev/null
 import socket
 try:
@@ -461,6 +472,17 @@ EOF
             esac
 
             # Nếu getprop qua ADB chưa trả về chuỗi (ví dụ trên iSH), kiểm chứng giao thức WebSocket 101 cổng 8080 của R1
+            if [ "$is_verified_r1" = "0" ] && command -v curl >/dev/null 2>&1; then
+                ws_hdr=$(curl -i -s -m 1 --connect-timeout 1 -H "Upgrade: websocket" -H "Connection: Upgrade" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" -H "Sec-WebSocket-Version: 13" "http://$cand_ip:8080/" 2>/dev/null | head -n 1 | tr -d '\r\n')
+                case "$ws_hdr" in
+                    *101*)
+                        is_verified_r1=1
+                        [ -z "$m_name" ] && m_name="Phicomm R1"
+                        [ -z "$h_name" ] && h_name="Phicomm_R1"
+                        [ -z "$a_ver" ] && a_ver="5.1.1"
+                        ;;
+                esac
+            fi
             if [ "$is_verified_r1" = "0" ] && command -v nc >/dev/null 2>&1; then
                 ws_hdr=$(printf 'GET / HTTP/1.1\r\nHost: %s:8080\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n' "$cand_ip" | nc -w 1 "$cand_ip" 8080 2>/dev/null | head -n 1 | tr -d '\r\n')
                 case "$ws_hdr" in
