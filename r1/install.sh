@@ -211,14 +211,14 @@ EOF
     fi
 
     if command -v nc >/dev/null 2>&1; then
-        nc -z -w "$timeout_sec" "$host" "$port" </dev/null >/dev/null 2>&1 && return 0
-        nc -w "$timeout_sec" "$host" "$port" </dev/null >/dev/null 2>&1 && return 0
+        nc -z -w "$timeout_sec" "$host" "$port" </dev/null >/dev/null 2>&1
+        return $?
     fi
 
     if command -v curl >/dev/null 2>&1; then
         # Với curl: mã 0 (HTTP OK), 52 (Empty reply - như cổng ADB 5555), 56 (Recv failure sau khi đã TCP connect),
         # hoặc 1 (Unsupported protocol từ banner ADB) đều chứng tỏ cổng TCP đang MỞ!
-        curl -s -m "$timeout_sec" --connect-timeout "$timeout_sec" -o /dev/null "http://$host:$port/" 2>/dev/null
+        curl -s -m "$timeout_sec" --connect-timeout "$timeout_sec" -o /dev/null "http://$host:$port/" </dev/null 2>/dev/null
         rc=$?
         case "$rc" in
             0|1|52|56) return 0 ;;
@@ -393,12 +393,12 @@ from concurrent.futures import ThreadPoolExecutor
 
 prefix = sys.argv[1]
 
-def probe_5555(i):
+def probe_cand(i):
     ip = f"{prefix}.{i}"
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.settimeout(0.45)
+    s.settimeout(0.5)
     try:
-        if s.connect_ex((ip, 5555)) == 0:
+        if s.connect_ex((ip, 8080)) == 0:
             return ip
     except Exception:
         pass
@@ -410,22 +410,23 @@ def probe_5555(i):
     return None
 
 with ThreadPoolExecutor(max_workers=64) as ex:
-    for res in ex.map(probe_5555, range(1, 255)):
+    for res in ex.map(probe_cand, range(1, 255)):
         if res:
             print(res)
 EOF
     else
         # Fallback thuần shell (dành cho iSH / Alpine không có Python)
+        # Chia theo lô 20 IP và chỉ kiểm tra cổng 8080 (1 tiến trình/IP) để không làm quá tải bộ giả lập iSH trên iOS
         rm -f "$scan_tmp/raw.txt" 2>/dev/null || true
         idx=1
         while [ "$idx" -le 254 ]; do
-            bend=$((idx + 63))
+            bend=$((idx + 19))
             [ "$bend" -gt 254 ] && bend=254
             i="$idx"
             while [ "$i" -le "$bend" ]; do
                 (
                     target="${sub}.${i}"
-                    if test_tcp_port "$target" 5555 1; then
+                    if test_tcp_port "$target" 8080 1; then
                         printf '%03d|%s\n' "$i" "$target" >> "$scan_tmp/raw.txt"
                     fi
                 ) &
@@ -436,71 +437,50 @@ EOF
         done
 
         if [ -f "$scan_tmp/raw.txt" ]; then
-            sort "$scan_tmp/raw.txt" | awk -F'|' '{print $2}' >> "$scan_tmp/adb_ips.txt"
+            sort -u "$scan_tmp/raw.txt" | awk -F'|' '{print $2}' >> "$scan_tmp/adb_ips.txt"
         fi
     fi
 
-    # Kiểm chứng thực tế từng thiết bị mở cổng 5555 bằng ADB getprop (giống hệt install.ps1)
+    # Kiểm chứng thực tế từng thiết bị ứng viên (đồng bộ 100% với install.ps1):
+    # Phải phản hồi đúng giao thức WebSocket R1 (HTTP/1.1 101) trên cổng 8080 VÀ mở cổng ADB 5555
     if [ -s "$scan_tmp/adb_ips.txt" ]; then
-        if ! command -v adb >/dev/null 2>&1; then
-            ensure_adb >/dev/null 2>&1 || true
-        fi
-        if command -v adb >/dev/null 2>&1; then
-            adb start-server >/dev/null 2>&1 || true
-        fi
-
-        while IFS= read -r cand_ip || [ -n "$cand_ip" ]; do
+        for cand_ip in $(tr '\r\n' '  ' < "$scan_tmp/adb_ips.txt"); do
             cand_ip=$(printf '%s' "$cand_ip" | tr -d ' \r\n')
             [ -z "$cand_ip" ] && continue
-            h_name=""
-            m_name=""
-            a_ver=""
-            if command -v adb >/dev/null 2>&1; then
-                adb connect "$cand_ip:5555" >/dev/null 2>&1 || true
-                m_name=$(adb -s "$cand_ip:5555" shell getprop ro.product.model 2>/dev/null | tr -d '\r\n')
-                h_name=$(adb -s "$cand_ip:5555" shell getprop net.hostname 2>/dev/null | tr -d '\r\n')
-                a_ver=$(adb -s "$cand_ip:5555" shell getprop ro.build.version.release 2>/dev/null | tr -d '\r\n')
-                adb disconnect "$cand_ip:5555" >/dev/null 2>&1 || true
-            fi
 
-            check_str=$(printf '%s %s' "$m_name" "$h_name" | tr 'A-Z' 'a-z')
-            is_verified_r1=0
-            case "$check_str" in
-                *r1*|*rk322x*|*phicomm*)
-                    is_verified_r1=1
-                    ;;
-            esac
-
-            # Nếu getprop qua ADB chưa trả về chuỗi (ví dụ trên iSH), kiểm chứng giao thức WebSocket 101 cổng 8080 của R1
-            if [ "$is_verified_r1" = "0" ] && command -v curl >/dev/null 2>&1; then
-                ws_hdr=$(curl -i -s -m 1 --connect-timeout 1 -H "Upgrade: websocket" -H "Connection: Upgrade" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" -H "Sec-WebSocket-Version: 13" "http://$cand_ip:8080/" 2>/dev/null | head -n 1 | tr -d '\r\n')
+            # 1. Kiểm chứng giao thức WebSocket 101 trên cổng 8080 của loa R1
+            ws_verified=0
+            if command -v curl >/dev/null 2>&1; then
+                ws_hdr=$(curl -i -s -m 2 --connect-timeout 2 -H "Upgrade: websocket" -H "Connection: Upgrade" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" -H "Sec-WebSocket-Version: 13" "http://$cand_ip:8080/" </dev/null 2>/dev/null | head -n 1 | tr -d '\r\n')
                 case "$ws_hdr" in
-                    *101*)
-                        is_verified_r1=1
-                        [ -z "$m_name" ] && m_name="Phicomm R1"
-                        [ -z "$h_name" ] && h_name="Phicomm_R1"
-                        [ -z "$a_ver" ] && a_ver="5.1.1"
-                        ;;
+                    *101*) ws_verified=1 ;;
                 esac
             fi
-            if [ "$is_verified_r1" = "0" ] && command -v nc >/dev/null 2>&1; then
-                ws_hdr=$(printf 'GET / HTTP/1.1\r\nHost: %s:8080\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n' "$cand_ip" | nc -w 1 "$cand_ip" 8080 2>/dev/null | head -n 1 | tr -d '\r\n')
+            if [ "$ws_verified" = "0" ] && command -v nc >/dev/null 2>&1; then
+                ws_hdr=$(printf 'GET / HTTP/1.1\r\nHost: %s:8080\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n' "$cand_ip" | nc -w 2 "$cand_ip" 8080 2>/dev/null | head -n 1 | tr -d '\r\n')
                 case "$ws_hdr" in
-                    *101*)
-                        is_verified_r1=1
-                        [ -z "$m_name" ] && m_name="Phicomm R1"
-                        [ -z "$h_name" ] && h_name="Phicomm_R1"
-                        [ -z "$a_ver" ] && a_ver="5.1.1"
-                        ;;
+                    *101*) ws_verified=1 ;;
                 esac
             fi
 
-            if [ "$is_verified_r1" = "1" ]; then
-                printf '%s|(ADB: 5555)|%s|%s|%s\n' "$cand_ip" "$h_name" "$m_name" "$a_ver" >> "$scan_tmp/result.txt"
+            [ "$ws_verified" = "1" ] || continue
+
+            # 2. Kiểm tra cổng ADB 5555 (nếu đang ngủ thì đánh thức qua WebSocket 8080)
+            has5555=0
+            if test_tcp_port "$cand_ip" 5555 2; then
+                has5555=1
             else
-                printf '%s|%s\n' "$cand_ip" "${m_name:-Unknown}" >> "$scan_tmp/other.txt"
+                revive_speaker "$cand_ip" </dev/null >/dev/null 2>&1 || true
+                sleep 1
+                if test_tcp_port "$cand_ip" 5555 2; then
+                    has5555=1
+                fi
             fi
-        done < "$scan_tmp/adb_ips.txt"
+
+            [ "$has5555" = "1" ] || continue
+
+            printf '%s|(ADB: 5555)|Phicomm_R1|Phicomm R1|5.1.1\n' "$cand_ip" >> "$scan_tmp/result.txt"
+        done
     fi
 }
 
@@ -562,7 +542,7 @@ scan_speaker_ip() {
             echo ""
         fi
         printf '%s   ──────────────────────────────────────────────────────────────────%s\n' "$C_GRAY" "$C_RESET"
-        printf '   Tổng số thiết bị:    %s\n' "$TOTAL_ADB"
+        printf '   Tổng số thiết bị:    %s\n' "$TOTAL_FOUND"
         printf '   Loa Phicomm R1:      %s\n' "$TOTAL_FOUND"
         printf '%s   ──────────────────────────────────────────────────────────────────%s\n' "$C_GRAY" "$C_RESET"
         echo ""
