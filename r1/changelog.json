@@ -2,7 +2,7 @@
     {
         "version":  "1.1.2",
         "date":  "2026-11-16",
-        "description":  "Chuẩn hóa và tối ưu toàn diện Web UI: gom gọn Giám sát tài nguyên hệ thống (RAM, CPU, ROM) thành 1 khung viền mờ đồng bộ; sửa lỗi crash khi quét mạng Wi-Fi và tối ưu công tắc Bluetooth; nâng cấp cơ chế Silent Auto-OTA tự động cập nhật ngầm 100% không giới hạn khung giờ."
+        "description":  "Chuẩn hóa và tối ưu toàn diện Web UI: gom gọn Giám sát tài nguyên hệ thống (RAM, CPU, ROM) thành 1 khung viền mờ đồng bộ; sửa lỗi crash khi quét mạng Wi-Fi và tối ưu công tắc Bluetooth; bổ sung thanh trượt cài đặt mức âm lượng khi tắt chế độ ban đêm; sửa lỗi TextCommandDispatcher nhận nhầm lời nhắc thoại thành lệnh thời tiết giúp loa đọc to trọn vẹn lời nhắc nhở."
     },
     {
         "version":  "1.1.1",
