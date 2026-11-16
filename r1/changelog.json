@@ -2,7 +2,7 @@
     {
         "version":  "1.1.2",
         "date":  "2026-11-16",
-        "description":  "Nâng cấp triệt để cơ chế Silent Auto-OTA tự động cập nhật ngầm 100%: bỏ chặn khung giờ đêm (cho phép tự cài đặt ngay khi tải xong bản mới bất kể thời gian), sửa lỗi INSTALL_FAILED_INVALID_URI bằng cách chuyển APK vào /cache/ trước khi cài, rút gọn lệnh gọi cổng 8080 qua script nền ngắn gọn tránh tràn gói tin, tối giản giao diện và chuyển hướng trang update cũ."
+        "description":  "Chuẩn hóa và tối ưu toàn diện Web UI: gom gọn Giám sát tài nguyên hệ thống (RAM, CPU, ROM) thành 1 khung viền mờ đồng bộ; sửa lỗi crash khi quét mạng Wi-Fi và tối ưu công tắc Bluetooth; nâng cấp cơ chế Silent Auto-OTA tự động cập nhật ngầm 100% không giới hạn khung giờ."
     },
     {
         "version":  "1.1.1",
