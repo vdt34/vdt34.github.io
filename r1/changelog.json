@@ -1,5 +1,10 @@
 ﻿[
     {
+        "version":  "1.1.2",
+        "date":  "2026-11-16",
+        "description":  "Nâng cấp triệt để cơ chế Silent Auto-OTA tự động cập nhật ngầm 100%: bỏ chặn khung giờ đêm (cho phép tự cài đặt ngay khi tải xong bản mới bất kể thời gian), sửa lỗi INSTALL_FAILED_INVALID_URI bằng cách chuyển APK vào /cache/ trước khi cài, rút gọn lệnh gọi cổng 8080 qua script nền ngắn gọn tránh tràn gói tin, tối giản giao diện và chuyển hướng trang update cũ."
+    },
+    {
         "version":  "1.1.1",
         "date":  "2026-11-15",
         "description":  "Mở lại và nâng cấp toàn diện tính năng TikTok Live Reply: bổ sung cài đặt kênh TikTok \u0026 Server URL tùy chỉnh trong Web UI, hỗ trợ điều khiển HTTP POST khi bật/tắt (tương thích máy chủ crawler riêng) và lệnh WebSocket tiktok_chat để AI đọc và trả lời bình luận livestream theo thời gian thực."
