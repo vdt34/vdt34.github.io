@@ -1,5 +1,10 @@
 [
     {
+        "version": "1.1.0",
+        "date": "2026-11-17",
+        "description": "Bản phát hành AIBox Plus v1.1.0: Hiển thị nút bật/tắt TikTok Live Reply dưới khung chat khi livestream, tích hợp tính năng đổi mật khẩu quản trị vào Cài đặt hệ thống (System), sửa lỗi toàn diện Voice đàm thoại 2 chiều và cơ chế nâng cấp OTA qua WebSocket 8080."
+    },
+    {
         "version": "1.0.9",
         "date": "2026-11-16",
         "description": "Bản phát hành chuẩn AIBox Plus v1.0.9: Giữ nguyên mã nguồn lõi gốc ổn định (Voice Bot Xiaozhi, Micro 4-mic Unisound, YouTube/Zing/Radio VOV, MCP), tinh gọn Web UI (lược bỏ mục Nhắc lịch bằng giọng nói trong Cài đặt hệ thống)."
