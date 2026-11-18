@@ -395,24 +395,26 @@ prefix = sys.argv[1]
 
 def probe_cand(i):
     ip = f"{prefix}.{i}"
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.settimeout(0.5)
-    try:
-        if s.connect_ex((ip, 8080)) == 0:
-            return ip
-    except Exception:
-        pass
-    finally:
+    # Quét cổng 5555 trước (ADB), nếu không mở thì thử cổng 8080 để đánh thức
+    for port in (5555, 8080):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(0.6)
         try:
-            s.close()
+            if s.connect_ex((ip, port)) == 0:
+                return (ip, port)
         except Exception:
             pass
+        finally:
+            try:
+                s.close()
+            except Exception:
+                pass
     return None
 
 with ThreadPoolExecutor(max_workers=64) as ex:
     for res in ex.map(probe_cand, range(1, 255)):
         if res:
-            print(res)
+            print(f"{res[0]}|{res[1]}")
 EOF
     else
         # Fallback thuần shell (dành cho iSH / Alpine không có Python)
@@ -426,8 +428,10 @@ EOF
             while [ "$i" -le "$bend" ]; do
                 (
                     target="${sub}.${i}"
-                    if test_tcp_port "$target" 8080 1; then
-                        printf '%03d|%s\n' "$i" "$target" >> "$scan_tmp/raw.txt"
+                    if test_tcp_port "$target" 5555 1; then
+                        printf '%03d|%s|5555\n' "$i" "$target" >> "$scan_tmp/raw.txt"
+                    elif test_tcp_port "$target" 8080 1; then
+                        printf '%03d|%s|8080\n' "$i" "$target" >> "$scan_tmp/raw.txt"
                     fi
                 ) &
                 i=$((i + 1))
@@ -437,50 +441,54 @@ EOF
         done
 
         if [ -f "$scan_tmp/raw.txt" ]; then
-            sort -u "$scan_tmp/raw.txt" | awk -F'|' '{print $2}' >> "$scan_tmp/adb_ips.txt"
+            sort -u "$scan_tmp/raw.txt" | awk -F'|' '{print $2 "|" $3}' >> "$scan_tmp/adb_ips.txt"
         fi
     fi
 
-    # Kiểm chứng thực tế từng thiết bị ứng viên (đồng bộ 100% với install.ps1):
-    # Phải phản hồi đúng giao thức WebSocket R1 (HTTP/1.1 101) trên cổng 8080 VÀ mở cổng ADB 5555
+    # Xác thực thông tin thiết bị qua ADB getprop (chuẩn Quet_Loa_Phicomm_R1.ps1)
     if [ -s "$scan_tmp/adb_ips.txt" ]; then
-        for cand_ip in $(tr '\r\n' '  ' < "$scan_tmp/adb_ips.txt"); do
+        while IFS='|' read -r cand_ip cand_port || [ -n "$cand_ip" ]; do
             cand_ip=$(printf '%s' "$cand_ip" | tr -d ' \r\n')
+            cand_port=$(printf '%s' "$cand_port" | tr -d ' \r\n')
             [ -z "$cand_ip" ] && continue
 
-            # 1. Kiểm chứng giao thức WebSocket 101 trên cổng 8080 của loa R1
-            ws_verified=0
-            if command -v curl >/dev/null 2>&1; then
-                ws_hdr=$(curl -i -s -m 2 --connect-timeout 2 -H "Upgrade: websocket" -H "Connection: Upgrade" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" -H "Sec-WebSocket-Version: 13" "http://$cand_ip:8080/" </dev/null 2>/dev/null | head -n 1 | tr -d '\r\n')
-                case "$ws_hdr" in
-                    *101*) ws_verified=1 ;;
-                esac
-            fi
-            if [ "$ws_verified" = "0" ] && command -v nc >/dev/null 2>&1; then
-                ws_hdr=$(printf 'GET / HTTP/1.1\r\nHost: %s:8080\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n' "$cand_ip" | nc -w 2 "$cand_ip" 8080 2>/dev/null | head -n 1 | tr -d '\r\n')
-                case "$ws_hdr" in
-                    *101*) ws_verified=1 ;;
-                esac
-            fi
-
-            [ "$ws_verified" = "1" ] || continue
-
-            # 2. Kiểm tra cổng ADB 5555 (nếu đang ngủ thì đánh thức qua WebSocket 8080)
-            has5555=0
-            if test_tcp_port "$cand_ip" 5555 2; then
-                has5555=1
-            else
-                revive_speaker "$cand_ip" </dev/null >/dev/null 2>&1 || true
-                sleep 1
-                if test_tcp_port "$cand_ip" 5555 2; then
-                    has5555=1
+            # Nếu phát hiện qua cổng 8080 (hoặc cổng 5555 đang ngủ), đánh thức ADB 5555
+            if [ "$cand_port" = "8080" ]; then
+                if ! test_tcp_port "$cand_ip" 5555 1; then
+                    revive_speaker "$cand_ip" </dev/null >/dev/null 2>&1 || true
+                    sleep 1
                 fi
             fi
 
-            [ "$has5555" = "1" ] || continue
+            # Kiểm tra cổng 5555
+            test_tcp_port "$cand_ip" 5555 1 || continue
 
-            printf '%s|(ADB: 5555)|Phicomm_R1|Phicomm R1|5.1.1\n' "$cand_ip" >> "$scan_tmp/result.txt"
-        done
+            # Kết nối ADB và lấy thông tin thiết bị
+            adb connect "$cand_ip:5555" </dev/null >/dev/null 2>&1 || true
+            model=$(adb -s "$cand_ip:5555" shell getprop ro.product.model </dev/null 2>/dev/null | tr -d '\r\n')
+            hostname=$(adb -s "$cand_ip:5555" shell getprop net.hostname </dev/null 2>/dev/null | tr -d '\r\n')
+            aver=$(adb -s "$cand_ip:5555" shell getprop ro.build.version.release </dev/null 2>/dev/null | tr -d '\r\n')
+            adb disconnect "$cand_ip:5555" </dev/null >/dev/null 2>&1 || true
+
+            [ -z "$model" ] && model="Phicomm R1"
+            [ -z "$hostname" ] && hostname="Phicomm_R1"
+            [ -z "$aver" ] && aver="5.1.1"
+
+            # Tiêu chí nhận diện Phicomm R1 (giống Quet_Loa_Phicomm_R1.ps1)
+            is_r1=0
+            case "$model" in
+                *[Rr]1*|*[Rr][Kk]322*) is_r1=1 ;;
+            esac
+            case "$hostname" in
+                *[Pp][Hh][Ii][Cc][Oo][Mm][Mm]*|*[Rr]1*) is_r1=1 ;;
+            esac
+
+            if [ "$is_r1" = "1" ]; then
+                printf '%s|(ADB: 5555)|%s|%s|%s\n' "$cand_ip" "$hostname" "$model" "$aver" >> "$scan_tmp/result.txt"
+            else
+                printf '%s|%s\n' "$cand_ip" "$model" >> "$scan_tmp/other.txt"
+            fi
+        done < "$scan_tmp/adb_ips.txt"
     fi
 }
 
@@ -926,14 +934,14 @@ ensure_apks() {
     printf '%s>> Đang chuẩn bị và tự động tải bộ cài từ vdt34.github.io/r1...%s\n' "$C_CYAN" "$C_RESET"
     mkdir -p "$CACHE_DIR" 2>/dev/null || true
 
-    for f in autodlna.apk unisound.apk AIBoxPlus_DLNA.apk; do
+    for f in autodlna.apk AIBoxPlus_DLNA.apk; do
         rm -f "$CACHE_DIR/$f" "$CACHE_DIR/$f.tmp" 2>/dev/null || true
     done
 
     TS=$(date +%s 2>/dev/null || echo "1")
     idx=0
     missing=0
-    for f in autodlna.apk unisound.apk; do
+    for f in autodlna.apk; do
         p_start=$((5 + idx * 10))
         progress_update "$p_start" "Đang chuẩn bị $f"
 
@@ -1091,7 +1099,7 @@ run_install_lan() {
         adb -s "$SERIAL" shell pm hide com.phicomm.speaker.bugreport >/dev/null 2>&1
 
         push_percent=60
-        for f in autodlna.apk unisound.apk; do
+        for f in autodlna.apk; do
             progress_update "$push_percent" "Đang chuyển $f vào loa"
             local_apk="$CACHE_DIR/$f"
             if [ ! -f "$local_apk" ]; then
@@ -1116,7 +1124,7 @@ run_install_lan() {
         POST_REBOOT_AI_OK=0
         WEBUI_READY=0
         install_percent=70
-        for f in autodlna.apk unisound.apk; do
+        for f in autodlna.apk; do
             progress_update "$install_percent" "Đang cài $f"
             if ! invoke_adb_step 1 -s "$SERIAL" shell pm install -r "//data/local/tmp/$f"; then
                 printf '%s>> [LỖI] Cài đặt thất bại: %s%s\n' "$C_RED" "$f" "$C_RESET"
@@ -1126,16 +1134,16 @@ run_install_lan() {
             install_percent=$((install_percent + 5))
         done
 
-        for f in autodlna.apk unisound.apk; do
+        for f in autodlna.apk; do
             adb -s "$SERIAL" shell rm "//data/local/tmp/$f" >/dev/null 2>&1
         done
 
         progress_update 80 "Đang khởi chạy dịch vụ loa"
         ensure_adb_alive >/dev/null 2>&1 || true
         adb -s "$SERIAL" shell am startservice com.phicomm.speaker.player/.EchoService >/dev/null 2>&1
-        adb -s "$SERIAL" shell am start -n com.phicomm.speaker.device/.ui.MainActivity >/dev/null 2>&1
-        adb -s "$SERIAL" shell am start com.phicomm.speaker.device/.ui.MainActivity >/dev/null 2>&1
-        sleep 3
+        adb -s "$SERIAL" shell am startservice com.phicomm.speaker.player/.DlnaPlayerService >/dev/null 2>&1
+        adb -s "$SERIAL" shell pm uninstall com.phicomm.speaker.device >/dev/null 2>&1 || true
+        sleep 2
 
         progress_update 83 "Đang khôi phục dịch vụ hệ thống"
         adb -s "$SERIAL" shell pm unhide com.phicomm.speaker.ijetty >/dev/null 2>&1
@@ -1205,7 +1213,7 @@ run_install_lan() {
     fi
 
     # Dọn dẹp cache
-    for f in autodlna.apk unisound.apk AIBoxPlus_DLNA.apk; do
+    for f in autodlna.apk AIBoxPlus_DLNA.apk; do
         rm -f "$CACHE_DIR/$f" "$CACHE_DIR/$f.tmp" 2>/dev/null || true
     done
 
@@ -1376,11 +1384,11 @@ show_menu() {
     echo "  1) Cấu hình WiFi cho loa (kết nối AP 192.168.43.1)"
     printf '%s     -> Dùng khi loa vừa reset, đang phát WiFi Phicomm_R1_xxxx%s\n' "$C_GRAY" "$C_RESET"
     echo ""
-    echo "  2) Cài đặt đầy đủ 3 ứng dụng (AutoDLNA + Unisound + AI)"
+    echo "  2) Cài đặt đầy đủ 2 ứng dụng (AutoDLNA + AI)"
     printf '%s     -> Dùng khi cài mới hoàn toàn cho loa%s\n' "$C_GRAY" "$C_RESET"
     echo ""
     echo "  3) Chỉ cài đặt / cập nhật AIBoxPlus (giữ nguyên token & app cũ)"
-    printf '%s     -> Nâng cấp AIBoxPlus nhanh, không ảnh hưởng DLNA/Unisound%s\n' "$C_GRAY" "$C_RESET"
+    printf '%s     -> Nâng cấp AIBoxPlus nhanh, không ảnh hưởng DLNA%s\n' "$C_GRAY" "$C_RESET"
     echo ""
     echo "  4) Quét tìm IP loa Phicomm R1 trong LAN (chỉ kiểm tra)"
     echo "  5) Thoát"

@@ -1,5 +1,10 @@
 [
     {
+        "version": "1.1.1",
+        "date": "2026-11-19",
+        "description": "Bản phát hành AIBox Plus v1.1.1: Tối ưu hiệu năng chuyên sâu và hạ tải CPU (loại bỏ hoàn toàn polling RAM/CPU định kỳ và thanh System Monitor, cắt bỏ truy vấn lặp Equalizer, giãn chu kỳ heartbeat giữ kết nối), tích hợp xử lý âm thanh 4-Mic Hardware HAL trực tiếp không phụ thuộc Unisound cũ, nâng cấp bộ script cài đặt và thuật toán quét tìm loa qua cổng ADB 5555 siêu tốc."
+    },
+    {
         "version": "1.1.0",
         "date": "2026-11-17",
         "description": "Bản phát hành AIBox Plus v1.1.0: Hiển thị nút bật/tắt TikTok Live Reply dưới khung chat khi livestream, tích hợp tính năng đổi mật khẩu quản trị vào Cài đặt hệ thống (System), sửa lỗi toàn diện Voice đàm thoại 2 chiều và cơ chế nâng cấp OTA qua WebSocket 8080."

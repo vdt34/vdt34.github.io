@@ -365,9 +365,10 @@ function Scan-SpeakerIp {
     Write-Host "╚════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "   📡 Mạng: $Subnet.0/24" -ForegroundColor White
-    Write-Host "   ⏱️  Thời gian: khoảng 3-5 giây" -ForegroundColor Gray
+    Write-Host "   ⏱️  Thời gian: khoảng 15-30 giây" -ForegroundColor Gray
     Write-Host ""
 
+    # Quét bất đồng bộ cổng 5555 trên 254 IP với tốc độ cao (chuẩn Quet_Loa_Phicomm_R1.ps1)
     $clients = @{}
     $handles = @{}
 
@@ -377,14 +378,14 @@ function Scan-SpeakerIp {
         $c.LingerState = [System.Net.Sockets.LingerOption]::new($false, 0)
         $clients[$targetIp] = $c
         try {
-            $handles[$targetIp] = $c.BeginConnect($targetIp, 8080, $null, $null)
+            $handles[$targetIp] = $c.BeginConnect($targetIp, 5555, $null, $null)
         } catch {}
     }
 
-    $candidateIps = [System.Collections.Generic.List[string]]::new()
+    $adbIps = @()
     $checked = [System.Collections.Generic.HashSet[string]]::new()
     $start = [DateTime]::UtcNow
-    $totalDuration = 1.8
+    $totalDuration = 2.5
 
     while (([DateTime]::UtcNow - $start).TotalSeconds -lt $totalDuration) {
         $elapsed = ([DateTime]::UtcNow - $start).TotalSeconds
@@ -397,9 +398,7 @@ function Scan-SpeakerIp {
                     $checked.Add($ip) | Out-Null
                     try {
                         $clients[$ip].EndConnect($h)
-                        if (-not $candidateIps.Contains($ip)) {
-                            $candidateIps.Add($ip)
-                        }
+                        $adbIps += $ip
                     } catch {}
                 }
             }
@@ -407,53 +406,104 @@ function Scan-SpeakerIp {
 
         $filled = [int]($percent / 2)
         $bar = ('█' * $filled) + ('░' * (50 - $filled))
-        Write-Host -NoNewline "`r   [$bar] $percent% • Đang kiểm tra mạng...   "
+        Write-Host -NoNewline "`r   [$bar] $percent% • Đã tìm thấy: $($adbIps.Count) loa   "
         Start-Sleep -Milliseconds 50
     }
 
-    foreach ($ip in $candidateIps) {
+    Write-Host -NoNewline "`r   [$('█' * 50)] 100% • Đã tìm thấy: $($adbIps.Count) loa   "
+    Write-Host ""
+    Write-Host ""
+
+    # Đóng ngay lập tức các kết nối socket đã tìm thấy để giải phóng cổng cho ADB
+    foreach ($ip in $adbIps) {
         if ($clients.ContainsKey($ip)) {
             try { $clients[$ip].Client.Close(0) } catch {}
             try { $clients[$ip].Close() } catch {}
         }
     }
-    foreach ($c in $clients.Values) {
-        try {
-            if ($c.Client -ne $null) { $c.Client.Close(0) }
-        } catch {}
+    # Giải phóng các socket còn lại ngầm ở background
+    [System.Threading.Tasks.Task]::Run([Action]{
+        foreach ($c in $clients.Values) {
+            try { $c.Close() } catch {}
+        }
+    }) | Out-Null
+
+    Start-Sleep -Milliseconds 300
+
+    # Nếu không tìm thấy qua cổng 5555 trực tiếp, thử quét thêm cổng 8080 để đánh thức ADB nếu loa đang ngủ
+    if ($adbIps.Count -eq 0) {
+        $wokeAny = $false
+        for ($i = 1; $i -le 254; $i++) {
+            $tip = "$Subnet.$i"
+            if (Test-R1TcpPort -HostName $tip -Port 8080 -TimeoutMilliseconds 150) {
+                if (Revive-Speaker -TargetIp $tip) {
+                    $wokeAny = $true
+                }
+            }
+        }
+        if ($wokeAny) {
+            Start-Sleep -Seconds 1
+            for ($i = 1; $i -le 254; $i++) {
+                $tip = "$Subnet.$i"
+                if (Test-R1TcpPort -HostName $tip -Port 5555 -TimeoutMilliseconds 250) {
+                    $adbIps += $tip
+                }
+            }
+        }
     }
 
-    $FoundSpeakers = [System.Collections.Generic.List[object]]::new()
+    if ($adbIps.Count -eq 0) {
+        Write-Host "   ❌ Không tìm thấy loa Phicomm R1 trên mạng này." -ForegroundColor Red
+        Write-Host ""
+        Write-Host "   📝 Gợi ý:" -ForegroundColor Yellow
+        Write-Host "      • Kiểm tra loa đã bật và kết nối WiFi" -ForegroundColor White
+        Write-Host "      • Đảm bảo loa và máy tính cùng mạng" -ForegroundColor White
+        Write-Host ""
+        return @()
+    }
+
+    Write-Host "   Tìm thấy $($adbIps.Count) thiết bị, đang kết nối..." -ForegroundColor Cyan
+    Write-Host ""
+
     $phicommDevices = @()
     $otherDevices = @()
-    $sortedCandidates = @($candidateIps | Sort-Object { [int]($_.Split('.')[3]) })
+    $adbCmd = if (Get-Command adb -ErrorAction SilentlyContinue) { "adb" } else { "adb.exe" }
 
-    foreach ($ip in $sortedCandidates) {
-        # Kiểm chứng thực tế: Phải phản hồi đúng giao thức WebSocket R1 (101) trên cổng 8080 VÀ mở cổng ADB 5555
-        $wsVerifiedR1 = Revive-Speaker -TargetIp $ip
-        if (-not $wsVerifiedR1) { continue }
+    foreach ($ip in $adbIps) {
+        Write-Host "   🔗 Kết nối đến $ip... " -NoNewline
+        $endpoint = "$ip" + ":5555"
 
-        $has5555 = Test-R1TcpPort -HostName $ip -Port 5555 -TimeoutMilliseconds 500
-        if (-not $has5555) {
-            Start-Sleep -Milliseconds 500
-            $has5555 = Test-R1TcpPort -HostName $ip -Port 5555 -TimeoutMilliseconds 500
+        $connRaw = (& $adbCmd connect $endpoint 2>&1) -join "`n"
+
+        if ($connRaw -match "connected") {
+            # Đọc thông tin thiết bị qua getprop
+            $model = ((& $adbCmd -s $endpoint shell getprop ro.product.model 2>&1) -join "`n").Trim()
+            $hostname = ((& $adbCmd -s $endpoint shell getprop net.hostname 2>&1) -join "`n").Trim()
+            $androidVer = ((& $adbCmd -s $endpoint shell getprop ro.build.version.release 2>&1) -join "`n").Trim()
+
+            & $adbCmd disconnect $endpoint >$null 2>&1
+
+            # Tiêu chí nhận diện chuẩn xác loa Phicomm R1 (giống Quet_Loa_Phicomm_R1.ps1):
+            $isPhicomm = ($model -match "(?i)r1") -or ($hostname -match "(?i)phicomm_r1") -or ($model -match "(?i)rk322x")
+
+            $devInfo = [PSCustomObject]@{
+                IP = $ip
+                Hostname = if ($hostname) { $hostname } else { "Phicomm_R1" }
+                Model = if ($model) { $model } else { "Phicomm R1" }
+                Android = if ($androidVer) { $androidVer } else { "5.1.1" }
+            }
+
+            if ($isPhicomm) {
+                Write-Host "✓" -ForegroundColor Green
+                $phicommDevices += $devInfo
+            } else {
+                Write-Host " (không phải Phicomm R1)" -ForegroundColor Yellow
+                $otherDevices += $devInfo
+            }
+        } else {
+            Write-Host "✗" -ForegroundColor Red
         }
-        if (-not $has5555) { continue }
-
-        $devInfo = [PSCustomObject]@{
-            IP = $ip
-            Ports = "ADB: 5555"
-            Model = "Phicomm R1"
-            Hostname = "Phicomm_R1"
-            Android = "5.1.1"
-        }
-        $phicommDevices += $devInfo
-        $FoundSpeakers.Add($devInfo)
     }
-
-    Write-Host -NoNewline "`r   [$('█' * 50)] 100% • Đã tìm thấy: $($phicommDevices.Count) loa   "
-    Write-Host ""
-    Write-Host ""
 
     Write-Host ""
     Write-Host "╔════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
@@ -490,7 +540,7 @@ function Scan-SpeakerIp {
     }
 
     Write-Host "   ──────────────────────────────────────────────────────────────────" -ForegroundColor Gray
-    Write-Host "   Tổng số thiết bị:    $($FoundSpeakers.Count)" -ForegroundColor White
+    Write-Host "   Tổng số thiết bị:    $($adbIps.Count)" -ForegroundColor White
     Write-Host "   Loa Phicomm R1:      $($phicommDevices.Count)" -ForegroundColor White
     Write-Host "   ──────────────────────────────────────────────────────────────────" -ForegroundColor Gray
     Write-Host ""
@@ -503,13 +553,12 @@ function Scan-SpeakerIp {
     return @($otherDevices)
 }
 
-# 5. Tải và chuẩn bị 3 file APK từ GitHub
 function Ensure-Apks {
-    $Apks = @("autodlna.apk", "unisound.apk")
+    $Apks = @("autodlna.apk")
     Write-Host ""
     Write-Host ">> Đang chuẩn bị và tự động tải bộ cài từ vdt34.github.io/r1..." -ForegroundColor Cyan
 
-    foreach ($f in @("autodlna.apk", "unisound.apk", "AIBoxPlus_DLNA.apk")) {
+    foreach ($f in @("autodlna.apk", "AIBoxPlus_DLNA.apk")) {
         $oldFile = Join-Path $TempDir $f
         if (Test-Path $oldFile) { Remove-Item $oldFile -Force -ErrorAction SilentlyContinue }
     }
@@ -735,7 +784,7 @@ function Run-Install {
     Set-R1InstallProgress -Percent 52 -Status "Đã kết nối với loa"
 
     # [3/4] Đẩy APK lên bộ nhớ tạm của loa
-    $Apks = @("autodlna.apk", "unisound.apk")
+    $Apks = @("autodlna.apk")
     Set-R1InstallProgress -Percent 54 -Status "Đang dọn dẹp và chuẩn bị loa"
     if (-not $DryRun -and $env:R1_DRYRUN -ne "1") {
         adb -s $Serial shell rm /sdcard/otaprop.txt 2>$null | Out-Null
@@ -799,8 +848,9 @@ function Run-Install {
 
         Set-R1InstallProgress -Percent 80 -Status "Đang khởi chạy dịch vụ loa"
         adb -s $Serial shell am startservice com.phicomm.speaker.player/.EchoService 2>$null | Out-Null
-        adb -s $Serial shell am start com.phicomm.speaker.device/.ui.MainActivity 2>$null | Out-Null
-        Start-Sleep -Seconds 3
+        adb -s $Serial shell am startservice com.phicomm.speaker.player/.DlnaPlayerService 2>$null | Out-Null
+        adb -s $Serial shell /system/bin/pm uninstall com.phicomm.speaker.device 2>$null | Out-Null
+        Start-Sleep -Seconds 2
 
         Set-R1InstallProgress -Percent 83 -Status "Đang khôi phục dịch vụ hệ thống"
         adb -s $Serial shell /system/bin/pm unhide com.phicomm.speaker.ijetty 2>$null | Out-Null
@@ -890,7 +940,7 @@ function Run-Install {
     }
 
     # Dọn dẹp cache
-    foreach ($f in @("autodlna.apk", "unisound.apk", "AIBoxPlus_DLNA.apk")) {
+    foreach ($f in @("autodlna.apk", "AIBoxPlus_DLNA.apk")) {
         $tmpFile = Join-Path $TempDir $f
         if (Test-Path $tmpFile) { Remove-Item $tmpFile -Force -ErrorAction SilentlyContinue }
     }
@@ -1058,11 +1108,11 @@ function Show-Menu {
     Write-Host "  1) Cấu hình WiFi cho loa (kết nối AP 192.168.43.1)" -ForegroundColor White
     Write-Host "     -> Dùng khi loa vừa reset, đang phát WiFi Phicomm_R1_xxxx" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "  2) Cài đặt đầy đủ 3 ứng dụng (AutoDLNA + Unisound + AI)" -ForegroundColor White
+    Write-Host "  2) Cài đặt đầy đủ 2 ứng dụng (AutoDLNA + AI)" -ForegroundColor White
     Write-Host "     -> Dùng khi cài mới hoàn toàn cho loa" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  3) Chỉ cài đặt / cập nhật AIBoxPlus (giữ nguyên token & app cũ)" -ForegroundColor White
-    Write-Host "     -> Nâng cấp AIBoxPlus nhanh, không ảnh hưởng DLNA/Unisound" -ForegroundColor Gray
+    Write-Host "     -> Nâng cấp AIBoxPlus nhanh, không ảnh hưởng DLNA" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  4) Quét tìm IP loa Phicomm R1 trong LAN (chỉ kiểm tra)" -ForegroundColor White
     Write-Host "  5) Thoát" -ForegroundColor White
