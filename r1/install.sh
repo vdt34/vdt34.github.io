@@ -795,6 +795,26 @@ send_wifi_config() {
 }
 
 configure_wifi_ap() {
+    # Tải sẵn file Web Portal về bộ nhớ đệm (khi còn có mạng)
+    mkdir -p "$CACHE_DIR"
+    if [ ! -f "$CACHE_DIR/wifi.html" ] || [ ! -f "$CACHE_DIR/wifi_portal.py" ]; then
+        if command -v curl >/dev/null 2>&1; then
+            curl -sL -m 5 "$BASE_URL/wifi.html" -o "$CACHE_DIR/wifi.html" 2>/dev/null || true
+            curl -sL -m 5 "$BASE_URL/wifi_portal.py" -o "$CACHE_DIR/wifi_portal.py" 2>/dev/null || true
+        elif command -v wget >/dev/null 2>&1; then
+            wget -q -T 5 "$BASE_URL/wifi.html" -O "$CACHE_DIR/wifi.html" 2>/dev/null || true
+            wget -q -T 5 "$BASE_URL/wifi_portal.py" -O "$CACHE_DIR/wifi_portal.py" 2>/dev/null || true
+        fi
+    fi
+
+    # Tự động chuẩn bị python3 trên iSH (Alpine Linux) nếu chưa có
+    if ! command -v python3 >/dev/null 2>&1; then
+        if [ -f /etc/alpine-release ] && command -v apk >/dev/null 2>&1; then
+            printf '%s>> Đang chuẩn bị môi trường Web (cài python3 trên iSH)...%s\n' "$C_CYAN" "$C_RESET"
+            apk add --no-cache python3 >/dev/null 2>&1 || true
+        fi
+    fi
+
     echo ""
     printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
     printf '%s  CẤU HÌNH WIFI CHO LOA VỪA RESET (CHẾ ĐỘ AP 192.168.43.1)%s\n' "$C_YELLOW" "$C_RESET"
@@ -828,11 +848,49 @@ configure_wifi_ap() {
         if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
             printf '%s   [CẢNH BÁO] Chưa kết nối được 192.168.43.1:8989.%s\n' "$C_YELLOW" "$C_RESET"
             echo "   Kiểm tra: Thiết bị đã chọn WiFi Phicomm_R1 chưa? Đã tắt 4G chưa?"
-            ans=$(read_val "   Vẫn tiếp tục gửi cấu hình WiFi? [y/N]: " "n")
+            ans=$(read_val "   Vẫn tiếp tục cấu hình WiFi? [y/N]: " "n")
             case "$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')" in
                 "y"|"yes") ;;
                 *) return 1 ;;
             esac
+        fi
+    fi
+
+    # Khởi động Mini Web Portal phục vụ wifi.html trên localhost:8000
+    if command -v python3 >/dev/null 2>&1 && [ -f "$CACHE_DIR/wifi_portal.py" ]; then
+        echo ""
+        printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
+        printf '%s  ĐÃ MỞ CỔNG CẤU HÌNH WIFI THÀNH CÔNG!%s\n' "$C_YELLOW" "$C_RESET"
+        printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
+        echo " >> Mở trình duyệt Safari trên iPhone (hoặc trình duyệt PC) vào:"
+        printf '%s    👉  http://localhost:8000%s\n' "$C_CYAN" "$C_RESET"
+        echo " >> Trang web sẽ tự động quét Wi-Fi, chạm chọn mạng và kết nối!"
+        echo "----------------------------------------------------------"
+        printf '%s(Đang chờ bạn kết nối trên Web... Hoặc nhấn Ctrl+C để nhập tay)%s\n' "$C_GRAY" "$C_RESET"
+
+        if command -v open >/dev/null 2>&1; then
+            open "http://localhost:8000" >/dev/null 2>&1 || true
+        elif command -v xdg-open >/dev/null 2>&1; then
+            xdg-open "http://localhost:8000" >/dev/null 2>&1 || true
+        fi
+
+        python3 "$CACHE_DIR/wifi_portal.py"
+        web_res=$?
+        if [ $web_res -eq 0 ]; then
+            echo ""
+            printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
+            printf '%s            ĐÃ GỬI CẤU HÌNH WIFI THÀNH CÔNG!              %s\n' "$C_YELLOW" "$C_RESET"
+            printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
+            echo " THÔNG BÁO QUAN TRỌNG:"
+            echo "  1. Loa đang kết nối WiFi nhà, chờ khoảng 20 giây sẽ có IP."
+            echo "  2. Hãy chuyển Điện thoại / Máy tính về lại mạng WiFi nhà."
+            printf '%s  3. Sau đó quay lại menu chọn [2] để tìm IP và cài APK.%s\n' "$C_CYAN" "$C_RESET"
+            printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
+            if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
+                echo ""
+                read_val "Nhấn Enter để quay lại menu chính: " "" >/dev/null 2>&1 || true
+            fi
+            return 0
         fi
     fi
 

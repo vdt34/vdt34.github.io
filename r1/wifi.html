@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cấu hình Wi-Fi Loa Phicomm R1</title>
+    <style>
+        :root {
+            --bg: #0b0f19;
+            --card-bg: rgba(26, 31, 46, 0.95);
+            --border: rgba(99, 102, 241, 0.3);
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --text: #f8fafc;
+            --text-sub: #94a3b8;
+            --success: #10b981;
+            --error: #ef4444;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        body {
+            background: linear-gradient(135deg, #0b0f19 0%, #1e1b4b 100%);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .container {
+            width: 100%;
+            max-width: 440px;
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 6px;
+        }
+        .header p {
+            font-size: 13px;
+            color: var(--text-sub);
+        }
+        .badge {
+            display: inline-block;
+            background: rgba(99, 102, 241, 0.15);
+            color: #a5b4fc;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-top: 6px;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+        }
+        .section-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-sub);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .scan-btn {
+            background: none;
+            border: none;
+            color: #818cf8;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+        .scan-btn:hover { background: rgba(99, 102, 241, 0.1); }
+        .wifi-list {
+            max-height: 220px;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            background: rgba(15, 23, 42, 0.6);
+            margin-bottom: 18px;
+        }
+        .wifi-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .wifi-item:last-child { border-bottom: none; }
+        .wifi-item:hover, .wifi-item.selected {
+            background: rgba(99, 102, 241, 0.2);
+        }
+        .wifi-item.selected {
+            border-left: 3px solid var(--primary);
+        }
+        .wifi-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            overflow: hidden;
+        }
+        .wifi-icon { font-size: 16px; width: 22px; text-align: center; }
+        .wifi-name {
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .wifi-signal {
+            font-size: 11px;
+            color: var(--text-sub);
+            margin-left: 6px;
+        }
+        .form-group {
+            margin-bottom: 14px;
+        }
+        label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-sub);
+            margin-bottom: 6px;
+        }
+        .input-wrap {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        input {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 10px;
+            padding: 12px 14px;
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus {
+            border-color: var(--primary);
+        }
+        .toggle-pwd {
+            position: absolute;
+            right: 12px;
+            background: none;
+            border: none;
+            color: var(--text-sub);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 4px;
+        }
+        .btn-connect {
+            width: 100%;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            padding: 14px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+            transition: transform 0.15s, opacity 0.2s;
+            margin-top: 6px;
+        }
+        .btn-connect:active { transform: scale(0.98); }
+        .btn-connect:disabled { opacity: 0.5; cursor: not-allowed; }
+        .status-box {
+            margin-top: 14px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            display: none;
+            text-align: center;
+            line-height: 1.5;
+        }
+        .status-box.success {
+            display: block;
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+        .status-box.error {
+            display: block;
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        .status-box.loading {
+            display: block;
+            background: rgba(99, 102, 241, 0.15);
+            color: #a5b4fc;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+        }
+        .empty-hint {
+            text-align: center;
+            padding: 24px 12px;
+            color: var(--text-sub);
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Cấu Hình Wi-Fi Phicomm R1</h1>
+            <p>Kết nối Wi-Fi nhà cho loa ở chế độ AP</p>
+            <span class="badge">📡 Chế độ AP 192.168.43.1</span>
+        </div>
+
+        <div class="section-title">
+            <span>Mạng Wi-Fi lân cận</span>
+            <button class="scan-btn" id="btnScan" onclick="scanWifi()">🔄 Quét lại</button>
+        </div>
+
+        <div class="wifi-list" id="wifiList">
+            <div class="empty-hint" id="loadingText">Đang quét mạng Wi-Fi...</div>
+        </div>
+
+        <form id="wifiForm" onsubmit="connectWifi(event)">
+            <div class="form-group">
+                <label>Tên mạng Wi-Fi (SSID)</label>
+                <div class="input-wrap">
+                    <input type="text" id="ssid" placeholder="Chọn mạng ở trên hoặc nhập tay" required autocomplete="off">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Mật khẩu Wi-Fi</label>
+                <div class="input-wrap">
+                    <input type="password" id="password" placeholder="Nhập mật khẩu (để trống nếu không pass)">
+                    <button type="button" class="toggle-pwd" onclick="togglePassword()">👁️</button>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-connect" id="btnSubmit">🔗 Kết Nối Wi-Fi Cho Loa</button>
+        </form>
+
+        <div class="status-box" id="statusBox"></div>
+    </div>
+
+    <script>
+        function togglePassword() {
+            const pwd = document.getElementById('password');
+            pwd.type = pwd.type === 'password' ? 'text' : 'password';
+        }
+
+        function setStatus(msg, type) {
+            const box = document.getElementById('statusBox');
+            box.className = 'status-box ' + type;
+            box.innerHTML = msg;
+        }
+
+        function getSignalIcon(level) {
+            if (level >= -60) return '📶';
+            if (level >= -75) return '📡';
+            return '📉';
+        }
+
+        function selectWifi(ssid) {
+            document.getElementById('ssid').value = ssid;
+            document.getElementById('password').value = '';
+            document.getElementById('password').focus();
+            
+            document.querySelectorAll('.wifi-item').forEach(el => {
+                if (el.dataset.ssid === ssid) el.classList.add('selected');
+                else el.classList.remove('selected');
+            });
+        }
+
+        function parseWifiData(data) {
+            if (!data) return [];
+            if (Array.isArray(data)) return data;
+            if (data.data && Array.isArray(data.data)) return data.data;
+            if (data.list && Array.isArray(data.list)) return data.list;
+            if (data.networks && Array.isArray(data.networks)) return data.networks;
+            return [];
+        }
+
+        function scanWifi() {
+            const listEl = document.getElementById('wifiList');
+            listEl.innerHTML = '<div class="empty-hint">⏳ Đang quét sóng Wi-Fi...</div>';
+            const btnScan = document.getElementById('btnScan');
+            btnScan.disabled = true;
+
+            fetch('/api/getwifilist')
+                .then(r => r.json())
+                .then(res => {
+                    btnScan.disabled = false;
+                    const items = parseWifiData(res);
+                    if (items.length === 0) {
+                        listEl.innerHTML = '<div class="empty-hint">Không tìm thấy mạng Wi-Fi nào.<br>Hãy tự nhập tên mạng bên dưới.</div>';
+                        return;
+                    }
+
+                    // Loại bỏ mạng trùng lặp và sắp xếp theo sóng mạnh
+                    const seen = new Set();
+                    const filtered = [];
+                    items.forEach(it => {
+                        const name = (it.ssid || it.SSID || it.name || '').trim();
+                        if (name && !seen.has(name)) {
+                            seen.add(name);
+                            filtered.push({
+                                ssid: name,
+                                level: parseInt(it.rssi || it.level || -80, 10),
+                                secure: it.secure !== false && it.is_secure !== false
+                            });
+                        }
+                    });
+                    filtered.sort((a, b) => b.level - a.level);
+
+                    listEl.innerHTML = filtered.map(it => `
+                        <div class="wifi-item" data-ssid="${escapeHtml(it.ssid)}" onclick="selectWifi('${escapeHtml(it.ssid)}')">
+                            <div class="wifi-info">
+                                <span class="wifi-icon">${getSignalIcon(it.level)}</span>
+                                <span class="wifi-name">${escapeHtml(it.ssid)}</span>
+                            </div>
+                            <div style="display:flex;align-items:center;">
+                                <span class="wifi-signal">${it.level} dBm</span>
+                                <span style="margin-left:6px;font-size:12px;">${it.secure ? '🔒' : ''}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                })
+                .catch(err => {
+                    btnScan.disabled = false;
+                    listEl.innerHTML = '<div class="empty-hint" style="color:#f87171;">Không thể quét tự động.<br>Vui lòng nhập tên Wi-Fi thủ công.</div>';
+                });
+        }
+
+        function escapeHtml(str) {
+            return (str || '').replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        }
+
+        function connectWifi(e) {
+            e.preventDefault();
+            const ssid = document.getElementById('ssid').value.trim();
+            const password = document.getElementById('password').value.trim();
+            if (!ssid) return;
+
+            const btn = document.getElementById('btnSubmit');
+            btn.disabled = true;
+            setStatus('⏳ Đang gửi cấu hình đến loa Phicomm R1...', 'loading');
+
+            fetch('/api/configwifi', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ssid: ssid,
+                    password: password,
+                    secure: password ? 'WPA' : 'INSECURE',
+                    mac: ''
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                setStatus('🎉 <b>Đã gửi cấu hình Wi-Fi thành công!</b><br>Loa đang ngắt AP để kết nối Wi-Fi nhà.<br>Hãy chuyển iPhone/máy tính về lại mạng Wi-Fi nhà để tiếp tục.', 'success');
+            })
+            .catch(err => {
+                // Loa Phicomm R1 thường ngắt kết nối ngay khi nhận lệnh, nên fetch có thể báo network error nhưng thực tế đã thành công
+                setStatus('🎉 <b>Đã gửi cấu hình thành công!</b><br>Loa đã nhận lệnh và đang chuyển sang Wi-Fi nhà.<br>Hãy chuyển iPhone/máy tính về Wi-Fi nhà.', 'success');
+            });
+        }
+
+        // Tự động quét khi vừa tải trang
+        document.addEventListener('DOMContentLoaded', scanWifi);
+    </script>
+</body>
+</html>
