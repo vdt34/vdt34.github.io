@@ -1,5 +1,10 @@
 [
     {
+        "version": "1.1.2",
+        "date": "2026-11-19",
+        "description": "Bản phát hành AIBox Plus v1.1.2: Sửa lỗi điều khiển Bluetooth qua khẩu lệnh Xiaozhi (chuẩn hóa mã lệnh phần cứng what:64 A2DP Sink và đồng bộ service Lollipop), tối ưu Zero-Load Web UI (tự động ngắt kết nối WebSocket và triệt tiêu tải CPU khi không mở tab), và nâng cấp cơ chế tự động cập nhật OTA ngầm (Silent Background Update)."
+    },
+    {
         "version": "1.1.1",
         "date": "2026-11-19",
         "description": "Bản phát hành AIBox Plus v1.1.1: Tối ưu hiệu năng chuyên sâu và hạ tải CPU (loại bỏ hoàn toàn polling RAM/CPU định kỳ và thanh System Monitor, cắt bỏ truy vấn lặp Equalizer, giãn chu kỳ heartbeat giữ kết nối), tích hợp xử lý âm thanh 4-Mic Hardware HAL trực tiếp không phụ thuộc Unisound cũ, nâng cấp bộ script cài đặt và thuật toán quét tìm loa qua cổng ADB 5555 siêu tốc."
