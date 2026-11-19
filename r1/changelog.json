@@ -1,5 +1,10 @@
 [
     {
+        "version": "1.1.6",
+        "date": "2026-11-19",
+        "description": "Bản phát hành AIBox Plus v1.1.6: Sửa triệt để lỗi mất kết nối Web UI khi để nguyên màn hình (tích hợp Heartbeat Ping/Pong 15s cho WebSocket 8082 và 8080, cơ chế Auto-Reconnect vĩnh viễn kèm Exponential Backoff và Pong Watchdog 10s tự phục hồi kết nối không cần bấm F5); duy trì đầy đủ tính năng Stereo Mode."
+    },
+    {
         "version": "1.1.5",
         "date": "2026-11-19",
         "description": "Bản phát hành AIBox Plus v1.1.5: Sửa triệt để chế độ ghép đôi âm thanh nổi Stereo (Loa Mẹ - Loa Con) qua Web UI và LAN WebSocket; loại bỏ lỗi bytecode VerifyError; chuẩn hóa luồng giải mã AudioTrack kênh đôi (CHANNEL_OUT_STEREO, 44.1kHz 16-bit PCM) triệt tiêu hoàn toàn hiện tượng loa con phát chậm 0.5x và lệch tone."
