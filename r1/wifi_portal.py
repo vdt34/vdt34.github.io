@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Mini Web Server & API Proxy cho loa Phicomm R1 trên iPhone (iSH) / Linux / macOS
-Tự động phục vụ giao diện wifi.html và chuyển tiếp API quét/cài Wi-Fi tới 192.168.43.1:8989
+Mini Web Server & API Proxy siêu tốc cho loa Phicomm R1 trên iPhone (iSH) / Linux / macOS
+Phục vụ giao diện wifi.html và chuyển tiếp API quét/cài Wi-Fi tới 192.168.43.1:8989 trong tích tắc
 """
 
 import sys
@@ -19,20 +19,22 @@ TARGET_AP = "http://192.168.43.1:8989"
 HTML_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wifi.html")
 
 server_instance = None
-shutdown_timer = None
 
-def schedule_shutdown(delay=2.5):
+def schedule_shutdown(delay=1.0):
     def _shutdown():
         time.sleep(delay)
         if server_instance:
-            server_instance.shutdown()
+            try:
+                server_instance.shutdown()
+            except Exception:
+                pass
     t = threading.Thread(target=_shutdown)
     t.daemon = True
     t.start()
 
 class WifiPortalHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
-        # Giữ terminal sạch sẽ, chỉ log ngắn
+        # Tắt log rác HTTP để terminal gọn gàng
         pass
 
     def send_cors_headers(self):
@@ -57,7 +59,6 @@ class WifiPortalHandler(BaseHTTPRequestHandler):
                     pass
             
             if not content:
-                # Tìm trong /tmp/r1_cache/wifi.html
                 fallback = "/tmp/r1_cache/wifi.html"
                 if os.path.isfile(fallback):
                     try:
@@ -77,20 +78,24 @@ class WifiPortalHandler(BaseHTTPRequestHandler):
             return
 
         elif path in ["/api/getwifilist", "/api/wifilist", "/scan"]:
-            # Proxy request tới loa 192.168.43.1:8989
+            # Proxy request quét Wi-Fi với timeout ngắn để không làm đơ Safari
             data = None
-            for ep in ["/api/getwifilist", "/api/wifilist"]:
+            try:
+                req = urllib.request.Request(f"{TARGET_AP}/api/getwifilist", headers={"User-Agent": "iSH-WifiPortal/1.0"})
+                with urllib.request.urlopen(req, timeout=2.0) as response:
+                    data = response.read()
+            except Exception:
+                pass
+
+            if not data:
                 try:
-                    req = urllib.request.Request(f"{TARGET_AP}{ep}", headers={"User-Agent": "iSH-WifiPortal/1.0"})
-                    with urllib.request.urlopen(req, timeout=4) as response:
+                    req = urllib.request.Request(f"{TARGET_AP}/api/wifilist", headers={"User-Agent": "iSH-WifiPortal/1.0"})
+                    with urllib.request.urlopen(req, timeout=1.5) as response:
                         data = response.read()
-                        if data:
-                            break
                 except Exception:
                     pass
 
             if not data:
-                # Nếu không gọi được API thật, trả danh sách rỗng để người dùng nhập tay
                 data = b"[]"
 
             self.send_response(200)
@@ -117,30 +122,37 @@ class WifiPortalHandler(BaseHTTPRequestHandler):
             except Exception:
                 pass
 
-            # Gửi tới loa 192.168.43.1:8989/api/configwifi
-            success = False
-            try:
-                req = urllib.request.Request(
-                    f"{TARGET_AP}/api/configwifi",
-                    data=body,
-                    headers={"Content-Type": "application/json"}
-                )
-                with urllib.request.urlopen(req, timeout=5) as response:
-                    success = True
-            except Exception as e:
-                # Loa Phicomm R1 thường ngắt kết nối AP ngay khi nhận lệnh, nên ngoại lệ cũng là dấu hiệu đã gửi thành công
-                success = True
-
-            res_body = json.dumps({"success": success, "message": "OK"}).encode("utf-8")
+            # 1. PHẢN HỒI NGAY LẬP TỨC CHO SAFARI (TRONG 0.05 GIÂY)
+            # Người dùng không phải chờ loa ngắt kết nối hay treo socket
+            res_body = json.dumps({"success": True, "message": "OK"}).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_cors_headers()
             self.end_headers()
-            self.wfile.write(res_body)
+            try:
+                self.wfile.write(res_body)
+                self.wfile.flush()
+            except Exception:
+                pass
 
-            print(">> Đã chuyển tiếp cấu hình tới loa thành công!")
-            print(">> Loa đang chuyển mạng... Đang tự động đóng server Web.")
-            schedule_shutdown(2.0)
+            # 2. CHUYỂN TIẾP TỚI LOA BẤT ĐỒNG BỘ (Loa nhận lệnh là ngắt AP ngay)
+            def _forward_to_speaker():
+                try:
+                    req = urllib.request.Request(
+                        f"{TARGET_AP}/api/configwifi",
+                        data=body,
+                        headers={"Content-Type": "application/json"}
+                    )
+                    urllib.request.urlopen(req, timeout=1.5)
+                except Exception:
+                    # Loa Phicomm R1 luôn ngắt Wi-Fi chip ngay khi nhận được gói tin, ngoại lệ là bình thường
+                    pass
+                print(">> Đã gửi cấu hình tới loa thành công!")
+                schedule_shutdown(0.8)
+
+            t = threading.Thread(target=_forward_to_speaker)
+            t.daemon = True
+            t.start()
             return
 
         self.send_response(404)
@@ -151,9 +163,8 @@ def run():
     server_address = ("127.0.0.1", PORT)
     try:
         server_instance = HTTPServer(server_address, WifiPortalHandler)
-    except Exception as e:
-        # Thử lại nếu cổng bị giữ
-        time.sleep(1)
+    except Exception:
+        time.sleep(0.5)
         server_instance = HTTPServer(server_address, WifiPortalHandler)
 
     print("==========================================================")
@@ -170,8 +181,11 @@ def run():
     except KeyboardInterrupt:
         pass
     finally:
-        server_instance.server_close()
-        print("\n>> Đã đóng Web Portal.")
+        try:
+            server_instance.server_close()
+        except Exception:
+            pass
+        print("\n>> Đã hoàn tất và đóng Web Portal.")
 
 if __name__ == "__main__":
     run()

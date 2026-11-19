@@ -377,11 +377,11 @@
             })
             .then(r => r.json())
             .then(data => {
-                setStatus('🎉 <b>Đã gửi cấu hình Wi-Fi thành công!</b><br>Loa đang ngắt AP để kết nối Wi-Fi nhà.<br>Hãy chuyển iPhone/máy tính về lại mạng Wi-Fi nhà để tiếp tục.', 'success');
+                setStatus('🎉 <b>Đã gửi cấu hình Wi-Fi thành công!</b><br>Loa đang chuyển sang Wi-Fi nhà.<br>👉 <b>Hãy đổi iPhone về Wi-Fi nhà rồi qua iSH bấm Enter!</b>', 'success');
             })
             .catch(err => {
                 // Loa Phicomm R1 thường ngắt kết nối ngay khi nhận lệnh, nên fetch có thể báo network error nhưng thực tế đã thành công
-                setStatus('🎉 <b>Đã gửi cấu hình thành công!</b><br>Loa đã nhận lệnh và đang chuyển sang Wi-Fi nhà.<br>Hãy chuyển iPhone/máy tính về Wi-Fi nhà.', 'success');
+                setStatus('🎉 <b>Đã gửi cấu hình thành công!</b><br>Loa đang chuyển sang Wi-Fi nhà.<br>👉 <b>Hãy đổi iPhone về Wi-Fi nhà rồi qua iSH bấm Enter!</b>', 'success');
             });
         }
 
