@@ -886,13 +886,20 @@ configure_wifi_ap() {
             printf '%s            ĐÃ GỬI CẤU HÌNH WIFI THÀNH CÔNG!              %s\n' "$C_YELLOW" "$C_RESET"
             printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
             echo " THÔNG BÁO QUAN TRỌNG:"
-            echo "  1. Loa đang kết nối WiFi nhà, chờ khoảng 20 giây sẽ có IP."
-            echo "  2. Hãy chuyển Điện thoại / Máy tính về lại mạng WiFi nhà."
-            printf '%s  3. Sau đó quay lại menu chọn [2] để tìm IP và cài APK.%s\n' "$C_CYAN" "$C_RESET"
+            echo "  1. Loa đang ngắt AP để kết nối Wi-Fi nhà (chờ khoảng 15-20 giây)."
+            echo "  2. Hãy vào Cài đặt Wi-Fi trên iPhone chuyển về lại Wi-Fi nhà."
             printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
             if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
                 echo ""
-                read_val "Nhấn Enter để quay lại menu chính: " "" >/dev/null 2>&1 || true
+                ans=$(read_val "Đã đổi iPhone về Wi-Fi nhà? Quét tìm IP & cài đặt AI luôn? [Y/n]: " "y")
+                case "$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')" in
+                    "n"|"no") return 0 ;;
+                    *)
+                        echo ""
+                        run_install_lan ""
+                        return $?
+                        ;;
+                esac
             fi
             return 0
         fi
