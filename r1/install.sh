@@ -872,6 +872,10 @@ configure_wifi_ap() {
             open "http://localhost:8000" >/dev/null 2>&1 || true
         elif command -v xdg-open >/dev/null 2>&1; then
             xdg-open "http://localhost:8000" >/dev/null 2>&1 || true
+        elif command -v termux-open-url >/dev/null 2>&1; then
+            termux-open-url "http://localhost:8000" >/dev/null 2>&1 || true
+        elif command -v cmd.exe >/dev/null 2>&1; then
+            cmd.exe /c start "http://localhost:8000" >/dev/null 2>&1 || true
         fi
 
         python3 "$CACHE_DIR/wifi_portal.py"
