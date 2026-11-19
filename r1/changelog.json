@@ -1,5 +1,10 @@
 [
     {
+        "version": "1.1.3",
+        "date": "2026-11-19",
+        "description": "Bản phát hành AIBox Plus v1.1.3: Sửa triệt để cơ chế bật/tắt Bluetooth bằng phím bấm 3 lần (luân phiên bật/tắt chuẩn xác với âm báo batbluetooth/tatbluetooth), đồng bộ trạng thái Bluetooth 2 chiều thông minh với Web UI và giọng nói, gỡ bỏ 3.6 MB dữ liệu rác Snowboy giúp dung lượng APK giảm 27% (từ 13.6 MB xuống 10.7 MB) giúp cập nhật OTA siêu tốc."
+    },
+    {
         "version": "1.1.2",
         "date": "2026-11-19",
         "description": "Bản phát hành AIBox Plus v1.1.2: Sửa lỗi điều khiển Bluetooth qua khẩu lệnh Xiaozhi (chuẩn hóa mã lệnh phần cứng what:64 A2DP Sink và đồng bộ service Lollipop), tối ưu Zero-Load Web UI (tự động ngắt kết nối WebSocket và triệt tiêu tải CPU khi không mở tab), và nâng cấp cơ chế tự động cập nhật OTA ngầm (Silent Background Update)."
