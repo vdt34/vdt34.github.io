@@ -15,10 +15,13 @@ $RunScanCli = $false
 $RunAiOnlyCli = $false
 
 if ($args.Count -gt 0) {
-    foreach ($a in $args) {
+    for ($i = 0; $i -lt $args.Count; $i++) {
+        $a = $args[$i]
         if ($a -eq "192.168.43.1") {
             $Ip = $a
             $RunWifiCli = $true
+        } elseif (($a -eq "-Ip" -or $a -eq "--ip") -and ($i + 1) -lt $args.Count) {
+            $Ip = $args[++$i]
         } elseif ($a -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}') {
             $Ip = $a
         } elseif ($a -eq "-Yes" -or $a -eq "-y") {
@@ -31,33 +34,43 @@ if ($args.Count -gt 0) {
             $RunScanCli = $true
         } elseif ($a -eq "-AiOnly" -or $a -eq "--ai-only" -or $a -eq "-ai") {
             $RunAiOnlyCli = $true
+        } elseif ($a -eq "-LocalDir" -and ($i + 1) -lt $args.Count) {
+            $ScriptDir = $args[++$i]
+        } elseif ($a -eq "-ApkBase" -and ($i + 1) -lt $args.Count) {
+            $BaseUrl = $args[++$i]
         }
     }
 }
 
-$script:ScriptInput = @($input)
 function Read-R1Input {
     param([string]$Prompt)
-    if ($null -ne $script:ScriptInput -and $script:ScriptInput.Count -gt 0) {
-        $val = $script:ScriptInput[0]
-        $script:ScriptInput = if ($script:ScriptInput.Count -gt 1) { $script:ScriptInput[1..($script:ScriptInput.Count - 1)] } else { @() }
-        return [string]$val
-    }
     return (Read-Host $Prompt)
 }
 
-$ScriptDir = $PSScriptRoot
-if (-not $ScriptDir -and $MyInvocation.MyCommand.Path) { $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path }
-if (-not $ScriptDir -or -not (Test-Path (Join-Path $ScriptDir "adb.exe"))) {
-    if (Test-Path "C:\Users\VDT\Documents\GitHub\vdt34.github.io\r1\adb.exe") {
-        $ScriptDir = "C:\Users\VDT\Documents\GitHub\vdt34.github.io\r1"
+if (-not $ScriptDir) {
+    if ($global:R1_SCRIPT_DIR) {
+        $ScriptDir = $global:R1_SCRIPT_DIR
+    } elseif ($env:R1_BAT_DIR) {
+        $ScriptDir = $env:R1_BAT_DIR
+    } elseif ($PSScriptRoot) {
+        $ScriptDir = $PSScriptRoot
+    } elseif ($MyInvocation.MyCommand.Path) {
+        $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+    } elseif ($MyInvocation.PSCommandPath) {
+        $ScriptDir = Split-Path -Parent $MyInvocation.PSCommandPath
     } else {
         $ScriptDir = (Get-Location).Path
     }
 }
+if ($ScriptDir) {
+    $ScriptDir = $ScriptDir.TrimEnd('\/')
+}
+
 $TempDir = Join-Path $env:TEMP "r1_cache"
 New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
-$BaseUrl = "https://vdt34.github.io/r1"
+if (-not $BaseUrl) {
+    $BaseUrl = if ($env:NABU_R1_BASE) { $env:NABU_R1_BASE } else { "https://vdt34.github.io/r1" }
+}
 
 function Set-R1InstallProgress {
     param(
@@ -553,10 +566,43 @@ function Scan-SpeakerIp {
     return @($otherDevices)
 }
 
+function Get-LocalAiApk {
+    if (-not $ScriptDir -or -not (Test-Path $ScriptDir)) { return $null }
+
+    # 1. Tìm bản có phiên bản cao nhất theo dạng ai-box-plus-X-Y-Z.apk
+    $files = Get-ChildItem -Path $ScriptDir -File -Filter 'ai-box-plus-*-*-*.apk' -ErrorAction SilentlyContinue |
+        Where-Object { $_.BaseName -match '^ai-box-plus-(\d+)-(\d+)-(\d+)$' } |
+        Sort-Object { [version]($_.BaseName -replace '^ai-box-plus-','' -replace '-','.') } -Descending
+    if ($files -and $files.Count -gt 0) {
+        return $files[0]
+    }
+
+    # 2. Tìm bản vá VOV nếu có
+    $patched = Join-Path $ScriptDir "AIBoxPlus_DLNA_VOV_Patched.apk"
+    if (Test-Path $patched) {
+        return (Get-Item $patched)
+    }
+
+    # 3. Tìm bản AIBoxPlus_DLNA.apk chuẩn
+    $std = Join-Path $ScriptDir "AIBoxPlus_DLNA.apk"
+    if (Test-Path $std) {
+        return (Get-Item $std)
+    }
+
+    # 4. Tìm bất kỳ file apk nào có tên bắt đầu bằng ai-box-plus hoặc aiboxplus
+    $other = Get-ChildItem -Path $ScriptDir -File -Filter '*.apk' -ErrorAction SilentlyContinue |
+        Where-Object { $_.BaseName -match '^(?i)(ai[-_]?box|aiboxplus)' } |
+        Sort-Object LastWriteTime -Descending
+    if ($other -and $other.Count -gt 0) {
+        return $other[0]
+    }
+
+    return $null
+}
+
 function Ensure-Apks {
-    $Apks = @("autodlna.apk")
     Write-Host ""
-    Write-Host ">> Đang chuẩn bị và tự động tải bộ cài từ vdt34.github.io/r1..." -ForegroundColor Cyan
+    Write-Host ">> Đang chuẩn bị các gói cài đặt (ưu tiên file cục bộ, tự động tải từ máy chủ nếu thiếu)..." -ForegroundColor Cyan
 
     foreach ($f in @("autodlna.apk", "AIBoxPlus_DLNA.apk")) {
         $oldFile = Join-Path $TempDir $f
@@ -567,37 +613,44 @@ function Ensure-Apks {
 
     $Missing = $false
     $UnixTs = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-    for ($i = 0; $i -lt $Apks.Count; $i++) {
-        $f = $Apks[$i]
-        Set-R1InstallProgress -Percent (5 + ($i * 10)) -Status "Đang chuẩn bị $f"
-        $cacheFile = Join-Path $TempDir $f
 
+    # 1. autodlna.apk: ưu tiên tìm local trước, nếu không có thì tải từ server
+    Set-R1InstallProgress -Percent 15 -Status "Đang chuẩn bị autodlna.apk"
+    $localDlna = if ($ScriptDir) { Join-Path $ScriptDir "autodlna.apk" } else { $null }
+    $cacheDlna = Join-Path $TempDir "autodlna.apk"
+
+    if ($localDlna -and (Test-Path $localDlna)) {
+        Write-Host ">> [LOCAL] Đã tìm thấy autodlna.apk cục bộ: $localDlna" -ForegroundColor Green
+        Copy-Item $localDlna $cacheDlna -Force
+    } else {
+        Write-Host ">> [ONLINE] Không có autodlna.apk cục bộ trong '$ScriptDir'. Đang tải từ máy chủ ($BaseUrl/autodlna.apk)..." -ForegroundColor Cyan
         try {
             $old = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
-            Invoke-WebRequest -Uri "$BaseUrl/$f`?t=$UnixTs" -OutFile "$cacheFile.tmp" -TimeoutSec 45 -UseBasicParsing
-            Move-Item "$cacheFile.tmp" $cacheFile -Force
+            Invoke-WebRequest -Uri "$BaseUrl/autodlna.apk`?t=$UnixTs" -OutFile "$cacheDlna.tmp" -TimeoutSec 45 -UseBasicParsing
+            Move-Item "$cacheDlna.tmp" $cacheDlna -Force
             $ProgressPreference = $old
         } catch {
             $ProgressPreference = $old
             $Missing = $true
         }
-        Set-R1InstallProgress -Percent (15 + ($i * 10)) -Status "Đã xử lý $f"
     }
+    Set-R1InstallProgress -Percent 25 -Status "Đã chuẩn bị autodlna.apk"
 
-    # Tải AIBoxPlus mới nhất trực tiếp từ version.json trên GitHub
-    Set-R1InstallProgress -Percent 25 -Status "Đang kiểm tra AIBoxPlus mới nhất"
+    # 2. AIBoxPlus APK: ưu tiên tìm local trước, nếu không có thì tải từ server
+    Set-R1InstallProgress -Percent 30 -Status "Đang kiểm tra AIBoxPlus"
     if (-not (Ensure-Apk-AiOnly)) {
         $Missing = $true
     }
-    Set-R1InstallProgress -Percent 35 -Status "Đã chuẩn bị AIBoxPlus"
+    Set-R1InstallProgress -Percent 35 -Status "Đã chuẩn bị xong các file APK"
 
     if ($Missing) {
         Complete-R1InstallProgress
         Write-Host ""
         Write-Host "==========================================================" -ForegroundColor Red
-        Write-Host "  [LỖI THIẾU FILE CÀI ĐẶT DO CHƯA CÓ INTERNET]" -ForegroundColor Red
+        Write-Host "  [LỖI THIẾU FILE CÀI ĐẶT]" -ForegroundColor Red
         Write-Host "==========================================================" -ForegroundColor Red
-        Write-Host "Vui lòng kiểm tra kết nối mạng để tải đủ các file APK từ GitHub." -ForegroundColor Yellow
+        Write-Host "Không tìm thấy đủ file APK trong thư mục cục bộ và tải từ máy chủ thất bại." -ForegroundColor Yellow
+        Write-Host "Vui lòng copy file APK vào cùng thư mục với script hoặc kiểm tra kết nối mạng." -ForegroundColor Yellow
         Read-Host "Nhấn Enter để quay lại menu"
         return $false
     }
@@ -609,8 +662,16 @@ function Ensure-Apk-AiOnly {
     $cacheFile = Join-Path $TempDir $f
     if (Test-Path $cacheFile) { Remove-Item $cacheFile -Force -ErrorAction SilentlyContinue }
 
-    Write-Host ""
-    Write-Host ">> Đang kiểm tra phiên bản AIBoxPlus mới nhất từ GitHub ($BaseUrl/version.json)..." -ForegroundColor Cyan
+    # 1. Ưu tiên tìm file local trước (file cùng thư mục với .bat/script)
+    $aiFile = Get-LocalAiApk
+    if ($aiFile) {
+        Write-Host ">> [LOCAL] Đã tìm thấy file AIBoxPlus cục bộ: $($aiFile.Name)" -ForegroundColor Green
+        Copy-Item $aiFile.FullName $cacheFile -Force
+        return $true
+    }
+
+    # 2. Nếu local không có, tìm và tải trên server như cũ
+    Write-Host ">> [ONLINE] Không có file APK AIBoxPlus cục bộ trong '$ScriptDir'. Đang kiểm tra từ máy chủ ($BaseUrl/version.json)..." -ForegroundColor Cyan
 
     try {
         $UnixTs = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
@@ -624,7 +685,7 @@ function Ensure-Apk-AiOnly {
         $aiDownloadUrl = $meta.files[0].url
         $aiApkName = $meta.files[0].name
         $aiVersion = $meta.version
-        Write-Host ">> Phiên bản mới nhất trên GitHub: $aiApkName (v$aiVersion)" -ForegroundColor Green
+        Write-Host ">> Phiên bản mới nhất trên máy chủ: $aiApkName (v$aiVersion)" -ForegroundColor Green
         Write-Host ">> Đang tải: $aiDownloadUrl..." -ForegroundColor Cyan
 
         $old = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
@@ -634,7 +695,7 @@ function Ensure-Apk-AiOnly {
         return $true
     } catch {
         $ProgressPreference = $old
-        Write-Host ">> [LỖI] Không thể tải phiên bản AIBoxPlus mới nhất từ GitHub ($($_.Exception.Message))." -ForegroundColor Red
+        Write-Host ">> [LỖI] Không tìm thấy file APK cục bộ và không thể tải AIBoxPlus từ máy chủ ($($_.Exception.Message))." -ForegroundColor Red
         Read-R1Input "Nhấn Enter để quay lại menu"
         return $false
     }
@@ -1109,10 +1170,10 @@ function Show-Menu {
     Write-Host "     -> Dùng khi loa vừa reset, đang phát WiFi Phicomm_R1_xxxx" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  2) Cài đặt đầy đủ 2 ứng dụng (AutoDLNA + AI)" -ForegroundColor White
-    Write-Host "     -> Dùng khi cài mới hoàn toàn cho loa" -ForegroundColor Gray
+    Write-Host "     -> Dùng khi cài mới hoàn toàn cho loa (ưu tiên file local)" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  3) Chỉ cài đặt / cập nhật AIBoxPlus (giữ nguyên token & app cũ)" -ForegroundColor White
-    Write-Host "     -> Nâng cấp AIBoxPlus nhanh, không ảnh hưởng DLNA" -ForegroundColor Gray
+    Write-Host "     -> Nâng cấp AIBoxPlus nhanh, không ảnh hưởng DLNA (ưu tiên local)" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  4) Quét tìm IP loa Phicomm R1 trong LAN (chỉ kiểm tra)" -ForegroundColor White
     Write-Host "  5) Thoát" -ForegroundColor White

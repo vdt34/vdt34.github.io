@@ -5,6 +5,7 @@ rem Neu canh tep nay co install.ps1 thi dung tep do (khong tai bo cai).
 title Cai dat AIbox Phicomm R1 vao loa Phicomm R1
 setlocal EnableExtensions
 if not defined NABU_R1_BASE set "NABU_R1_BASE=https://vdt34.github.io/r1"
+set "R1_BAT_DIR=%~dp0"
 cd /d "%~dp0"
 
 rem =====================================================================
@@ -58,10 +59,20 @@ rem =====================================================================
 rem ===== KET THUC PHAN TU CAI ADB ======================================
 rem =====================================================================
 
+rem =====================================================================
+rem ===== RESET ADB SERVER DE TRANH LOI KHONG QUET DUOC THIET BI ========
+rem =====================================================================
+echo [INFO] Dang khoi dong lai ADB server...
+adb kill-server >nul 2>nul
+taskkill /F /IM adb.exe >nul 2>nul
+timeout /t 1 /nobreak >nul
+adb start-server >nul 2>nul
+echo [OK] ADB server da san sang.
+
 if exist "%~dp0install.ps1" (
     powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1" %*
 ) else (
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch {}; $f = Join-Path $env:TEMP ('lily-r1-' + [guid]::NewGuid().ToString('N') + '.ps1'); try { $ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -UseBasicParsing -ErrorAction Stop -Uri ($env:NABU_R1_BASE + '/install.ps1') -OutFile $f; & $f -ApkBase $env:NABU_R1_BASE } catch { Write-Host ('[LOI] Khong tai duoc bo cai: ' + $_.Exception.Message) -ForegroundColor Red } finally { Remove-Item $f -Force -ErrorAction SilentlyContinue }"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch {}; $f = Join-Path $env:TEMP ('lily-r1-' + [guid]::NewGuid().ToString('N') + '.ps1'); try { $ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -UseBasicParsing -ErrorAction Stop -Uri ($env:NABU_R1_BASE + '/install.ps1') -OutFile $f; & $f -ApkBase $env:NABU_R1_BASE -LocalDir '%~dp0' } catch { Write-Host ('[LOI] Khong tai duoc bo cai: ' + $_.Exception.Message) -ForegroundColor Red } finally { Remove-Item $f -Force -ErrorAction SilentlyContinue }"
 )
 echo.
 pause
