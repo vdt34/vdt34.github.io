@@ -1,5 +1,15 @@
 [
     {
+        "version": "1.1.8",
+        "date": "2026-11-22",
+        "description": "Bản phát hành AIBox Plus v1.1.8: Hoàn thiện tính năng cập nhật OTA trực tuyến (phát hiện phiên bản mới, hiệu ứng Golden Pulse, bảng theo dõi tiến trình tải và cài đặt tự động ngầm), tối ưu giao diện Modal trên Web UI với lớp hiển thị Z-Index cao nhất."
+    },
+    {
+        "version": "1.1.7",
+        "date": "2026-11-22",
+        "description": "Bản phát hành AIBox Plus v1.1.7: Tối ưu cụm 4-Microphone chuyên sâu cho đàm thoại Xiaozhi (cân bằng Gain 5/15, lọc thông cao HPF 100Hz, Unity Gain ADC 207), sửa lỗi giao diện mDNS Hostname trong Tab System, nâng cấp cơ chế OTA Auto-Update thông minh (báo hiệu nhấp nháy trên Web UI, mở bảng cập nhật kèm Changelog, tự động tải và cài đặt khi loa rảnh rỗi)."
+    },
+    {
         "version": "1.1.6",
         "date": "2026-11-19",
         "description": "Bản phát hành AIBox Plus v1.1.6: Sửa triệt để lỗi mất kết nối Web UI khi để nguyên màn hình (tích hợp Heartbeat Ping/Pong 15s cho WebSocket 8082 và 8080, cơ chế Auto-Reconnect vĩnh viễn kèm Exponential Backoff và Pong Watchdog 10s tự phục hồi kết nối không cần bấm F5); duy trì đầy đủ tính năng Stereo Mode."
