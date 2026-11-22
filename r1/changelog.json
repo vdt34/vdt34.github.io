@@ -1,86 +1,91 @@
 [
-    {
-        "version": "1.1.10",
-        "date": "2026-11-22",
-        "description": "Bản phát hành AIBox Plus v1.1.10: Tái thiết kế toàn diện hệ thống Voice Front-End (VFE) với thuật toán Native ARMv7 (libr1mic_dsp.so) tích hợp Acoustic Echo Cancellation (WebRTC AECM), bộ lọc dải cao Biquad IIR 120Hz, triệt tiêu tạp âm thích ứng Noise Suppression (WebRTC NSX Mild), điều khiển mức tự động Digital AGC và trích xuất Near-End 16kHz Stereo-to-Mono sạch sẽ cho Opus/Xiaozhi; tối ưu hóa luồng thu âm AudioRecordingThread, sửa triệt để lỗi crash ngầm và khôi phục 100% độ nhạy Wake Word 'Ô Kê Na Bu' cùng phản hồi đàm thoại siêu mượt mà."
-    },
-    {
-        "version": "1.1.9",
-        "date": "2026-11-22",
-        "description": "Bản phát hành AIBox Plus v1.1.9: Khắc phục triệt để lỗi phân quyền cài đặt OTA ngầm (gửi lệnh trực tiếp qua WebSocket 8080 với quyền System UID 1000, bổ sung cơ chế tự động kết nối dự phòng connectBlocking), nâng cấp Web UI tự động kích hoạt OTA khi loa ở trạng thái rảnh rỗi."
-    },
-    {
-        "version": "1.1.8",
-        "date": "2026-11-22",
-        "description": "Bản phát hành AIBox Plus v1.1.8: Hoàn thiện tính năng cập nhật OTA trực tuyến (phát hiện phiên bản mới, hiệu ứng Golden Pulse, bảng theo dõi tiến trình tải và cài đặt tự động ngầm), tối ưu giao diện Modal trên Web UI với lớp hiển thị Z-Index cao nhất."
-    },
-    {
-        "version": "1.1.7",
-        "date": "2026-11-22",
-        "description": "Bản phát hành AIBox Plus v1.1.7: Tối ưu cụm 4-Microphone chuyên sâu cho đàm thoại Xiaozhi (cân bằng Gain 5/15, lọc thông cao HPF 100Hz, Unity Gain ADC 207), sửa lỗi giao diện mDNS Hostname trong Tab System, nâng cấp cơ chế OTA Auto-Update thông minh (báo hiệu nhấp nháy trên Web UI, mở bảng cập nhật kèm Changelog, tự động tải và cài đặt khi loa rảnh rỗi)."
-    },
-    {
-        "version": "1.1.6",
-        "date": "2026-11-19",
-        "description": "Bản phát hành AIBox Plus v1.1.6: Sửa triệt để lỗi mất kết nối Web UI khi để nguyên màn hình (tích hợp Heartbeat Ping/Pong 15s cho WebSocket 8082 và 8080, cơ chế Auto-Reconnect vĩnh viễn kèm Exponential Backoff và Pong Watchdog 10s tự phục hồi kết nối không cần bấm F5); duy trì đầy đủ tính năng Stereo Mode."
-    },
-    {
-        "version": "1.1.5",
-        "date": "2026-11-19",
-        "description": "Bản phát hành AIBox Plus v1.1.5: Sửa triệt để chế độ ghép đôi âm thanh nổi Stereo (Loa Mẹ - Loa Con) qua Web UI và LAN WebSocket; loại bỏ lỗi bytecode VerifyError; chuẩn hóa luồng giải mã AudioTrack kênh đôi (CHANNEL_OUT_STEREO, 44.1kHz 16-bit PCM) triệt tiêu hoàn toàn hiện tượng loa con phát chậm 0.5x và lệch tone."
-    },
-    {
-        "version": "1.1.3",
-        "date": "2026-11-19",
-        "description": "Bản phát hành AIBox Plus v1.1.3: Sửa triệt để cơ chế bật/tắt Bluetooth bằng phím bấm 3 lần (luân phiên bật/tắt chuẩn xác với âm báo batbluetooth/tatbluetooth), đồng bộ trạng thái Bluetooth 2 chiều thông minh với Web UI và giọng nói, gỡ bỏ 3.6 MB dữ liệu rác Snowboy giúp dung lượng APK giảm 27% (từ 13.6 MB xuống 10.7 MB) giúp cập nhật OTA siêu tốc."
-    },
-    {
-        "version": "1.1.2",
-        "date": "2026-11-19",
-        "description": "Bản phát hành AIBox Plus v1.1.2: Sửa lỗi điều khiển Bluetooth qua khẩu lệnh Xiaozhi (chuẩn hóa mã lệnh phần cứng what:64 A2DP Sink và đồng bộ service Lollipop), tối ưu Zero-Load Web UI (tự động ngắt kết nối WebSocket và triệt tiêu tải CPU khi không mở tab), và nâng cấp cơ chế tự động cập nhật OTA ngầm (Silent Background Update)."
-    },
-    {
-        "version": "1.1.1",
-        "date": "2026-11-19",
-        "description": "Bản phát hành AIBox Plus v1.1.1: Tối ưu hiệu năng chuyên sâu và hạ tải CPU (loại bỏ hoàn toàn polling RAM/CPU định kỳ và thanh System Monitor, cắt bỏ truy vấn lặp Equalizer, giãn chu kỳ heartbeat giữ kết nối), tích hợp xử lý âm thanh 4-Mic Hardware HAL trực tiếp không phụ thuộc Unisound cũ, nâng cấp bộ script cài đặt và thuật toán quét tìm loa qua cổng ADB 5555 siêu tốc."
-    },
-    {
-        "version": "1.1.0",
-        "date": "2026-11-17",
-        "description": "Bản phát hành AIBox Plus v1.1.0: Hiển thị nút bật/tắt TikTok Live Reply dưới khung chat khi livestream, tích hợp tính năng đổi mật khẩu quản trị vào Cài đặt hệ thống (System), sửa lỗi toàn diện Voice đàm thoại 2 chiều và cơ chế nâng cấp OTA qua WebSocket 8080."
-    },
-    {
-        "version": "1.0.9",
-        "date": "2026-11-16",
-        "description": "Bản phát hành chuẩn AIBox Plus v1.0.9: Giữ nguyên mã nguồn lõi gốc ổn định (Voice Bot Xiaozhi, Micro 4-mic Unisound, YouTube/Zing/Radio VOV, MCP), tinh gọn Web UI (lược bỏ mục Nhắc lịch bằng giọng nói trong Cài đặt hệ thống)."
-    },
-    {
-        "version": "1.0.8",
-        "date": "2026-11-12",
-        "description": "Tối ưu chuyên sâu bộ xử lý âm thanh XiaozhiMicDenoiser: hạ High-Pass xuống 85Hz để giữ trọn phụ âm đầu (b, d, g), mở rộng Low-Pass lên 7500Hz giữ âm gió/âm xát, nâng tốc độ mở cổng micro (Fast Attack Gate < 10ms) và nới lỏng sàn suy hao nền giúp loa nghe chuẩn âm thanh tiếng Việt từ xa không bị cụt chữ."
-    },
-    {
-        "version": "1.0.7",
-        "date": "2026-11-12",
-        "description": "Nâng cấp R1_get_device_status (thông tin thiết bị thật, bổ sung ip_read và version_read giúp AI đọc số chuẩn), sửa lỗi font tiếng Việt ở R1_stop_listen, dọn code thừa schema, đồng bộ mô tả các công cụ sang tiếng Việt chuẩn."
-    },
-    {
-        "version": "1.0.6",
-        "date": "2026-11-12",
-        "changes": [
-            "Chặn triệt để phát chồng chéo 2 luồng nhạc (VOV Radio ↔ YouTube, Zing MP3, Playlist, DLNA nội bộ/ngoại bộ, Resume)",
-            "Xóa nút Dừng trong ô VOV (dùng nút Stop trên Player chung), thêm kênh VOV5 và thay VOV GT HCM bằng VOV Sonata - FM89",
-            "Thêm nút + trong ô URL stream khác để lưu tên và link kênh radio tùy chọn"
-        ]
-    },
-    {
-        "version": "1.0.5",
-        "date": "2026-11-12",
-        "changes": [
-            "Tích hợp Radio VOV vào chung trình phát Media (hỗ trợ Next/Prev chuyển kênh, Stop dừng phát, tự động dừng khi phát nhạc YouTube/Zing/DLNA và ngược lại)",
-            "Ưu tiên tối đa Wake Word: tự động tạm dừng mọi nguồn phát media, radio và TTS khi đánh thức loa",
-            "Sửa lỗi và hoàn thiện Tự động hóa thông minh (Bản tin buổi sáng Thời tiết + Tin RSS, Chế độ Ban đêm tự giảm/tăng âm lượng, Nhắc lịch bằng giọng nói)",
-            "Nâng cấp giọng đọc tiếng Việt sang Microsoft Edge Neural TTS (vi-VN-HoaiMyNeural) tự nhiên, truyền cảm"
-        ]
-    }
+  {
+    "version": "1.1.11",
+    "date": "2026-11-22",
+    "description": "Bản phát hành AIBox Plus v1.1.11: Khắc phục triệt để lỗi đứng hình đàm thoại đa lượt (multi-turn conversation freeze sau khi Xiaozhi phản hồi TTS stop); tối ưu hóa độ nhạy mảng 4 micro AK7755 (tăng Analog Preamp Gain lên 10/15, ADC Digital Volume 215, WebRTC AGC boost 18dB với target -3dBFS); nâng cao độ chính xác nhận diện tiếng Việt và phục hồi hoàn toàn khả năng tương tác liên tục không ngắt quãng."
+  },
+  {
+    "version": "1.1.10",
+    "date": "2026-11-22",
+    "description": "Bản phát hành AIBox Plus v1.1.10: Tái thiết kế toàn diện hệ thống Voice Front-End (VFE) với thuật toán Native ARMv7 (libr1mic_dsp.so) tích hợp Acoustic Echo Cancellation (WebRTC AECM), bộ lọc dải cao Biquad IIR 120Hz, triệt tiêu tạp âm thích ứng Noise Suppression (WebRTC NSX Mild), điều khiển mức tự động Digital AGC và trích xuất Near-End 16kHz Stereo-to-Mono sạch sẽ cho Opus/Xiaozhi; tối ưu hóa luồng thu âm AudioRecordingThread, sửa triệt để lỗi crash ngầm và khôi phục 100% độ nhạy Wake Word 'Ô Kê Na Bu' cùng phản hồi đàm thoại siêu mượt mà."
+  },
+  {
+    "version": "1.1.9",
+    "date": "2026-11-22",
+    "description": "Bản phát hành AIBox Plus v1.1.9: Khắc phục triệt để lỗi phân quyền cài đặt OTA ngầm (gửi lệnh trực tiếp qua WebSocket 8080 với quyền System UID 1000, bổ sung cơ chế tự động kết nối dự phòng connectBlocking), nâng cấp Web UI tự động kích hoạt OTA khi loa ở trạng thái rảnh rỗi."
+  },
+  {
+    "version": "1.1.8",
+    "date": "2026-11-22",
+    "description": "Bản phát hành AIBox Plus v1.1.8: Hoàn thiện tính năng cập nhật OTA trực tuyến (phát hiện phiên bản mới, hiệu ứng Golden Pulse, bảng theo dõi tiến trình tải và cài đặt tự động ngầm), tối ưu giao diện Modal trên Web UI với lớp hiển thị Z-Index cao nhất."
+  },
+  {
+    "version": "1.1.7",
+    "date": "2026-11-22",
+    "description": "Bản phát hành AIBox Plus v1.1.7: Tối ưu cụm 4-Microphone chuyên sâu cho đàm thoại Xiaozhi (cân bằng Gain 5/15, lọc thông cao HPF 100Hz, Unity Gain ADC 207), sửa lỗi giao diện mDNS Hostname trong Tab System, nâng cấp cơ chế OTA Auto-Update thông minh (báo hiệu nhấp nháy trên Web UI, mở bảng cập nhật kèm Changelog, tự động tải và cài đặt khi loa rảnh rỗi)."
+  },
+  {
+    "version": "1.1.6",
+    "date": "2026-11-19",
+    "description": "Bản phát hành AIBox Plus v1.1.6: Sửa triệt để lỗi mất kết nối Web UI khi để nguyên màn hình (tích hợp Heartbeat Ping/Pong 15s cho WebSocket 8082 và 8080, cơ chế Auto-Reconnect vĩnh viễn kèm Exponential Backoff và Pong Watchdog 10s tự phục hồi kết nối không cần bấm F5); duy trì đầy đủ tính năng Stereo Mode."
+  },
+  {
+    "version": "1.1.5",
+    "date": "2026-11-19",
+    "description": "Bản phát hành AIBox Plus v1.1.5: Sửa triệt để chế độ ghép đôi âm thanh nổi Stereo (Loa Mẹ - Loa Con) qua Web UI và LAN WebSocket; loại bỏ lỗi bytecode VerifyError; chuẩn hóa luồng giải mã AudioTrack kênh đôi (CHANNEL_OUT_STEREO, 44.1kHz 16-bit PCM) triệt tiêu hoàn toàn hiện tượng loa con phát chậm 0.5x và lệch tone."
+  },
+  {
+    "version": "1.1.3",
+    "date": "2026-11-19",
+    "description": "Bản phát hành AIBox Plus v1.1.3: Sửa triệt để cơ chế bật/tắt Bluetooth bằng phím bấm 3 lần (luân phiên bật/tắt chuẩn xác với âm báo batbluetooth/tatbluetooth), đồng bộ trạng thái Bluetooth 2 chiều thông minh với Web UI và giọng nói, gỡ bỏ 3.6 MB dữ liệu rác Snowboy giúp dung lượng APK giảm 27% (từ 13.6 MB xuống 10.7 MB) giúp cập nhật OTA siêu tốc."
+  },
+  {
+    "version": "1.1.2",
+    "date": "2026-11-19",
+    "description": "Bản phát hành AIBox Plus v1.1.2: Sửa lỗi điều khiển Bluetooth qua khẩu lệnh Xiaozhi (chuẩn hóa mã lệnh phần cứng what:64 A2DP Sink và đồng bộ service Lollipop), tối ưu Zero-Load Web UI (tự động ngắt kết nối WebSocket và triệt tiêu tải CPU khi không mở tab), và nâng cấp cơ chế tự động cập nhật OTA ngầm (Silent Background Update)."
+  },
+  {
+    "version": "1.1.1",
+    "date": "2026-11-19",
+    "description": "Bản phát hành AIBox Plus v1.1.1: Tối ưu hiệu năng chuyên sâu và hạ tải CPU (loại bỏ hoàn toàn polling RAM/CPU định kỳ và thanh System Monitor, cắt bỏ truy vấn lặp Equalizer, giãn chu kỳ heartbeat giữ kết nối), tích hợp xử lý âm thanh 4-Mic Hardware HAL trực tiếp không phụ thuộc Unisound cũ, nâng cấp bộ script cài đặt và thuật toán quét tìm loa qua cổng ADB 5555 siêu tốc."
+  },
+  {
+    "version": "1.1.0",
+    "date": "2026-11-17",
+    "description": "Bản phát hành AIBox Plus v1.1.0: Hiển thị nút bật/tắt TikTok Live Reply dưới khung chat khi livestream, tích hợp tính năng đổi mật khẩu quản trị vào Cài đặt hệ thống (System), sửa lỗi toàn diện Voice đàm thoại 2 chiều và cơ chế nâng cấp OTA qua WebSocket 8080."
+  },
+  {
+    "version": "1.0.9",
+    "date": "2026-11-16",
+    "description": "Bản phát hành chuẩn AIBox Plus v1.0.9: Giữ nguyên mã nguồn lõi gốc ổn định (Voice Bot Xiaozhi, Micro 4-mic Unisound, YouTube/Zing/Radio VOV, MCP), tinh gọn Web UI (lược bỏ mục Nhắc lịch bằng giọng nói trong Cài đặt hệ thống)."
+  },
+  {
+    "version": "1.0.8",
+    "date": "2026-11-12",
+    "description": "Tối ưu chuyên sâu bộ xử lý âm thanh XiaozhiMicDenoiser: hạ High-Pass xuống 85Hz để giữ trọn phụ âm đầu (b, d, g), mở rộng Low-Pass lên 7500Hz giữ âm gió/âm xát, nâng tốc độ mở cổng micro (Fast Attack Gate < 10ms) và nới lỏng sàn suy hao nền giúp loa nghe chuẩn âm thanh tiếng Việt từ xa không bị cụt chữ."
+  },
+  {
+    "version": "1.0.7",
+    "date": "2026-11-12",
+    "description": "Nâng cấp R1_get_device_status (thông tin thiết bị thật, bổ sung ip_read và version_read giúp AI đọc số chuẩn), sửa lỗi font tiếng Việt ở R1_stop_listen, dọn code thừa schema, đồng bộ mô tả các công cụ sang tiếng Việt chuẩn."
+  },
+  {
+    "version": "1.0.6",
+    "date": "2026-11-12",
+    "changes": [
+      "Chặn triệt để phát chồng chéo 2 luồng nhạc (VOV Radio ↔ YouTube, Zing MP3, Playlist, DLNA nội bộ/ngoại bộ, Resume)",
+      "Xóa nút Dừng trong ô VOV (dùng nút Stop trên Player chung), thêm kênh VOV5 và thay VOV GT HCM bằng VOV Sonata - FM89",
+      "Thêm nút + trong ô URL stream khác để lưu tên và link kênh radio tùy chọn"
+    ]
+  },
+  {
+    "version": "1.0.5",
+    "date": "2026-11-12",
+    "changes": [
+      "Tích hợp Radio VOV vào chung trình phát Media (hỗ trợ Next/Prev chuyển kênh, Stop dừng phát, tự động dừng khi phát nhạc YouTube/Zing/DLNA và ngược lại)",
+      "Ưu tiên tối đa Wake Word: tự động tạm dừng mọi nguồn phát media, radio và TTS khi đánh thức loa",
+      "Sửa lỗi và hoàn thiện Tự động hóa thông minh (Bản tin buổi sáng Thời tiết + Tin RSS, Chế độ Ban đêm tự giảm/tăng âm lượng, Nhắc lịch bằng giọng nói)",
+      "Nâng cấp giọng đọc tiếng Việt sang Microsoft Edge Neural TTS (vi-VN-HoaiMyNeural) tự nhiên, truyền cảm"
+    ]
+  }
 ]
