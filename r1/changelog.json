@@ -1,5 +1,10 @@
 [
     {
+        "version": "1.1.10",
+        "date": "2026-11-22",
+        "description": "Bản phát hành AIBox Plus v1.1.10: Tái thiết kế toàn diện hệ thống Voice Front-End (VFE) với thuật toán Native ARMv7 (libr1mic_dsp.so) tích hợp Acoustic Echo Cancellation (WebRTC AECM), bộ lọc dải cao Biquad IIR 120Hz, triệt tiêu tạp âm thích ứng Noise Suppression (WebRTC NSX Mild), điều khiển mức tự động Digital AGC và trích xuất Near-End 16kHz Stereo-to-Mono sạch sẽ cho Opus/Xiaozhi; tối ưu hóa luồng thu âm AudioRecordingThread, sửa triệt để lỗi crash ngầm và khôi phục 100% độ nhạy Wake Word 'Ô Kê Na Bu' cùng phản hồi đàm thoại siêu mượt mà."
+    },
+    {
         "version": "1.1.9",
         "date": "2026-11-22",
         "description": "Bản phát hành AIBox Plus v1.1.9: Khắc phục triệt để lỗi phân quyền cài đặt OTA ngầm (gửi lệnh trực tiếp qua WebSocket 8080 với quyền System UID 1000, bổ sung cơ chế tự động kết nối dự phòng connectBlocking), nâng cấp Web UI tự động kích hoạt OTA khi loa ở trạng thái rảnh rỗi."
