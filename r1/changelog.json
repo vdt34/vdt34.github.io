@@ -1,5 +1,10 @@
 [
     {
+        "version": "1.1.9",
+        "date": "2026-11-22",
+        "description": "Bản phát hành AIBox Plus v1.1.9: Khắc phục triệt để lỗi phân quyền cài đặt OTA ngầm (gửi lệnh trực tiếp qua WebSocket 8080 với quyền System UID 1000, bổ sung cơ chế tự động kết nối dự phòng connectBlocking), nâng cấp Web UI tự động kích hoạt OTA khi loa ở trạng thái rảnh rỗi."
+    },
+    {
         "version": "1.1.8",
         "date": "2026-11-22",
         "description": "Bản phát hành AIBox Plus v1.1.8: Hoàn thiện tính năng cập nhật OTA trực tuyến (phát hiện phiên bản mới, hiệu ứng Golden Pulse, bảng theo dõi tiến trình tải và cài đặt tự động ngầm), tối ưu giao diện Modal trên Web UI với lớp hiển thị Z-Index cao nhất."
