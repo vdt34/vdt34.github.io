@@ -1,5 +1,19 @@
 [
   {
+    "version": "1.1.12",
+    "date": "2026-11-23",
+    "title": "Bản tối ưu toàn diện sau Audit & Fix phím Bluetooth",
+    "changes": [
+      "Khắc phục triệt để lỗi bấm phím đỉnh 3 lần bật/tắt Bluetooth: Đồng bộ trạng thái thực thời gian thực từ BluetoothAdapter và sửa lệnh tắt sóng radio phần cứng qua Binder daemon (ngắt hoàn toàn kết nối điện thoại và tắt chip Bluetooth khi tắt, luân phiên Bật/Tắt chuẩn xác kèm âm báo batbluetooth.mp3 và tatbluetooth.mp3).",
+      "Khắc phục triệt để lỗi treo im ngắt phiên sau 1-2 lượt hội thoại multi-turn (giữ luồng capture liên tục chuẩn baseline 1.0.9).",
+      "Thêm thanh trượt và nút [-]/[+] điều chỉnh độ nhạy micro phần cứng AK7755 trực tiếp trong thời gian thực trên Web UI (Tab Control).",
+      "Tối ưu mức Gain mặc định 7/15 (+4.5 dB) thu xa rõ nét hơn mà không vỡ tiếng.",
+      "Sửa nút giả TikTok config: Bổ sung backend handler lưu SharedPreferences trên WebSocket 8082.",
+      "Dọn dẹp mã nguồn đóng gói APK, loại bỏ thư viện native thừa và tối ưu touch target Web UI.",
+      "Giữ nguyên 100% thuật toán WebRTC APM và độ ổn định nguyên bản của v1.0.9."
+    ]
+  },
+  {
     "version": "1.1.11",
     "date": "2026-11-22",
     "description": "Bản phát hành AIBox Plus v1.1.11: Khắc phục triệt để lỗi đứng hình đàm thoại đa lượt (multi-turn conversation freeze sau khi Xiaozhi phản hồi TTS stop); tối ưu hóa độ nhạy mảng 4 micro AK7755 (tăng Analog Preamp Gain lên 10/15, ADC Digital Volume 215, WebRTC AGC boost 18dB với target -3dBFS); nâng cao độ chính xác nhận diện tiếng Việt và phục hồi hoàn toàn khả năng tương tác liên tục không ngắt quãng."
