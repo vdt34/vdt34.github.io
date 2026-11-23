@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.1.13",
+    "date": "2026-11-23",
+    "title": "Khắc phục triệt để lỗi tự động cập nhật OTA & Cài đặt ngầm",
+    "changes": [
+      "Khắc phục lỗi xóa nhầm file APK: Hạ ngưỡng dung lượng fallback từ 12 MB xuống 5 MB, ngăn chặn việc xóa nhầm bản cập nhật 10.67 MB sau khi tải về.",
+      "Ủy quyền cài đặt ngầm qua Root Shell WS 8080 (UID 1000 - system): Thực thi lệnh pm install -r với đầy đủ đặc quyền hệ thống, khắc phục lỗi Permission Denial.",
+      "Bỏ qua bộ đệm 15 giây khi kích hoạt cập nhật thủ công từ Web UI: Xử lý tức thì lệnh ota_start_update mà không bị bỏ qua yêu cầu.",
+      "Bổ sung User-Agent chuẩn cho HTTP request tải APK và truy vấn Content-Length từ máy chủ GitHub Pages.",
+      "Truy xuất và hiển thị phiên bản động từ PackageManager trên WebSocket 8082 và giao diện Web UI."
+    ]
+  },
+  {
     "version": "1.1.12",
     "date": "2026-11-23",
     "title": "Bản tối ưu toàn diện sau Audit & Fix phím Bluetooth",
