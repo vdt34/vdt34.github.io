@@ -1,5 +1,19 @@
 [
   {
+    "version": "1.1.15",
+    "date": "2026-11-24",
+    "title": "Tích hợp Não AI Gemini (Flash & Live), Chuẩn hóa hệ thống LED & Sửa lỗi crash UDP Audio",
+    "changes": [
+      "Tích hợp Não AI Gemini trực tiếp trên loa (3 chế độ: XiaoZhi Server, Gemini Flash + Google Search + TTS tiếng Việt, Gemini Live Audio-to-Audio hai chiều) kèm tải danh sách model tự động, fallback khi 503/429/404, đàm thoại đa lượt (timeout 15 giây im lặng) và 18 công cụ MCP điều khiển loa R1.",
+      "Chuẩn hóa toàn bộ hệ thống điều khiển LED theo thứ tự ưu tiên AI > Media > Idle: đèn xanh lá sáng liên tục khi nghe/xử lý, nhấp nháy khi phát giọng nói TTS, không bị hiệu ứng Music VU 25 FPS ghi đè, và tự tắt hoàn toàn khi chờ (sửa triệt để nút Tắt LED chờ standbyOff).",
+      "Khắc phục triệt để lỗi treo đơ / crash SIGSEGV native trong UdpAudioChannel (EVP_DecryptUpdate) khi chuyển chế độ Gemini ↔ XiaoZhi bằng đồng bộ khóa synchronized cho AES-CTR Cipher.",
+      "Chuyển toàn bộ MCP Tools (AirPlay, DLNA, Bluetooth, Đèn LED, Chế độ ban đêm, Reboot) sang gọi trực tiếp native API / R1FastLedController / AiBoxDlnaManager / AiBoxAirplayManager, bỏ hoàn toàn phụ thuộc cổng 8080.",
+      "Tích hợp cơ chế Local ADB 127.0.0.1:5555 cho Khởi động lại loa, Cài đặt OTA âm thầm chạy nền (nohup pm install -r) và Chỉnh độ nhạy mixer phần cứng (tinymix).",
+      "Tối ưu WebUI: sửa chấm trạng thái kết nối header (#connectionBadge) ổn định trên WebSocket 8082, đồng bộ lịch sử chat Gemini lên Tab 3 và giữ sạch console/logcat không reconnect cổng 8080.",
+      "Tối ưu chuỗi thu âm micro tiếng Việt (AK7755 Gain 9/15 + ADC 212, WebRTC APM Moderate + AGC2)."
+    ]
+  },
+  {
     "version": "1.1.14",
     "date": "2026-11-24",
     "title": "Tích hợp độc lập DLNA, AirPlay, Bluetooth & Đồng bộ toàn diện WebUI không cần autodlna",
