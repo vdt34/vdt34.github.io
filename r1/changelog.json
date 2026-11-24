@@ -1,5 +1,18 @@
 [
   {
+    "version": "1.1.14",
+    "date": "2026-11-24",
+    "title": "Tích hợp độc lập DLNA, AirPlay, Bluetooth & Đồng bộ toàn diện WebUI không cần autodlna",
+    "changes": [
+      "Tích hợp trực tiếp DLNA Media Renderer độc lập (AiBoxDlnaManager sử dụng /system/lib/libplatinum-jni.so) với đầy đủ sự kiện GENA (PLAYING/PAUSED/STOPPED/Duration), khắc phục triệt để lỗi tự nhảy bài sau vài giây.",
+      "Tích hợp trực tiếp AirPlay Receiver độc lập (AiBoxAirplayManager sử dụng /system/lib/libshairport.so + JmDNS cổng 5012), không còn phụ thuộc autodlna.apk hay cổng 8080.",
+      "Đồng bộ 2 chiều qua WebSocket 8082 cho toàn bộ các công tắc trên WebUI: DLNA (#sw-dlna), AirPlay (#sw-airplay) và Bluetooth (#sw-bluetooth gọi trực tiếp BluetoothAdapter), tự lưu trạng thái qua khởi động lại.",
+      "Tự động khởi chạy máy chủ quét nhạc DLNA CGI (:8088) độc lập qua WebSocket 8082 (không cần cổng 8080).",
+      "Tự đồng bộ lại bài hát và hàng đợi DLNA đang phát trên Player Card sau khi tải lại trang (F5), đảm bảo các nút Dừng / Tạm dừng / Qua bài luôn hoạt động chính xác.",
+      "Đồng bộ nút vật lý với nhạc DLNA: nhấn 1 lần tự tạm dừng nhạc DLNA để gọi Xiaozhi, nhấn giữ Quick Stop dừng hẳn nhạc DLNA."
+    ]
+  },
+  {
     "version": "1.1.13",
     "date": "2026-11-23",
     "title": "Khắc phục triệt để lỗi tự động cập nhật OTA & Cài đặt ngầm",
