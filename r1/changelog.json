@@ -4,7 +4,7 @@
     "date": "2026-11-24",
     "title": "Tích hợp Não AI Gemini (Flash & Live), Chuẩn hóa hệ thống LED & Sửa lỗi crash UDP Audio",
     "changes": [
-      "Tích hợp Não AI Gemini trực tiếp trên loa (3 chế độ: XiaoZhi Server, Gemini Flash + Google Search + TTS tiếng Việt, Gemini Live Audio-to-Audio hai chiều) kèm tải danh sách model tự động, fallback khi 503/429/404, đàm thoại đa lượt (timeout 15 giây im lặng) và 18 công cụ MCP điều khiển loa R1.",
+      "Tích hợp Não AI Gemini trực tiếp trên loa (3 chế độ: XiaoZhi Server, Gemini Flash + Google Search + TTS tiếng Việt, Gemini Live Audio-to-Audio hai chiều) kèm tải danh sách model tự động, fallback khi 503/429/404, đàm thoại đa lượt (timeout 15 giây im lặng), 18 công cụ MCP loa R1 và 4 công cụ Home Assistant trực tiếp (homeassistant_GetLiveContext, homeassistant_HassTurnOn, homeassistant_HassTurnOff, homeassistant_CallService).",
       "Chuẩn hóa toàn bộ hệ thống điều khiển LED theo thứ tự ưu tiên AI > Media > Idle: đèn xanh lá sáng liên tục khi nghe/xử lý, nhấp nháy khi phát giọng nói TTS, không bị hiệu ứng Music VU 25 FPS ghi đè, và tự tắt hoàn toàn khi chờ (sửa triệt để nút Tắt LED chờ standbyOff).",
       "Khắc phục triệt để lỗi treo đơ / crash SIGSEGV native trong UdpAudioChannel (EVP_DecryptUpdate) khi chuyển chế độ Gemini ↔ XiaoZhi bằng đồng bộ khóa synchronized cho AES-CTR Cipher.",
       "Chuyển toàn bộ MCP Tools (AirPlay, DLNA, Bluetooth, Đèn LED, Chế độ ban đêm, Reboot) sang gọi trực tiếp native API / R1FastLedController / AiBoxDlnaManager / AiBoxAirplayManager, bỏ hoàn toàn phụ thuộc cổng 8080.",
