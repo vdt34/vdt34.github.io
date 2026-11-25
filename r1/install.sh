@@ -1,36 +1,60 @@
 #!/bin/sh
 # ==============================================================================
 # BỘ CÀI ĐẶT PHICOMM R1 SIÊU TỐC - iSH (iPHONE) / LINUX / ANDROID / MACOS
-# Đồng bộ luồng kết nối linh động & cài đặt chuẩn xác theo install.ps1
-# Tự động cấu hình WiFi AP, quét tìm loa trong LAN, đánh thức ADB, cài đặt AI
+# Đồng bộ chuẩn xác 100% theo install.ps1 (install_src.ps1)
+# Tự động cấu hình WiFi AP, quét tìm loa trong LAN, dọn sạch file cũ, giao diện UTF-8
 # ==============================================================================
-
-BASE_URL="https://vdt34.github.io/r1"
-CACHE_DIR="/tmp/r1_cache"
-SCRIPT_DIR=$(cd "$(dirname -- "$0")" 2>/dev/null && pwd)
-[ -z "$SCRIPT_DIR" ] && SCRIPT_DIR="."
 
 USER_IP=""
 ASSUME_YES=""
-CLI_MODE=""
-[ "${R1_DRYRUN:-0}" = "1" ] || R1_DRYRUN=0
+R1_DRYRUN="${R1_DRYRUN:-0}"
+RUN_WIFI_CLI=""
+RUN_SCAN_CLI=""
+RUN_AIONLY_CLI=""
 
-for arg in "$@"; do
-    case "$arg" in
-        -y|--yes|-Yes) ASSUME_YES="1" ;;
-        -DryRun|--dry-run|-dryrun) R1_DRYRUN=1; export R1_DRYRUN ;;
-        -Wifi|--wifi|-wifi) CLI_MODE="wifi" ;;
-        -Scan|--scan|-scan) CLI_MODE="scan" ;;
-        -AiOnly|--ai-only|-aionly|-ai) CLI_MODE="aionly" ;;
+SCRIPT_DIR=$(cd "$(dirname -- "$0")" 2>/dev/null && pwd)
+[ -z "$SCRIPT_DIR" ] && SCRIPT_DIR="."
+CACHE_DIR="/tmp/r1_cache"
+BASE_URL="${NABU_R1_BASE:-https://vdt34.github.io/r1}"
+
+while [ $# -gt 0 ]; do
+    case "$1" in
         192.168.43.1|192.168.43.1:*)
             USER_IP="192.168.43.1"
-            CLI_MODE="wifi"
+            RUN_WIFI_CLI=1
+            ;;
+        -Ip|--ip|-ip)
+            shift
+            [ $# -gt 0 ] && USER_IP="$1"
             ;;
         [0-9]*.[0-9]*.[0-9]*.[0-9]*:[0-9]*|[0-9]*.[0-9]*.[0-9]*.[0-9]*)
-            USER_IP="$arg"
-            [ -z "$CLI_MODE" ] && CLI_MODE="install"
+            USER_IP="$1"
+            ;;
+        -Yes|-y|--yes|-yes)
+            ASSUME_YES=1
+            ;;
+        -DryRun|--dry-run|-dryrun)
+            R1_DRYRUN=1
+            ;;
+        -Wifi|--wifi|-wifi)
+            RUN_WIFI_CLI=1
+            ;;
+        -Scan|--scan|-scan)
+            RUN_SCAN_CLI=1
+            ;;
+        -AiOnly|--ai-only|-aionly|-ai)
+            RUN_AIONLY_CLI=1
+            ;;
+        -LocalDir|--local-dir)
+            shift
+            [ $# -gt 0 ] && SCRIPT_DIR="$1"
+            ;;
+        -ApkBase|--apk-base)
+            shift
+            [ $# -gt 0 ] && BASE_URL="$1"
             ;;
     esac
+    shift
 done
 
 # ------------------------------------------------------------------------------
@@ -51,73 +75,122 @@ if [ -t 1 ] && [ "${TERM:-}" != "dumb" ]; then
     C_GRAY=$(printf '\033[90m')
 fi
 
-read_val() {
+read_r1_input() {
     prompt="$1"
-    def="$2"
+    default_val="$2"
     if [ "$ASSUME_YES" = "1" ] || [ "$R1_DRYRUN" = "1" ]; then
-        echo "$def"
+        echo "$default_val"
         return
     fi
     printf "%s" "$prompt" >&2
     val=""
     read -r val 2>/dev/null || val=""
     val=$(printf '%s' "$val" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
-    [ -z "$val" ] && val="$def"
+    [ -z "$val" ] && val="$default_val"
     echo "$val"
 }
 
-progress_update() {
-    [ -t 1 ] || return
+set_r1_install_progress() {
     percent="$1"
-    label="$2"
+    status="$2"
+    [ -t 1 ] || return
+
     case "$percent" in
         ''|*[!0-9]*) percent=0 ;;
     esac
     [ "$percent" -gt 100 ] && percent=100
     [ "$percent" -lt 0 ] && percent=0
 
-    cols="${COLUMNS:-}"
-    if [ -z "$cols" ] && command -v tput >/dev/null 2>&1; then
-        cols=$(tput cols 2>/dev/null)
-    fi
-    case "$cols" in
-        ''|*[!0-9]*) cols=60 ;;
-    esac
-    bar_width=$((cols - 16))
-    [ "$bar_width" -gt 36 ] && bar_width=36
-    [ "$bar_width" -lt 12 ] && bar_width=12
-
+    bar_width=50
     filled=$((percent * bar_width / 100))
     empty=$((bar_width - filled))
     bar=""
     idx=0
-    while [ "$idx" -lt "$filled" ]; do
-        bar="${bar}█"
-        idx=$((idx + 1))
-    done
+    while [ "$idx" -lt "$filled" ]; do bar="${bar}█"; idx=$((idx + 1)); done
     idx=0
-    while [ "$idx" -lt "$empty" ]; do
-        bar="${bar}░"
-        idx=$((idx + 1))
-    done
+    while [ "$idx" -lt "$empty" ]; do bar="${bar}░"; idx=$((idx + 1)); done
 
     if [ "$R1_PROGRESS_ACTIVE" = "1" ]; then
         printf '\033[2A\r\033[J'
     fi
-    printf '\033[?7l%s   %s%s\n' "$C_CYAN" "$label" "$C_RESET"
+    printf '\033[?7l%s   %s%s\n' "$C_CYAN" "$status" "$C_RESET"
     printf '%s   [%s] %3s%%%s\033[?7h\n' "$C_CYAN" "$bar" "$percent" "$C_RESET"
     R1_PROGRESS_ACTIVE=1
 }
 
-progress_finish() {
+complete_r1_install_progress() {
     if [ -t 1 ] && [ "$R1_PROGRESS_ACTIVE" = "1" ]; then
         printf '\033[2A\r\033[J'
         R1_PROGRESS_ACTIVE=""
     fi
 }
 
+wait_r1_speaker_boot() {
+    serial="$1"
+    attempts="${2:-45}"
+    try=1
+    while [ "$try" -le "$attempts" ]; do
+        adb connect "$serial" >/dev/null 2>&1 || true
+        state=$(adb -s "$serial" get-state 2>/dev/null | tr -d ' \r\n')
+        if [ "$state" = "device" ]; then
+            boot_state=$(adb -s "$serial" shell getprop sys.boot_completed 2>/dev/null | tr -d ' \r\n')
+            if [ "$boot_state" = "1" ]; then
+                return 0
+            fi
+        fi
+        set_r1_install_progress 98 "Đang chờ loa khởi động lại ($try/$attempts)"
+        sleep 2
+        try=$((try + 1))
+    done
+    return 1
+}
+
 # ------------------------------------------------------------------------------
-# 1. ĐẢM BẢO CÔNG CỤ CẦN THIẾT (CURL / NC / ADB)
+# KIỂM TRA CỔNG TCP & ĐÁNH THỨC LOA (TƯƠNG ĐỒNG Test-R1TcpPort & Revive-Speaker)
+# ------------------------------------------------------------------------------
+find_python() {
+    if command -v python3 >/dev/null 2>&1 && python3 -c "import socket" >/dev/null 2>&1; then
+        echo "python3"
+    elif command -v python >/dev/null 2>&1 && python -c "import socket" >/dev/null 2>&1; then
+        echo "python"
+    else
+        echo ""
+    fi
+}
+PY_BIN=$(find_python)
+
+test_r1_tcp_port() {
+    thost="$1"
+    tport="$2"
+    tsec="${3:-1}"
+    if [ -n "$PY_BIN" ]; then
+        "$PY_BIN" - "$thost" "$tport" "$tsec" << 'EOF' >/dev/null 2>&1
+import socket, sys
+try:
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(float(sys.argv[3]))
+    rc = s.connect_ex((sys.argv[1], int(sys.argv[2])))
+    s.close()
+    sys.exit(0 if rc == 0 else 1)
+except Exception:
+    sys.exit(1)
+EOF
+        return $?
+    fi
+    if command -v nc >/dev/null 2>&1; then
+        nc -z -w "$tsec" "$thost" "$tport" </dev/null >/dev/null 2>&1
+        return $?
+    fi
+    if command -v curl >/dev/null 2>&1; then
+        curl -s -m "$tsec" --connect-timeout "$tsec" -o /dev/null "http://$thost:$tport/" </dev/null 2>/dev/null
+        rc=$?
+        case "$rc" in 0|1|52|56) return 0 ;; esac
+    fi
+    return 1
+}
+
+# ------------------------------------------------------------------------------
+# 1. ĐẢM BẢO CÔNG CỤ CẦN THIẾT (CURL / NC / ADB) - (TƯƠNG ĐỒNG Ensure-Adb)
 # ------------------------------------------------------------------------------
 setup_tools() {
     mkdir -p "$HOME/.android" "$CACHE_DIR" 2>/dev/null || true
@@ -152,9 +225,7 @@ setup_tools
 
 ensure_adb() {
     [ "$R1_DRYRUN" = "1" ] && return 0
-    if command -v adb >/dev/null 2>&1; then
-        return 0
-    fi
+    if command -v adb >/dev/null 2>&1; then return 0; fi
     if [ -x "$SCRIPT_DIR/adb" ]; then
         PATH="$SCRIPT_DIR:$PATH"
         export PATH
@@ -165,79 +236,22 @@ ensure_adb() {
         export PATH
         return 0
     fi
-
     setup_tools
     command -v adb >/dev/null 2>&1 && return 0
     return 1
 }
 
 # ------------------------------------------------------------------------------
-# 2. KIỂM TRA CỔNG TCP & ĐÁNH THỨC LOA (TƯƠNG ĐỒNG Test-R1TcpPort & Revive-Speaker)
+# 2. HÀM ĐÁNH THỨC & XÁC THỰC LOA R1 QUA WEBSOCKET 8080 (TƯƠNG ĐỒNG Revive-Speaker)
 # ------------------------------------------------------------------------------
-find_python() {
-    if command -v python3 >/dev/null 2>&1 && python3 -c "import socket" >/dev/null 2>&1; then
-        echo "python3"
-    elif command -v python >/dev/null 2>&1 && python -c "import socket" >/dev/null 2>&1; then
-        echo "python"
-    else
-        echo ""
-    fi
-}
-PY_BIN=$(find_python)
-
-# Kiểm tra cổng TCP mở (hỗ trợ cả cổng không phải HTTP như ADB 5555)
-test_tcp_port() {
-    host="$1"
-    port="$2"
-    timeout_sec="${3:-1}"
-    [ -z "$host" ] || [ -z "$port" ] && return 1
-
-    if [ -n "$PY_BIN" ]; then
-        "$PY_BIN" - "$host" "$port" "$timeout_sec" << 'EOF' >/dev/null 2>&1
-import socket, sys
-h = sys.argv[1]
-p = int(sys.argv[2])
-t = float(sys.argv[3])
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.settimeout(t)
-try:
-    rc = s.connect_ex((h, p))
-    s.close()
-    sys.exit(0 if rc == 0 else 1)
-except Exception:
-    sys.exit(1)
-EOF
-        return $?
-    fi
-
-    if command -v nc >/dev/null 2>&1; then
-        nc -z -w "$timeout_sec" "$host" "$port" </dev/null >/dev/null 2>&1
-        return $?
-    fi
-
-    if command -v curl >/dev/null 2>&1; then
-        # Với curl: mã 0 (HTTP OK), 52 (Empty reply - như cổng ADB 5555), 56 (Recv failure sau khi đã TCP connect),
-        # hoặc 1 (Unsupported protocol từ banner ADB) đều chứng tỏ cổng TCP đang MỞ!
-        curl -s -m "$timeout_sec" --connect-timeout "$timeout_sec" -o /dev/null "http://$host:$port/" </dev/null 2>/dev/null
-        rc=$?
-        case "$rc" in
-            0|1|52|56) return 0 ;;
-        esac
-    fi
-
-    return 1
-}
-
-# Đánh thức loa R1 qua cổng 8080/8081 (WebSocket 8080 bật adbd + HTTP giống Revive-Speaker trong install.ps1)
 revive_speaker() {
     tip="$1"
-    [ -z "$tip" ] && tip="192.168.43.1"
+    [ -z "$tip" ] && return 1
     [ "$R1_DRYRUN" = "1" ] && return 0
 
     if [ -n "$PY_BIN" ]; then
         "$PY_BIN" - "$tip" << 'EOF' >/dev/null 2>&1 || true
 import sys, socket, base64, os, time
-
 ip = sys.argv[1]
 try:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -266,20 +280,18 @@ try:
 except Exception:
     pass
 EOF
+        return 0
     fi
 
-    # Mở kết nối TCP & gửi gói WebSocket thô qua nc nếu không có Python
     if command -v nc >/dev/null 2>&1; then
         (
             printf 'GET / HTTP/1.1\r\nHost: %s:8080\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n' "$tip"
             sleep 0.2
-            # Masked WebSocket frame for: {"type":"shell","type_id":"myshell","shell":"setprop service.adb.tcp.port 5555; stop adbd; start adbd"} (mask = 0x00000000)
             printf '\201\347\000\000\000\000{"type":"shell","type_id":"myshell","shell":"setprop service.adb.tcp.port 5555; stop adbd; start adbd"}'
             sleep 0.2
         ) | nc -w 1 "$tip" 8080 >/dev/null 2>&1 || true
     fi
 
-    # Gửi thêm HTTP request đánh thức dịch vụ trên loa
     if command -v curl >/dev/null 2>&1; then
         curl -s -m 1 --connect-timeout 1 "http://$tip:8080/" >/dev/null 2>&1 || true
         curl -s -m 1 --connect-timeout 1 "http://$tip:8081/" >/dev/null 2>&1 || true
@@ -287,10 +299,130 @@ EOF
         wget -q -O- --timeout=1 "http://$tip:8080/" >/dev/null 2>&1 || true
         wget -q -O- --timeout=1 "http://$tip:8081/" >/dev/null 2>&1 || true
     fi
+    return 0
 }
 
 # ------------------------------------------------------------------------------
-# 3. HÀM DÒ TÌM DẢI MẠNG LAN & QUÉT LOA PHICOMM R1 (TƯƠNG ĐỒNG Scan-SpeakerIp)
+# 3. [MỤC 1] CẤU HÌNH WIFI CHO LOA QUA AP API (TƯƠNG ĐỒNG Run-WifiConfig)
+# ------------------------------------------------------------------------------
+send_wifi_config() {
+    target_ip="$1"
+    ssid="$2"
+    pass="$3"
+    secure="$4"
+    [ -z "$secure" ] && secure="WPA"
+
+    esc_ssid=$(printf '%s' "$ssid" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    esc_pass=$(printf '%s' "$pass" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    payload="{\"ssid\":\"$esc_ssid\",\"secure\":\"$secure\",\"password\":\"$esc_pass\",\"mac\":\"\"}"
+
+    if [ "$R1_DRYRUN" = "1" ]; then
+        printf '%s   [DRY-RUN] Đã gửi cấu hình WiFi SSID='\''%s'\'' tới http://%s:8989/api/configwifi%s\n' "$C_YELLOW" "$ssid" "$target_ip" "$C_RESET"
+        return 0
+    fi
+
+    if command -v curl >/dev/null 2>&1; then
+        curl -s -m 5 -X POST "http://$target_ip:8989/api/configwifi" \
+             -H "Content-Type: application/json" \
+             -d "$payload" >/dev/null 2>&1 || true
+        return 0
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q -O- --timeout=5 --header="Content-Type: application/json" \
+             --post-data="$payload" "http://$target_ip:8989/api/configwifi" >/dev/null 2>&1 || true
+        return 0
+    fi
+    return 0
+}
+
+run_wifi_config() {
+    echo ""
+    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
+    printf '%s  CẤU HÌNH WIFI CHO LOA VỪA RESET (CHẾ ĐỘ AP 192.168.43.1)%s\n' "$C_YELLOW" "$C_RESET"
+    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
+    echo " Hướng dẫn chuẩn bị:"
+    echo "  1. Loa vừa reset sẽ phát mạng WiFi 'Phicomm_R1_xxxx'."
+    echo "  2. Trên Điện thoại / Máy tính: Vào Cài đặt WiFi -> Kết nối 'Phicomm_R1_xxxx'."
+    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
+
+    if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
+        read_r1_input "Nhấn Enter khi đã kết nối WiFi của loa: " "" >/dev/null 2>&1 || true
+    fi
+
+    echo ""
+    printf '%s>> Đang kiểm tra kết nối tới loa (192.168.43.1:8989)...%s\n' "$C_CYAN" "$C_RESET"
+    connected_api=0
+    if test_r1_tcp_port "192.168.43.1" 8989 2; then
+        connected_api=1
+    fi
+
+    if [ "$connected_api" = "1" ]; then
+        printf '%s   [OK] Đã kết nối được API của loa.%s\n' "$C_GREEN" "$C_RESET"
+    else
+        if [ "$R1_DRYRUN" != "1" ]; then
+            printf '%s   [CẢNH BÁO] Chưa kết nối được 192.168.43.1:8989.%s\n' "$C_YELLOW" "$C_RESET"
+            printf '%s   Kiểm tra: Thiết bị đã chọn WiFi Phicomm_R1 chưa? Loa còn phát AP không?%s\n' "$C_GRAY" "$C_RESET"
+            if [ "$ASSUME_YES" != "1" ]; then
+                cont=$(read_r1_input "   Vẫn tiếp tục gửi cấu hình WiFi? [y/N]: " "n")
+                case "$(printf '%s' "$cont" | tr '[:upper:]' '[:lower:]')" in
+                    "y"|"yes") ;;
+                    *) return 1 ;;
+                esac
+            fi
+        fi
+    fi
+
+    echo ""
+    echo "Nhập thông tin mạng WiFi nhà để loa kết nối:"
+    printf '%s----------------------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
+    ssid=""
+    pass=""
+    if [ "$ASSUME_YES" = "1" ] || [ "$R1_DRYRUN" = "1" ]; then
+        ssid="MyWiFi"
+        pass="12345678"
+    else
+        while [ -z "$ssid" ]; do
+            ssid=$(read_r1_input ">> Tên WiFi nhà (SSID, phân biệt HOA/thường): " "")
+            if [ -z "$ssid" ]; then
+                printf '%s   [!] Tên WiFi không được để trống!%s\n' "$C_YELLOW" "$C_RESET"
+            fi
+        done
+        pass=$(read_r1_input ">> Mật khẩu WiFi (nhấn Enter nếu WiFi không có pass): " "")
+    fi
+
+    secure="WPA"
+    if [ -z "$pass" ]; then
+        secure="INSECURE"
+        echo "   -> Chế độ WiFi không mật khẩu (INSECURE)"
+    else
+        pass_len=$(printf '%s' "$pass" | wc -c)
+        if [ "$pass_len" -lt 8 ]; then
+            printf '%s   [!] CẢNH BÁO: Mật khẩu WiFi thông thường từ 8 ký tự trở lên!%s\n' "$C_YELLOW" "$C_RESET"
+        fi
+    fi
+
+    echo ""
+    printf '%s>> Đang gửi cấu hình tới loa (192.168.43.1:8989)...%s\n' "$C_CYAN" "$C_RESET"
+    send_wifi_config "192.168.43.1" "$ssid" "$pass" "$secure"
+
+    echo ""
+    printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
+    printf '%s            ĐÃ GỬI CẤU HÌNH WIFI THÀNH CÔNG!              %s\n' "$C_YELLOW" "$C_RESET"
+    printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
+    echo " THÔNG BÁO QUAN TRỌNG:"
+    echo "  1. Loa đang kết nối WiFi nhà, chờ khoảng 20 giây sẽ có IP."
+    echo "  2. Hãy chuyển Điện thoại / Máy tính về lại mạng WiFi nhà."
+    printf '%s  3. Sau đó quay lại menu chọn [2] để tìm IP và cài APK.%s\n' "$C_CYAN" "$C_RESET"
+    printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
+
+    if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
+        echo ""
+        read_r1_input "Nhấn Enter để quay lại menu chính" "" >/dev/null 2>&1 || true
+    fi
+    return 0
+}
+
+# ------------------------------------------------------------------------------
+# 4. HÀM DÒ TÌM DẢI MẠNG LAN & QUÉT LOA (TƯƠNG ĐỒNG Get-LocalSubnet & Scan-SpeakerIp)
 # ------------------------------------------------------------------------------
 decode_proc_hex_ip() {
     hex_ip="$1"
@@ -298,7 +430,6 @@ decode_proc_hex_ip() {
     b1=$(printf '%d' "0x$(printf '%s' "$hex_ip" | cut -c 7-8)" 2>/dev/null)
     b2=$(printf '%d' "0x$(printf '%s' "$hex_ip" | cut -c 5-6)" 2>/dev/null)
     b3=$(printf '%d' "0x$(printf '%s' "$hex_ip" | cut -c 3-4)" 2>/dev/null)
-    b4=$(printf '%d' "0x$(printf '%s' "$hex_ip" | cut -c 1-2)" 2>/dev/null)
     if [ -n "$b1" ] && [ -n "$b2" ] && [ -n "$b3" ] && [ "$b1" != "127" ] && [ "$b1" != "0" ] && [ "$b1" != "169" ]; then
         echo "${b1}.${b2}.${b3}"
         return 0
@@ -308,19 +439,12 @@ decode_proc_hex_ip() {
 
 detect_subnet() {
     sub=""
-
-    # 1. Dùng curl %{local_ip} (Chuẩn xác 100% trên mọi hệ điều hành, đặc biệt là iSH iOS nơi không có /proc/net hay ip route)
     if command -v curl >/dev/null 2>&1; then
         lip=$(curl -s -w "%{local_ip}" -o /dev/null --connect-timeout 2 --max-time 3 "http://1.1.1.1/" 2>/dev/null || true)
-        if [ -z "$lip" ] || [ "$lip" = "0.0.0.0" ] || [ "$lip" = "127.0.0.1" ]; then
-            lip=$(curl -s -w "%{local_ip}" -o /dev/null --connect-timeout 3 --max-time 4 "https://vdt34.github.io/r1/version.json" 2>/dev/null || true)
-        fi
         if [ -n "$lip" ]; then
             sub=$(printf '%s' "$lip" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | grep -vE '^(127\.|0\.|169\.254\.)' | awk -F'.' '{print $1"."$2"."$3}')
         fi
     fi
-
-    # 2. Nếu có Python: dùng UDP socket connect 8.8.8.8:80 để lấy chính xác IP LAN đang ra Internet
     if [ -z "$sub" ] && [ -n "$PY_BIN" ]; then
         sub=$("$PY_BIN" - << 'EOF' 2>/dev/null
 import socket
@@ -337,31 +461,13 @@ except Exception:
 EOF
 )
     fi
-
-    # 2. Dùng ip route get 8.8.8.8 (Linux / Android)
     if [ -z "$sub" ] && command -v ip >/dev/null 2>&1; then
         sub=$(ip -4 route get 8.8.8.8 2>/dev/null | grep -oE 'src [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | awk '{print $2}' | head -n 1 | awk -F'.' '{print $1"."$2"."$3}')
-        if [ -z "$sub" ]; then
-            sub=$(ip -4 addr show 2>/dev/null | grep -oE 'inet [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | awk '{print $2}' | grep -vE '^(127\.|169\.254\.|172\.1[6-9]\.|172\.2[0-9]\.|172\.3[0-1]\.)' | head -n 1 | awk -F'.' '{print $1"."$2"."$3}')
-        fi
     fi
-
-    # 3. Dùng ifconfig (macOS / BSD / Linux)
     if [ -z "$sub" ] && command -v ifconfig >/dev/null 2>&1; then
-        sub=$(ifconfig 2>/dev/null | grep -oE 'inet (addr:)?[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | grep -vE '^(127\.|169\.254\.|172\.1[6-9]\.|172\.2[0-9]\.|172\.3[0-1]\.)' | head -n 1 | awk -F'.' '{print $1"."$2"."$3}')
+        sub=$(ifconfig 2>/dev/null | grep -oE 'inet (addr:)?[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | grep -vE '^(127\.|169\.254\.)' | head -n 1 | awk -F'.' '{print $1"."$2"."$3}')
     fi
-
-    # 4. Đặc trị cho iSH trên iOS (không có ip addr / ifconfig nhưng có /proc/net/tcp):
-    # Mở 1 kết nối TCP ngắn tới 1.1.1.1:80 hoặc 8.8.8.8:53 rồi đọc địa chỉ local_address từ /proc/net/tcp
     if [ -z "$sub" ] && [ -r /proc/net/tcp ]; then
-        if command -v curl >/dev/null 2>&1; then
-            curl -s -m 2 --connect-timeout 2 "http://1.1.1.1/" >/dev/null 2>&1 &
-            probe_pid=$!
-        elif command -v nc >/dev/null 2>&1; then
-            nc -w 2 8.8.8.8 53 >/dev/null 2>&1 &
-            probe_pid=$!
-        fi
-        sleep 0.3 2>/dev/null || sleep 1
         for hex_candidate in $(awk 'NR>1 {split($2,a,":"); print a[1]}' /proc/net/tcp /proc/net/udp 2>/dev/null); do
             decoded=$(decode_proc_hex_ip "$hex_candidate")
             if [ -n "$decoded" ]; then
@@ -369,14 +475,7 @@ EOF
                 break
             fi
         done
-        [ -n "${probe_pid:-}" ] && kill "$probe_pid" >/dev/null 2>&1 || true
     fi
-
-    # 5. Dùng route -n
-    if [ -z "$sub" ] && command -v route >/dev/null 2>&1; then
-        sub=$(route -n 2>/dev/null | grep -E '^0\.0\.0\.0' | awk '{print $2}' | head -n 1 | awk -F'.' '{print $1"."$2"."$3}')
-    fi
-
     [ -z "$sub" ] && sub="192.168.1"
     echo "$sub"
 }
@@ -384,18 +483,14 @@ EOF
 scan_single_subnet() {
     sub="$1"
     scan_tmp="$2"
-    printf '%s>> Đang quét tự động dải mạng LAN (%s.1 -> 254) tìm loa Phicomm R1...%s\n' "$C_CYAN" "$sub" "$C_RESET"
 
     if [ -n "$PY_BIN" ]; then
         "$PY_BIN" - "$sub" << 'EOF' >> "$scan_tmp/adb_ips.txt" 2>/dev/null || true
 import sys, socket
 from concurrent.futures import ThreadPoolExecutor
-
 prefix = sys.argv[1]
-
 def probe_cand(i):
     ip = f"{prefix}.{i}"
-    # Quét cổng 5555 trước (ADB), nếu không mở thì thử cổng 8080 để đánh thức
     for port in (5555, 8080):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(0.6)
@@ -405,10 +500,8 @@ def probe_cand(i):
         except Exception:
             pass
         finally:
-            try:
-                s.close()
-            except Exception:
-                pass
+            try: s.close()
+            except Exception: pass
     return None
 
 with ThreadPoolExecutor(max_workers=64) as ex:
@@ -417,9 +510,6 @@ with ThreadPoolExecutor(max_workers=64) as ex:
             print(f"{res[0]}|{res[1]}")
 EOF
     else
-        # Fallback thuần shell (dành cho iSH / Alpine không có Python)
-        # Chia theo lô 20 IP và chỉ kiểm tra cổng 8080 (1 tiến trình/IP) để không làm quá tải bộ giả lập iSH trên iOS
-        rm -f "$scan_tmp/raw.txt" 2>/dev/null || true
         idx=1
         while [ "$idx" -le 254 ]; do
             bend=$((idx + 19))
@@ -428,9 +518,9 @@ EOF
             while [ "$i" -le "$bend" ]; do
                 (
                     target="${sub}.${i}"
-                    if test_tcp_port "$target" 5555 1; then
+                    if test_r1_tcp_port "$target" 5555 1; then
                         printf '%03d|%s|5555\n' "$i" "$target" >> "$scan_tmp/raw.txt"
-                    elif test_tcp_port "$target" 8080 1; then
+                    elif test_r1_tcp_port "$target" 8080 1; then
                         printf '%03d|%s|8080\n' "$i" "$target" >> "$scan_tmp/raw.txt"
                     fi
                 ) &
@@ -439,31 +529,27 @@ EOF
             wait
             idx=$((bend + 1))
         done
-
         if [ -f "$scan_tmp/raw.txt" ]; then
             sort -u "$scan_tmp/raw.txt" | awk -F'|' '{print $2 "|" $3}' >> "$scan_tmp/adb_ips.txt"
         fi
     fi
 
-    # Xác thực thông tin thiết bị qua ADB getprop (chuẩn Quet_Loa_Phicomm_R1.ps1)
+    # Xác thực thông tin thiết bị qua ADB getprop (chuẩn Scan-SpeakerIp)
     if [ -s "$scan_tmp/adb_ips.txt" ]; then
         while IFS='|' read -r cand_ip cand_port || [ -n "$cand_ip" ]; do
             cand_ip=$(printf '%s' "$cand_ip" | tr -d ' \r\n')
             cand_port=$(printf '%s' "$cand_port" | tr -d ' \r\n')
             [ -z "$cand_ip" ] && continue
 
-            # Nếu phát hiện qua cổng 8080 (hoặc cổng 5555 đang ngủ), đánh thức ADB 5555
             if [ "$cand_port" = "8080" ]; then
-                if ! test_tcp_port "$cand_ip" 5555 1; then
+                if ! test_r1_tcp_port "$cand_ip" 5555 1; then
                     revive_speaker "$cand_ip" </dev/null >/dev/null 2>&1 || true
                     sleep 1
                 fi
             fi
 
-            # Kiểm tra cổng 5555
-            test_tcp_port "$cand_ip" 5555 1 || continue
+            test_r1_tcp_port "$cand_ip" 5555 1 || continue
 
-            # Kết nối ADB và lấy thông tin thiết bị
             adb connect "$cand_ip:5555" </dev/null >/dev/null 2>&1 || true
             model=$(adb -s "$cand_ip:5555" shell getprop ro.product.model </dev/null 2>/dev/null | tr -d '\r\n')
             hostname=$(adb -s "$cand_ip:5555" shell getprop net.hostname </dev/null 2>/dev/null | tr -d '\r\n')
@@ -474,14 +560,9 @@ EOF
             [ -z "$hostname" ] && hostname="Phicomm_R1"
             [ -z "$aver" ] && aver="5.1.1"
 
-            # Tiêu chí nhận diện Phicomm R1 (giống Quet_Loa_Phicomm_R1.ps1)
             is_r1=0
-            case "$model" in
-                *[Rr]1*|*[Rr][Kk]322*) is_r1=1 ;;
-            esac
-            case "$hostname" in
-                *[Pp][Hh][Ii][Cc][Oo][Mm][Mm]*|*[Rr]1*) is_r1=1 ;;
-            esac
+            case "$model" in *[Rr]1*|*[Rr][Kk]322*) is_r1=1 ;; esac
+            case "$hostname" in *[Pp][Hh][Ii][Cc][Oo][Mm][Mm]*|*[Rr]1*) is_r1=1 ;; esac
 
             if [ "$is_r1" = "1" ]; then
                 printf '%s|(ADB: 5555)|%s|%s|%s\n' "$cand_ip" "$hostname" "$model" "$aver" >> "$scan_tmp/result.txt"
@@ -496,17 +577,19 @@ scan_speaker_ip() {
     sub="$1"
     [ -z "$sub" ] && sub=$(detect_subnet)
     echo ""
+    printf '%s╔════════════════════════════════════════════════════════════════════╗%s\n' "$C_CYAN" "$C_RESET"
+    printf '%s║                         🔍 ĐANG TÌM KIẾM LOA                       ║%s\n' "$C_YELLOW" "$C_RESET"
+    printf '%s╚════════════════════════════════════════════════════════════════════╝%s\n' "$C_CYAN" "$C_RESET"
+    echo ""
+    printf '   📡 Mạng: %s.0/24\n' "$sub"
+    printf '%s   ⏱️  Thời gian: khoảng 15-30 giây%s\n' "$C_GRAY" "$C_RESET"
+    echo ""
 
     scan_tmp="/tmp/r1_scan_$$"
     rm -rf "$scan_tmp" 2>/dev/null || true
     mkdir -p "$scan_tmp"
 
     scan_single_subnet "$sub" "$scan_tmp"
-
-    TOTAL_ADB=0
-    if [ -s "$scan_tmp/adb_ips.txt" ]; then
-        TOTAL_ADB=$(grep -c '[0-9]' "$scan_tmp/adb_ips.txt" 2>/dev/null || echo 0)
-    fi
 
     TOTAL_FOUND=0
     if [ -s "$scan_tmp/result.txt" ]; then
@@ -541,14 +624,16 @@ scan_speaker_ip() {
             echo ""
             d_idx=$((d_idx + 1))
         done < "$scan_tmp/result.txt"
+
         if [ -s "$scan_tmp/other.txt" ]; then
             other_cnt=$(grep -c '[0-9]' "$scan_tmp/other.txt" 2>/dev/null || echo 0)
             printf '%s   ℹ️  Tìm thấy %s thiết bị khác có ADB:%s\n' "$C_YELLOW" "$other_cnt" "$C_RESET"
             while IFS='|' read -r o_ip o_model || [ -n "$o_ip" ]; do
-                printf '      • %s - %s\n' "$o_ip" "$o_model"
+                printf '%s      • %s - %s%s\n' "$C_GRAY" "$o_ip" "$o_model" "$C_RESET"
             done < "$scan_tmp/other.txt"
             echo ""
         fi
+
         printf '%s   ──────────────────────────────────────────────────────────────────%s\n' "$C_GRAY" "$C_RESET"
         printf '   Tổng số thiết bị:    %s\n' "$TOTAL_FOUND"
         printf '   Loa Phicomm R1:      %s\n' "$TOTAL_FOUND"
@@ -558,433 +643,69 @@ scan_speaker_ip() {
         echo ""
     else
         echo ""
-        printf '%s   ⚠️  Không tìm thấy loa Phicomm R1 trong mạng LAN (%s.0/24).%s\n' "$C_YELLOW" "$sub" "$C_RESET"
+        printf '%s   ⚠️  Không tìm thấy loa Phicomm R1.%s\n' "$C_YELLOW" "$C_RESET"
         echo ""
     fi
 }
 
 # ------------------------------------------------------------------------------
-# 4. KIỂM TRA & KẾT NỐI ADB LINH ĐỘNG (ĐẢM BẢO KẾT NỐI CHẮC CHẮN)
+# 5. CHUẨN BỊ FILE CÀI ĐẶT APK (TƯƠNG ĐỒNG Get-LocalAiApk & Ensure-Apks)
 # ------------------------------------------------------------------------------
-check_connected() {
-    target_serial="${1:-$SERIAL}"
-    state=$(adb -s "$target_serial" get-state 2>/dev/null | tr -d ' \r\n')
-    if [ "$state" = "device" ]; then
-        adb -s "$target_serial" shell ls /data >/dev/null 2>&1
-        return $?
-    fi
-    return 1
-}
+get_local_ai_apk() {
+    [ -z "$SCRIPT_DIR" ] || [ ! -d "$SCRIPT_DIR" ] && return 1
 
-reset_adb_daemon() {
-    if command -v killall >/dev/null 2>&1; then
-        killall -9 adb >/dev/null 2>&1 || true
-    elif command -v pkill >/dev/null 2>&1; then
-        pkill -9 adb >/dev/null 2>&1 || true
-    fi
-    kill -9 $(pidof adb 2>/dev/null) 2>/dev/null || true
-    adb kill-server >/dev/null 2>&1 || true
-    adb start-server >/dev/null 2>&1 || true
-    sleep 1
-}
-
-# Kết nối ADB linh động theo chuẩn install.ps1 + tự động phục hồi khi rớt/offline
-connect_speaker_adb() {
-    target_ip="$1"
-    target_port="${2:-5555}"
-    SERIAL="${target_ip}:${target_port}"
-
-    [ "$R1_DRYRUN" = "1" ] && return 0
-
-    reset_adb_daemon
-
-    # Thử kết nối trực tiếp lần 1 (như install.ps1)
-    adb connect "$SERIAL" >/dev/null 2>&1 || true
-    sleep 1
-
-    if check_connected "$SERIAL"; then
+    # 1. Tìm bản có phiên bản theo dạng ai-box-plus-X-Y-Z.apk
+    best_file=""
+    for f in "$SCRIPT_DIR"/ai-box-plus-*-*-*.apk; do
+        [ -f "$f" ] || continue
+        best_file="$f"
+    done
+    if [ -n "$best_file" ]; then
+        echo "$best_file"
         return 0
     fi
 
-    # Đánh thức loa qua cổng 8080/8081 và thử lại nhiều chu kỳ
-    progress_update 40 "Đang đánh thức loa"
-    revive_speaker "$target_ip"
-    sleep 2
-
-    try=1
-    max_tries=8
-    while [ "$try" -le "$max_tries" ]; do
-        pct=$((40 + try))
-        [ "$pct" -gt 50 ] && pct=50
-        progress_update "$pct" "Đang chờ loa phản hồi ($try/$max_tries)"
-
-        # Nếu thiết bị bị kẹt trạng thái offline, ngắt kết nối cũ trước khi connect lại
-        cur_state=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d ' \r\n')
-        if [ "$cur_state" = "offline" ] || [ "$cur_state" = "connecting" ]; then
-            adb disconnect "$SERIAL" >/dev/null 2>&1 || true
-        fi
-
-        # Giữa chừng nếu daemon ADB bị treo (hay gặp trên iSH), khởi động lại server
-        if [ "$try" -eq 5 ]; then
-            reset_adb_daemon
-            revive_speaker "$target_ip"
-            sleep 1
-        fi
-
-        adb connect "$SERIAL" >/dev/null 2>&1 || true
-        sleep 1
-
-        if check_connected "$SERIAL"; then
-            return 0
-        fi
-
-        revive_speaker "$target_ip"
-        sleep 1
-        try=$((try + 1))
-    done
-
-    return 1
-}
-
-# Đảm bảo kết nối ADB vẫn sống trước mỗi bước quan trọng (tự kết nối lại nếu vừa rớt)
-ensure_adb_alive() {
-    [ "$R1_DRYRUN" = "1" ] && return 0
-    if check_connected "$SERIAL"; then
-        return 0
-    fi
-    revive_speaker "$TARGET_IP"
-    adb disconnect "$SERIAL" >/dev/null 2>&1 || true
-    adb connect "$SERIAL" >/dev/null 2>&1 || true
-    sleep 1
-    check_connected "$SERIAL" && return 0
-
-    reset_adb_daemon
-    revive_speaker "$TARGET_IP"
-    sleep 1
-    adb connect "$SERIAL" >/dev/null 2>&1 || true
-    sleep 1
-    check_connected "$SERIAL"
-}
-
-# Thực thi bước ADB (push / install) có tự động thử lại nếu kết nối chập chờn
-invoke_adb_step() {
-    require_success="$1"
-    shift
-
-    attempt=1
-    while [ "$attempt" -le 2 ]; do
-        ensure_adb_alive >/dev/null 2>&1 || true
-        output=$(adb "$@" 2>&1)
-        exit_code=$?
-
-        pkg_failed=0
-        if [ "$require_success" = "1" ]; then
-            if ! printf '%s\n' "$output" | tr -d '\r' | grep -Eq '^[[:space:]]*Success[[:space:]]*$'; then
-                pkg_failed=1
-            fi
-        fi
-
-        if [ "$exit_code" -eq 0 ] && [ "$pkg_failed" -eq 0 ]; then
-            return 0
-        fi
-
-        # Đặc trị cho iSH / Wi-Fi chập chờn khi pm install APK lớn (11MB+):
-        # dex2oat trên RK3229 (Android 5.1.1) ngốn 100% CPU trong 30-45 giây khiến adb connection bị đóng (error: closed),
-        # nhưng PMS trên loa vẫn tiếp tục biên dịch và cài đặt ngầm.
-        # Ta kiên nhẫn kiểm tra xem gói info.dourok.voicebot đã xuất hiện trên hệ thống chưa:
-        if [ "$require_success" = "1" ]; then
-            progress_update 94 "Đang chờ loa hoàn tất biên dịch & cài đặt"
-            check_try=1
-            while [ "$check_try" -le 8 ]; do
-                sleep 5
-                adb connect "$SERIAL" >/dev/null 2>&1 || true
-                if adb -s "$SERIAL" shell pm path info.dourok.voicebot 2>/dev/null | grep -q "info.dourok.voicebot"; then
-                    return 0
-                fi
-                check_try=$((check_try + 1))
-            done
-        fi
-
-        if [ "$attempt" -lt 2 ]; then
-            reset_adb_daemon
-            revive_speaker "$TARGET_IP"
-            adb disconnect "$SERIAL" >/dev/null 2>&1 || true
-            adb connect "$SERIAL" >/dev/null 2>&1 || true
-            sleep 1
-        fi
-        attempt=$((attempt + 1))
-    done
-
-    progress_finish
-    [ -n "$output" ] && printf '%s\n' "$output"
-    if [ "$exit_code" -ne 0 ]; then
-        printf '%s>> [LỖI] ADB kết thúc với mã lỗi %s.%s\n' "$C_RED" "$exit_code" "$C_RESET"
-    elif [ "$pkg_failed" -eq 1 ]; then
-        printf '%s>> [LỖI] ADB không xác nhận cài đặt thành công.%s\n' "$C_RED" "$C_RESET"
-    fi
-    return 1
-}
-
-wait_for_speaker_boot() {
-    try=1
-    while [ "$try" -le 45 ]; do
-        adb connect "$SERIAL" >/dev/null 2>&1 || true
-        if check_connected "$SERIAL"; then
-            boot_state=$(adb -s "$SERIAL" shell getprop sys.boot_completed 2>/dev/null | tr -d ' \r\n')
-            [ "$boot_state" = "1" ] && return 0
-        fi
-        progress_update 98 "Đang chờ loa khởi động lại ($try/45)"
-        sleep 2
-        try=$((try + 1))
-    done
-    return 1
-}
-
-wait_for_webui() {
-    check_ip="${1:-$TARGET_IP}"
-    max_wait="${2:-15}"
-    pct="${3:-99}"
-    label_prefix="${4:-Đang chờ WebUI khởi động}"
-    try=1
-    while [ "$try" -le "$max_wait" ]; do
-        if test_tcp_port "$check_ip" 8081 1; then
-            return 0
-        fi
-        if command -v curl >/dev/null 2>&1 && curl -sS -m 1 -o /dev/null "http://$check_ip:8081/" 2>/dev/null; then
-            return 0
-        fi
-        progress_update "$pct" "$label_prefix ($try/$max_wait)"
-        sleep 1
-        try=$((try + 1))
-    done
-    return 1
-}
-
-# Khởi chạy AI Box Plus và xác minh tiến trình info.dourok.voicebot đã thực sự chạy
-start_ai_box() {
-    [ "$R1_DRYRUN" = "1" ] && return 0
-    ensure_adb_alive >/dev/null 2>&1 || true
-    adb -s "$SERIAL" shell "tinymix -D 2 0 5; tinymix -D 2 1 5; tinymix -D 2 6 207; tinymix -D 2 7 207; tinymix -D 2 8 207; tinymix -D 2 9 207; tinymix -D 2 17 1; tinymix -D 2 18 1; tinymix -D 2 46 1; tinymix -D 2 47 1" >/dev/null 2>&1 || true
-    try_ai=1
-    while [ "$try_ai" -le 3 ]; do
-        ensure_adb_alive >/dev/null 2>&1 || true
-        adb -s "$SERIAL" shell am start -W -n info.dourok.voicebot/.java.activities.MainActivity >/dev/null 2>&1 || \
-        adb -s "$SERIAL" shell am start -n info.dourok.voicebot/.java.activities.MainActivity >/dev/null 2>&1 || true
-        adb -s "$SERIAL" shell monkey -p info.dourok.voicebot -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
-        sleep 2
-        ai_running=$(adb -s "$SERIAL" shell "ps 2>/dev/null | grep info.dourok.voicebot" 2>/dev/null | tr -d '\r\n')
-        if [ -n "$ai_running" ]; then
-            return 0
-        fi
-        try_ai=$((try_ai + 1))
-    done
-    return 1
-}
-
-# ------------------------------------------------------------------------------
-# 5. [MỤC 1] CẤU HÌNH WIFI CHO LOA QUA AP API (192.168.43.1:8989)
-# ------------------------------------------------------------------------------
-send_wifi_config() {
-    target_ip="$1"
-    ssid="$2"
-    pass="$3"
-    secure="$4"
-    [ -z "$secure" ] && secure="WPA"
-
-    esc_ssid=$(printf '%s' "$ssid" | sed 's/\\/\\\\/g; s/"/\\"/g')
-    esc_pass=$(printf '%s' "$pass" | sed 's/\\/\\\\/g; s/"/\\"/g')
-    payload="{\"ssid\":\"$esc_ssid\",\"secure\":\"$secure\",\"password\":\"$esc_pass\",\"mac\":\"\"}"
-
-    if [ "$R1_DRYRUN" = "1" ]; then
-        printf '%s   [DRY-RUN] Đã gửi cấu hình WiFi SSID='\''%s'\'' tới http://%s:8989/api/configwifi%s\n' "$C_YELLOW" "$ssid" "$target_ip" "$C_RESET"
+    # 2. Tìm bản vá VOV nếu có
+    if [ -f "$SCRIPT_DIR/AIBoxPlus_DLNA_VOV_Patched.apk" ]; then
+        echo "$SCRIPT_DIR/AIBoxPlus_DLNA_VOV_Patched.apk"
         return 0
     fi
 
-    if command -v curl >/dev/null 2>&1; then
-        curl -s -m 5 -X POST "http://$target_ip:8989/api/configwifi" \
-             -H "Content-Type: application/json" \
-             -d "$payload" >/dev/null 2>&1 || true
-        return 0
-    elif command -v wget >/dev/null 2>&1; then
-        wget -q -O- --timeout=5 --header="Content-Type: application/json" \
-             --post-data="$payload" "http://$target_ip:8989/api/configwifi" >/dev/null 2>&1 || true
+    # 3. Tìm bản AIBoxPlus_DLNA.apk chuẩn
+    if [ -f "$SCRIPT_DIR/AIBoxPlus_DLNA.apk" ]; then
+        echo "$SCRIPT_DIR/AIBoxPlus_DLNA.apk"
         return 0
     fi
-    return 1
-}
 
-configure_wifi_ap() {
-    # Tải sẵn file Web Portal về bộ nhớ đệm (khi còn có mạng)
-    mkdir -p "$CACHE_DIR"
-    if [ ! -f "$CACHE_DIR/wifi.html" ] || [ ! -f "$CACHE_DIR/wifi_portal.py" ]; then
-        if command -v curl >/dev/null 2>&1; then
-            curl -sL -m 5 "$BASE_URL/wifi.html" -o "$CACHE_DIR/wifi.html" 2>/dev/null || true
-            curl -sL -m 5 "$BASE_URL/wifi_portal.py" -o "$CACHE_DIR/wifi_portal.py" 2>/dev/null || true
-        elif command -v wget >/dev/null 2>&1; then
-            wget -q -T 5 "$BASE_URL/wifi.html" -O "$CACHE_DIR/wifi.html" 2>/dev/null || true
-            wget -q -T 5 "$BASE_URL/wifi_portal.py" -O "$CACHE_DIR/wifi_portal.py" 2>/dev/null || true
-        fi
-    fi
-
-    # Tự động chuẩn bị python3 trên iSH (Alpine Linux) nếu chưa có
-    if ! command -v python3 >/dev/null 2>&1; then
-        if [ -f /etc/alpine-release ] && command -v apk >/dev/null 2>&1; then
-            printf '%s>> Đang chuẩn bị môi trường Web (cài python3 trên iSH)...%s\n' "$C_CYAN" "$C_RESET"
-            apk add --no-cache python3 >/dev/null 2>&1 || true
-        fi
-    fi
-
-    echo ""
-    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
-    printf '%s  CẤU HÌNH WIFI CHO LOA VỪA RESET (CHẾ ĐỘ AP 192.168.43.1)%s\n' "$C_YELLOW" "$C_RESET"
-    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
-    echo " Hướng dẫn chuẩn bị:"
-    echo "  1. Loa vừa reset sẽ phát mạng WiFi 'Phicomm_R1_xxxx'."
-    echo "  2. Trên Điện thoại / Máy tính: Vào Cài đặt WiFi -> Kết nối 'Phicomm_R1_xxxx'."
-    echo "  3. TẮT 4G/5G (Dữ liệu di động) nếu đang dùng điện thoại."
-    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
-
-    if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
-        read_val "Nhấn Enter khi đã kết nối WiFi của loa: " "" >/dev/null 2>&1 || true
-    fi
-
-    echo ""
-    printf '%s>> Đang kiểm tra kết nối tới loa (192.168.43.1:8989)...%s\n' "$C_CYAN" "$C_RESET"
-    api_ok=0
-    if [ "$R1_DRYRUN" = "1" ]; then
-        api_ok=1
-    elif test_tcp_port "192.168.43.1" 8989 2; then
-        api_ok=1
-    elif command -v curl >/dev/null 2>&1; then
-        if curl -s -m 2 "http://192.168.43.1:8989/" >/dev/null 2>&1 || curl -s -m 2 "http://192.168.43.1:8989/api/configwifi" >/dev/null 2>&1; then
-            api_ok=1
-        fi
-    fi
-
-    if [ "$api_ok" = "1" ]; then
-        printf '%s   [OK] Đã kết nối được API của loa.%s\n' "$C_GREEN" "$C_RESET"
-    else
-        if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
-            printf '%s   [CẢNH BÁO] Chưa kết nối được 192.168.43.1:8989.%s\n' "$C_YELLOW" "$C_RESET"
-            echo "   Kiểm tra: Thiết bị đã chọn WiFi Phicomm_R1 chưa? Đã tắt 4G chưa?"
-            ans=$(read_val "   Vẫn tiếp tục cấu hình WiFi? [y/N]: " "n")
-            case "$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')" in
-                "y"|"yes") ;;
-                *) return 1 ;;
-            esac
-        fi
-    fi
-
-    # Khởi động Mini Web Portal phục vụ wifi.html trên localhost:8000
-    if command -v python3 >/dev/null 2>&1 && [ -f "$CACHE_DIR/wifi_portal.py" ]; then
-        echo ""
-        printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
-        printf '%s  ĐÃ MỞ CỔNG CẤU HÌNH WIFI THÀNH CÔNG!%s\n' "$C_YELLOW" "$C_RESET"
-        printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
-        echo " >> Mở trình duyệt Safari trên iPhone (hoặc trình duyệt PC) vào:"
-        printf '%s    👉  http://localhost:8000%s\n' "$C_CYAN" "$C_RESET"
-        echo " >> Trang web sẽ tự động quét Wi-Fi, chạm chọn mạng và kết nối!"
-        echo "----------------------------------------------------------"
-        printf '%s(Đang chờ bạn kết nối trên Web... Hoặc nhấn Ctrl+C để nhập tay)%s\n' "$C_GRAY" "$C_RESET"
-
-        if command -v open >/dev/null 2>&1; then
-            open "http://localhost:8000" >/dev/null 2>&1 || true
-        elif command -v xdg-open >/dev/null 2>&1; then
-            xdg-open "http://localhost:8000" >/dev/null 2>&1 || true
-        elif command -v termux-open-url >/dev/null 2>&1; then
-            termux-open-url "http://localhost:8000" >/dev/null 2>&1 || true
-        elif command -v cmd.exe >/dev/null 2>&1; then
-            cmd.exe /c start "http://localhost:8000" >/dev/null 2>&1 || true
-        fi
-
-        python3 "$CACHE_DIR/wifi_portal.py"
-        web_res=$?
-        if [ $web_res -eq 0 ]; then
-            echo ""
-            printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
-            printf '%s            ĐÃ GỬI CẤU HÌNH WIFI THÀNH CÔNG!              %s\n' "$C_YELLOW" "$C_RESET"
-            printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
-            echo " THÔNG BÁO QUAN TRỌNG:"
-            echo "  1. Loa đang ngắt AP để kết nối Wi-Fi nhà (chờ khoảng 15-20 giây)."
-            echo "  2. Hãy vào Cài đặt Wi-Fi trên iPhone chuyển về lại Wi-Fi nhà."
-            printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
-            if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
-                echo ""
-                ans=$(read_val "Đã đổi iPhone về Wi-Fi nhà? Quét tìm IP & cài đặt AI luôn? [Y/n]: " "y")
-                case "$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')" in
-                    "n"|"no") return 0 ;;
-                    *)
-                        echo ""
-                        run_install_lan ""
-                        return $?
-                        ;;
-                esac
-            fi
+    # 4. Tìm bất kỳ file apk nào có tên bắt đầu bằng ai-box hoặc aiboxplus
+    for f in "$SCRIPT_DIR"/[aA][iI]-[bB][oO][xX]*.apk "$SCRIPT_DIR"/[aA][iI][bB][oO][xX]*.apk; do
+        if [ -f "$f" ]; then
+            echo "$f"
             return 0
-        fi
-    fi
-
-    echo ""
-    echo "Nhập thông tin mạng WiFi nhà để loa kết nối:"
-    printf '%s----------------------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
-    ssid_default=""
-    pass_default=""
-    if [ "$ASSUME_YES" = "1" ] || [ "$R1_DRYRUN" = "1" ]; then
-        ssid_default="MyWiFi"
-        pass_default="12345678"
-    fi
-    ssid=""
-    while [ -z "$ssid" ]; do
-        ssid=$(read_val ">> Tên WiFi nhà (SSID, phân biệt HOA/thường): " "$ssid_default")
-        if [ -z "$ssid" ]; then
-            printf '%s   [!] Tên WiFi không được để trống!%s\n' "$C_YELLOW" "$C_RESET"
         fi
     done
 
-    pass=$(read_val ">> Mật khẩu WiFi (nhấn Enter nếu WiFi không có pass): " "$pass_default")
-
-    secure="WPA"
-    if [ -z "$pass" ]; then
-        secure="INSECURE"
-        echo "   -> Chế độ WiFi không mật khẩu (INSECURE)"
-    else
-        pass_len=$(printf '%s' "$pass" | wc -c)
-        if [ "$pass_len" -lt 8 ]; then
-            printf '%s   [!] CẢNH BÁO: Mật khẩu WiFi thông thường từ 8 ký tự trở lên!%s\n' "$C_YELLOW" "$C_RESET"
-        fi
-    fi
-
-    echo ""
-    printf '%s>> Đang gửi cấu hình tới loa (192.168.43.1:8989)...%s\n' "$C_CYAN" "$C_RESET"
-    send_wifi_config "192.168.43.1" "$ssid" "$pass" "$secure"
-
-    echo ""
-    printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
-    printf '%s            ĐÃ GỬI CẤU HÌNH WIFI THÀNH CÔNG!              %s\n' "$C_YELLOW" "$C_RESET"
-    printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
-    echo " THÔNG BÁO QUAN TRỌNG:"
-    echo "  1. Loa đang kết nối WiFi nhà, chờ khoảng 20 giây sẽ có IP."
-    echo "  2. Hãy chuyển Điện thoại / Máy tính về lại mạng WiFi nhà."
-    printf '%s  3. Sau đó quay lại menu chọn [2] để tìm IP và cài APK.%s\n' "$C_CYAN" "$C_RESET"
-    printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
-
-    if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
-        echo ""
-        read_val "Nhấn Enter để quay lại menu chính: " "" >/dev/null 2>&1 || true
-    fi
-    return 0
+    return 1
 }
 
-# ------------------------------------------------------------------------------
-# 6. TẢI VÀ CHUẨN BỊ 3 FILE APK (TƯƠNG ĐỒNG Ensure-Apks TRONG INSTALL.PS1)
-# ------------------------------------------------------------------------------
-download_latest_ai_apk() {
+ensure_apk_ai_only() {
+    f="AIBoxPlus_DLNA.apk"
+    cache_file="$CACHE_DIR/$f"
     mkdir -p "$CACHE_DIR" 2>/dev/null || true
-    rm -f "$CACHE_DIR/AIBoxPlus_DLNA.apk" "$CACHE_DIR/AIBoxPlus_DLNA.apk.tmp" 2>/dev/null || true
+    rm -f "$cache_file" "$cache_file.tmp" 2>/dev/null || true
+
+    # 1. Ưu tiên tìm file local trước (file cùng thư mục script)
+    local_ai=$(get_local_ai_apk)
+    if [ -n "$local_ai" ] && [ -f "$local_ai" ]; then
+        printf '%s>> [LOCAL] Đã tìm thấy file AIBoxPlus cục bộ: %s%s\n' "$C_GREEN" "$(basename "$local_ai")" "$C_RESET"
+        cp -f "$local_ai" "$cache_file"
+        return 0
+    fi
+
+    # 2. Nếu local không có, tìm và tải trên server
+    printf '%s>> [ONLINE] Không có file APK AIBoxPlus cục bộ trong '\''%s'\''. Đang kiểm tra từ máy chủ (%s/version.json)...%s\n' "$C_CYAN" "$SCRIPT_DIR" "$BASE_URL" "$C_RESET"
 
     TS=$(date +%s 2>/dev/null || echo "1")
-    printf '%s>> Đang kiểm tra phiên bản AIBoxPlus mới nhất từ GitHub (%s/version.json)...%s\n' "$C_CYAN" "$BASE_URL" "$C_RESET"
-
     json_raw=""
     if command -v curl >/dev/null 2>&1; then
         json_raw=$(curl -k -fsSL --connect-timeout 15 --max-time 30 "$BASE_URL/version.json?t=$TS" 2>/dev/null)
@@ -992,26 +713,28 @@ download_latest_ai_apk() {
         json_raw=$(wget -q --no-check-certificate --timeout=30 -O - "$BASE_URL/version.json?t=$TS" 2>/dev/null)
     fi
 
-    ai_url=$(printf '%s\n' "$json_raw" | sed -n 's/.*"url": *"\([^"]*\)".*/\1/p' | head -n 1)
-    ai_name=$(printf '%s\n' "$json_raw" | sed -n 's/.*"name": *"\([^"]*\)".*/\1/p' | head -n 1)
+    ai_download_url=$(printf '%s\n' "$json_raw" | sed -n 's/.*"url": *"\([^"]*\)".*/\1/p' | head -n 1)
+    ai_apk_name=$(printf '%s\n' "$json_raw" | sed -n 's/.*"name": *"\([^"]*\)".*/\1/p' | head -n 1)
     ai_ver=$(printf '%s\n' "$json_raw" | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' | head -n 1)
 
-    if [ -z "$ai_url" ]; then
-        printf '%s>> [LỖI] Không thể đọc danh sách phiên bản từ %s/version.json%s\n' "$C_RED" "$BASE_URL" "$C_RESET"
+    if [ -z "$ai_download_url" ]; then
+        printf '%s>> [LỖI] Không tìm thấy file APK cục bộ và không thể tải AIBoxPlus từ máy chủ.%s\n' "$C_RED" "$C_RESET"
+        read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
         return 1
     fi
 
-    printf '%s>> Phiên bản mới nhất trên GitHub: %s (v%s)%s\n' "$C_GREEN" "$ai_name" "$ai_ver" "$C_RESET"
-    printf '%s>> Đang tải: %s...%s\n' "$C_CYAN" "$ai_url" "$C_RESET"
+    printf '%s>> Phiên bản mới nhất trên máy chủ: %s (v%s)%s\n' "$C_GREEN" "$ai_apk_name" "$ai_ver" "$C_RESET"
+    printf '%s>> Đang tải: %s...%s\n' "$C_CYAN" "$ai_download_url" "$C_RESET"
 
     if command -v curl >/dev/null 2>&1; then
-        curl -k -fsSL --connect-timeout 20 --max-time 60 -o "$CACHE_DIR/AIBoxPlus_DLNA.apk.tmp" "$ai_url?t=$TS" 2>/dev/null && mv -f "$CACHE_DIR/AIBoxPlus_DLNA.apk.tmp" "$CACHE_DIR/AIBoxPlus_DLNA.apk"
+        curl -k -fsSL --connect-timeout 20 --max-time 60 -o "$cache_file.tmp" "$ai_download_url?t=$TS" 2>/dev/null && mv -f "$cache_file.tmp" "$cache_file"
     elif command -v wget >/dev/null 2>&1; then
-        wget -q --no-check-certificate --timeout=60 -O "$CACHE_DIR/AIBoxPlus_DLNA.apk.tmp" "$ai_url?t=$TS" 2>/dev/null && mv -f "$CACHE_DIR/AIBoxPlus_DLNA.apk.tmp" "$CACHE_DIR/AIBoxPlus_DLNA.apk"
+        wget -q --no-check-certificate --timeout=60 -O "$cache_file.tmp" "$ai_download_url?t=$TS" 2>/dev/null && mv -f "$cache_file.tmp" "$cache_file"
     fi
 
-    if [ ! -f "$CACHE_DIR/AIBoxPlus_DLNA.apk" ] || [ "$(wc -c < "$CACHE_DIR/AIBoxPlus_DLNA.apk" 2>/dev/null || echo 0)" -lt 1000000 ]; then
-        printf '%s>> [LỖI] Tải %s từ GitHub thất bại.%s\n' "$C_RED" "$ai_name" "$C_RESET"
+    if [ ! -f "$cache_file" ] || [ "$(wc -c < "$cache_file" 2>/dev/null || echo 0)" -lt 1000000 ]; then
+        printf '%s>> [LỖI] Tải %s từ máy chủ thất bại.%s\n' "$C_RED" "$ai_apk_name" "$C_RESET"
+        read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
         return 1
     fi
     return 0
@@ -1019,37 +742,79 @@ download_latest_ai_apk() {
 
 ensure_apks() {
     echo ""
-    printf '%s>> Đang chuẩn bị và tự động tải bộ cài từ vdt34.github.io/r1...%s\n' "$C_CYAN" "$C_RESET"
+    printf '%s>> Đang chuẩn bị các gói cài đặt (ưu tiên file cục bộ, tự động tải từ máy chủ nếu thiếu)...%s\n' "$C_CYAN" "$C_RESET"
     mkdir -p "$CACHE_DIR" 2>/dev/null || true
-
-    for f in AIBoxPlus_DLNA.apk; do
-        rm -f "$CACHE_DIR/$f" "$CACHE_DIR/$f.tmp" 2>/dev/null || true
-    done
+    rm -f "$CACHE_DIR/AIBoxPlus_DLNA.apk" "$CACHE_DIR/AIBoxPlus_DLNA.apk.tmp" 2>/dev/null || true
 
     missing=0
-    progress_update 20 "Đang kiểm tra AIBoxPlus mới nhất"
-    if ! download_latest_ai_apk; then
+    set_r1_install_progress 20 "Đang kiểm tra AIBoxPlus"
+    if ! ensure_apk_ai_only; then
         missing=1
     fi
-    progress_update 35 "Đã chuẩn bị xong file APK"
+    set_r1_install_progress 35 "Đã chuẩn bị xong file APK"
 
     if [ "$missing" = "1" ]; then
-        progress_finish
+        complete_r1_install_progress
         echo ""
         printf '%s==========================================================%s\n' "$C_RED" "$C_RESET"
-        printf '%s  [LỖI THIẾU FILE CÀI ĐẶT DO CHƯA CÓ INTERNET]%s\n' "$C_RED" "$C_RESET"
+        printf '%s  [LỖI THIẾU FILE CÀI ĐẶT]%s\n' "$C_RED" "$C_RESET"
         printf '%s==========================================================%s\n' "$C_RED" "$C_RESET"
-        printf '%sVui lòng kiểm tra kết nối mạng để tải đủ các file APK từ GitHub.%s\n' "$C_YELLOW" "$C_RESET"
-        read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+        printf '%sKhông tìm thấy đủ file APK trong thư mục cục bộ và tải từ máy chủ thất bại.%s\n' "$C_YELLOW" "$C_RESET"
+        printf '%sVui lòng copy file APK vào cùng thư mục với script hoặc kiểm tra kết nối mạng.%s\n' "$C_YELLOW" "$C_RESET"
+        read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
         return 1
     fi
     return 0
 }
 
 # ------------------------------------------------------------------------------
-# 7. [MỤC 2] QUÉT IP LAN & CÀI ĐẶT APK (ĐỒNG BỘ VỚI Run-Install TRONG INSTALL.PS1)
+# 6. THỰC THI BƯỚC CÀI ĐẶT ADB (TƯƠNG ĐỒNG Invoke-AdbInstallStep TRONG INSTALL.PS1)
 # ------------------------------------------------------------------------------
-run_install_lan() {
+invoke_adb_install_step() {
+    require_success="$1"
+    shift
+
+    output=$(adb "$@" 2>&1)
+    exit_code=$?
+    pkg_failed=0
+    if [ "$require_success" = "1" ]; then
+        if ! printf '%s\n' "$output" | tr -d '\r' | grep -Eq '^[[:space:]]*Success[[:space:]]*$'; then
+            pkg_failed=1
+        fi
+    fi
+
+    # Đặc trị cho iSH (iOS) khi pm install APK lớn (11MB+):
+    # dex2oat trên RK3229 (Android 5.1.1) ngốn 100% CPU trong 30-45s khiến stream adb của iSH rớt kết nối (error: closed).
+    # Kiểm tra xem gói info.dourok.voicebot đã xuất hiện trên hệ thống chưa:
+    if [ "$exit_code" -ne 0 ] || [ "$pkg_failed" -ne 0 ]; then
+        if [ "$require_success" = "1" ]; then
+            chk_try=1
+            while [ "$chk_try" -le 8 ]; do
+                sleep 4
+                adb connect "$SERIAL" >/dev/null 2>&1 || true
+                if adb -s "$SERIAL" shell pm path info.dourok.voicebot 2>/dev/null | grep -q "info.dourok.voicebot"; then
+                    return 0
+                fi
+                chk_try=$((chk_try + 1))
+            done
+        fi
+
+        complete_r1_install_progress
+        [ -n "$output" ] && printf '%s\n' "$output"
+        if [ "$exit_code" -ne 0 ]; then
+            printf '%s>> [LỖI] ADB kết thúc với mã lỗi %s.%s\n' "$C_RED" "$exit_code" "$C_RESET"
+        elif [ "$pkg_failed" -eq 1 ]; then
+            printf '%s>> [LỖI] ADB không xác nhận cài đặt thành công.%s\n' "$C_RED" "$C_RESET"
+        fi
+        return 1
+    fi
+    return 0
+}
+
+# ------------------------------------------------------------------------------
+# 7. [MỤC 2] LUỒNG QUÉT IP LAN & CÀI ĐẶT APK (ĐỒNG BỘ 100% THEO Run-Install PS1)
+# ------------------------------------------------------------------------------
+run_install() {
     target_param="$1"
     TARGET_IP="$target_param"
 
@@ -1057,21 +822,20 @@ run_install_lan() {
         scan_speaker_ip
         if [ "$TOTAL_FOUND" -gt 0 ]; then
             echo ""
-            PICK=$(read_val "   Chọn số thứ tự loa để cài APK (1-$TOTAL_FOUND) hoặc nhập IP khác [Mặc định: 1]: " "1")
-            PICK=$(printf '%s' "$PICK" | tr -d ' ')
-            if [ "$PICK" -ge 1 ] 2>/dev/null && [ "$PICK" -le "$TOTAL_FOUND" ] 2>/dev/null; then
-                TARGET_IP=$(sed -n "${PICK}p" "$scan_tmp/ips.txt")
-            elif printf '%s' "$PICK" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$'; then
-                TARGET_IP="$PICK"
+            pick=$(read_r1_input "   Chọn số thứ tự loa để cài APK (1-$TOTAL_FOUND) hoặc nhập IP khác [Mặc định: 1]: " "1")
+            pick=$(printf '%s' "$pick" | tr -d ' ')
+            if [ "$pick" -ge 1 ] 2>/dev/null && [ "$pick" -le "$TOTAL_FOUND" ] 2>/dev/null; then
+                TARGET_IP=$(sed -n "${pick}p" "$scan_tmp/ips.txt")
+            elif printf '%s' "$pick" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$'; then
+                TARGET_IP="$pick"
             else
                 TARGET_IP=$(head -n 1 "$scan_tmp/ips.txt")
             fi
         else
             echo ""
-            printf '%s>> Không tìm thấy loa trong mạng LAN.%s\n' "$C_YELLOW" "$C_RESET"
-            MANUAL=$(read_val "   Nhập IP loa thủ công (Enter để quay lại menu): " "")
-            if [ -n "$MANUAL" ]; then
-                TARGET_IP="$MANUAL"
+            manual=$(read_r1_input "   Không tìm thấy loa. Nhập IP loa thủ công (Enter để quay lại menu): " "")
+            if [ -n "$manual" ]; then
+                TARGET_IP="$manual"
             else
                 rm -rf "$scan_tmp" 2>/dev/null || true
                 return 1
@@ -1079,18 +843,6 @@ run_install_lan() {
         fi
         rm -rf "$scan_tmp" 2>/dev/null || true
     fi
-
-    TARGET_IP=$(printf '%s' "$TARGET_IP" | tr -d '[:space:]')
-    TARGET_PORT="5555"
-    case "$TARGET_IP" in
-        *:*)
-            TARGET_PORT="${TARGET_IP##*:}"
-            TARGET_IP="${TARGET_IP%:*}"
-            case "$TARGET_PORT" in
-                ''|*[!0-9]*) TARGET_PORT="5555" ;;
-            esac
-            ;;
-    esac
 
     # Kiểm tra lại nếu người dùng nhập nhầm 192.168.43.1
     if [ "$TARGET_IP" = "192.168.43.1" ]; then
@@ -1101,159 +853,224 @@ run_install_lan() {
         echo "  WiFi AP của loa tự tắt sau ~60-90 giây, push APK sẽ rớt mạng."
         echo "  -> Hãy chọn [1] trên Menu để cấu hình WiFi cho loa trước!"
         printf '%s==========================================================%s\n' "$C_RED" "$C_RESET"
-        read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+        read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
         return 1
     fi
 
-    SERIAL="$TARGET_IP:$TARGET_PORT"
+    TARGET_IP=$(printf '%s' "$TARGET_IP" | tr -d '[:space:]')
+    case "$TARGET_IP" in
+        *:5555) TARGET_IP="${TARGET_IP%:5555}" ;;
+    esac
+    SERIAL="$TARGET_IP:5555"
 
     echo ""
     printf '%s>> Sẽ kết nối tới IP: %s%s\n' "$C_CYAN" "$TARGET_IP" "$C_RESET"
 
-    # Đảm bảo có ADB trước khi cài đặt (như Ensure-Adb trong install.ps1)
+    # Đảm bảo có ADB trước khi cài đặt
     if ! ensure_adb; then
         echo ""
         printf '%s==========================================================%s\n' "$C_RED" "$C_RESET"
         printf '%s  [LỖI] KHÔNG THỂ KHỞI TẠO CÔNG CỤ ADB!%s\n' "$C_RED" "$C_RESET"
         printf '%s==========================================================%s\n' "$C_RED" "$C_RESET"
-        printf '%sVui lòng cài đặt android-tools (ví dụ: apk add android-tools).%s\n' "$C_YELLOW" "$C_RESET"
-        read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+        printf '%sVui lòng kiểm tra kết nối Internet để tải bộ công cụ ADB.%s\n' "$C_YELLOW" "$C_RESET"
+        read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
         return 1
     fi
 
-    # [1/4] Tải và chuẩn bị 3 file APK
-    if ! ensure_apks; then
-        return 1
-    fi
+    if ! ensure_apks; then return 1; fi
 
     # [2/4] Bắt đầu kết nối thiết bị ADB
-    progress_update 38 "Đang kết nối với loa"
+    complete_r1_install_progress
+    echo ""
+    set_r1_install_progress 38 "Đang kết nối với loa"
 
-    if ! connect_speaker_adb "$TARGET_IP" "$TARGET_PORT"; then
-        progress_finish
-        echo ""
-        printf '%s==========================================================%s\n' "$C_RED" "$C_RESET"
-        printf '%s  [LỖI] KẾT NỐI THẤT BẠI TỚI LOA TẠI %s%s\n' "$C_RED" "$SERIAL" "$C_RESET"
-        printf '%s==========================================================%s\n' "$C_RED" "$C_RESET"
-        printf '%sVui lòng kiểm tra:%s\n' "$C_YELLOW" "$C_RESET"
-        echo " 1. Loa đã cắm nguồn và đang bật."
-        echo " 2. Thiết bị và loa đang kết nối CÙNG MẠNG WiFi."
-        echo " 3. Địa chỉ IP của loa ($TARGET_IP) đã đúng chưa."
-        echo " 4. Nếu loa vừa reset -> hãy chọn mục 1 để cấu hình WiFi trước."
-        printf '%s==========================================================%s\n' "$C_RED" "$C_RESET"
-        read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
-        return 1
-    fi
-    progress_update 52 "Đã kết nối với loa"
-
-    # [3/4] Đẩy APK lên bộ nhớ tạm của loa
-    progress_update 54 "Đang dọn dẹp và chuẩn bị loa"
     if [ "$R1_DRYRUN" != "1" ]; then
-        adb -s "$SERIAL" shell rm /sdcard/otaprop.txt >/dev/null 2>&1
-        adb -s "$SERIAL" shell rm /sdcard/incremental\*.zip >/dev/null 2>&1
-        adb -s "$SERIAL" shell pm clear com.phicomm.speaker.otaservice >/dev/null 2>&1
-        adb -s "$SERIAL" shell "rm -rf /data/local/tmp/* 2>/dev/null" >/dev/null 2>&1
-        adb -s "$SERIAL" shell settings put secure install_non_market_apps 1 >/dev/null 2>&1
+        killall -9 adb 2>/dev/null || pkill -9 adb 2>/dev/null || kill -9 $(pidof adb 2>/dev/null) 2>/dev/null || true
+        adb kill-server >/dev/null 2>&1 || true
+        adb start-server >/dev/null 2>&1 || true
+        sleep 1
 
-        progress_update 58 "Đang tắt ứng dụng xung đột"
-        adb -s "$SERIAL" shell pm hide com.phicomm.speaker.airskill >/dev/null 2>&1
-        adb -s "$SERIAL" shell pm hide com.phicomm.speaker.exceptionreporter >/dev/null 2>&1
-        adb -s "$SERIAL" shell pm hide com.phicomm.speaker.systemtool >/dev/null 2>&1
-        adb -s "$SERIAL" shell pm hide com.phicomm.speaker.device >/dev/null 2>&1
-        adb -s "$SERIAL" shell pm hide com.phicomm.speaker.otaservice >/dev/null 2>&1
-        adb -s "$SERIAL" shell pm hide com.phicomm.speaker.productiontest >/dev/null 2>&1
-        adb -s "$SERIAL" shell pm hide com.phicomm.speaker.bugreport >/dev/null 2>&1
+        connected=0
+        adb connect "$SERIAL" >/dev/null 2>&1 || true
+        sleep 1
 
+        state=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d ' \r\n')
+        if [ "$state" = "device" ]; then
+            if adb -s "$SERIAL" shell ls /data >/dev/null 2>&1; then
+                connected=1
+            fi
+        fi
+
+        if [ "$connected" = "0" ]; then
+            set_r1_install_progress 40 "Đang đánh thức loa"
+            revive_speaker "$TARGET_IP"
+            sleep 2
+
+            try=1
+            while [ "$try" -le 5 ]; do
+                pct=$((40 + try * 2))
+                set_r1_install_progress "$pct" "Đang chờ loa phản hồi ($try/5)"
+                adb connect "$SERIAL" >/dev/null 2>&1 || true
+                sleep 1
+
+                state=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d ' \r\n')
+                if [ "$state" = "device" ]; then
+                    if adb -s "$SERIAL" shell ls /data >/dev/null 2>&1; then
+                        connected=1
+                        break
+                    fi
+                fi
+                sleep 1
+                try=$((try + 1))
+            done
+        fi
+
+        if [ "$connected" = "0" ]; then
+            complete_r1_install_progress
+            echo ""
+            printf '%s==========================================================%s\n' "$C_RED" "$C_RESET"
+            printf '%s  [LỖI] KẾT NỐI THẤT BẠI TỚI LOA TẠI %s%s\n' "$C_RED" "$SERIAL" "$C_RESET"
+            printf '%s==========================================================%s\n' "$C_RED" "$C_RESET"
+            printf '%sVui lòng kiểm tra:%s\n' "$C_YELLOW" "$C_RESET"
+            echo " 1. Loa đã cắm nguồn và đang bật."
+            echo " 2. Thiết bị và loa đang kết nối CÙNG MẠNG WiFi."
+            echo " 3. Địa chỉ IP của loa ($TARGET_IP) đã đúng chưa."
+            echo " 4. Nếu loa vừa reset -> hãy chọn mục 1 để cấu hình WiFi trước."
+            printf '%s==========================================================%s\n' "$C_RED" "$C_RESET"
+            read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+            return 1
+        fi
+    fi
+    set_r1_install_progress 52 "Đã kết nối với loa"
+
+    # [3/4] Dọn dẹp và chuẩn bị loa
+    set_r1_install_progress 54 "Đang dọn dẹp và chuẩn bị loa"
+    if [ "$R1_DRYRUN" != "1" ]; then
+        adb -s "$SERIAL" shell rm /sdcard/otaprop.txt >/dev/null 2>&1 || true
+        adb -s "$SERIAL" shell rm /sdcard/incremental\*.zip >/dev/null 2>&1 || true
+        adb -s "$SERIAL" shell /system/bin/pm clear com.phicomm.speaker.otaservice >/dev/null 2>&1 || true
+        adb -s "$SERIAL" shell "rm -rf /data/local/tmp/* 2>/dev/null" >/dev/null 2>&1 || true
+        adb -s "$SERIAL" shell settings put secure install_non_market_apps 1 >/dev/null 2>&1 || true
+
+        set_r1_install_progress 58 "Đang tắt ứng dụng xung đột"
+        adb -s "$SERIAL" shell /system/bin/pm hide com.phicomm.speaker.airskill >/dev/null 2>&1 || true
+        adb -s "$SERIAL" shell /system/bin/pm hide com.phicomm.speaker.exceptionreporter >/dev/null 2>&1 || true
+        adb -s "$SERIAL" shell /system/bin/pm hide com.phicomm.speaker.systemtool >/dev/null 2>&1 || true
+        adb -s "$SERIAL" shell /system/bin/pm hide com.phicomm.speaker.device >/dev/null 2>&1 || true
+        adb -s "$SERIAL" shell /system/bin/pm hide com.phicomm.speaker.otaservice >/dev/null 2>&1 || true
+        adb -s "$SERIAL" shell /system/bin/pm hide com.phicomm.speaker.productiontest >/dev/null 2>&1 || true
+        adb -s "$SERIAL" shell /system/bin/pm hide com.phicomm.speaker.bugreport >/dev/null 2>&1 || true
     else
-        progress_update 68 "[DRY-RUN] Đã mô phỏng chuẩn bị loa"
+        set_r1_install_progress 68 "[DRY-RUN] Đã mô phỏng chuẩn bị loa"
     fi
 
     # [4/4] Thực thi chuỗi lệnh cài đặt hệ thống chuẩn theo new.bat / install.ps1
-    if [ "$R1_DRYRUN" != "1" ]; then
-        POST_REBOOT_AI_OK=0
-        WEBUI_READY=0
+    post_reboot_ai_started=0
+    webui_ready=0
+    speaker_lan_ip=""
 
-        progress_update 80 "Đang khởi chạy dịch vụ loa"
-        ensure_adb_alive >/dev/null 2>&1 || true
-        adb -s "$SERIAL" shell am startservice com.phicomm.speaker.player/.EchoService >/dev/null 2>&1
-        adb -s "$SERIAL" shell am startservice com.phicomm.speaker.player/.DlnaPlayerService >/dev/null 2>&1
-        adb -s "$SERIAL" shell pm uninstall com.phicomm.speaker.device >/dev/null 2>&1 || true
+    if [ "$R1_DRYRUN" != "1" ]; then
+        set_r1_install_progress 80 "Đang khởi chạy dịch vụ loa"
+        adb -s "$SERIAL" shell am startservice com.phicomm.speaker.player/.EchoService >/dev/null 2>&1 || true
+        adb -s "$SERIAL" shell am startservice com.phicomm.speaker.player/.DlnaPlayerService >/dev/null 2>&1 || true
+        adb -s "$SERIAL" shell /system/bin/pm uninstall com.phicomm.speaker.device >/dev/null 2>&1 || true
         sleep 2
 
-        progress_update 83 "Đang khôi phục dịch vụ hệ thống"
-        adb -s "$SERIAL" shell pm unhide com.phicomm.speaker.ijetty >/dev/null 2>&1
-        adb -s "$SERIAL" shell pm unhide com.phicomm.speaker.netctl >/dev/null 2>&1
+        set_r1_install_progress 83 "Đang khôi phục dịch vụ hệ thống"
+        adb -s "$SERIAL" shell /system/bin/pm unhide com.phicomm.speaker.ijetty >/dev/null 2>&1 || true
+        adb -s "$SERIAL" shell /system/bin/pm unhide com.phicomm.speaker.netctl >/dev/null 2>&1 || true
 
-        progress_update 85 "Đang gỡ phiên bản AI cũ"
-        adb -s "$SERIAL" shell pm uninstall info.dourok.voicebot >/dev/null 2>&1
+        set_r1_install_progress 85 "Đang gỡ phiên bản AI cũ"
+        adb -s "$SERIAL" shell /system/bin/pm uninstall info.dourok.voicebot >/dev/null 2>&1 || true
 
         ai_apk="AIBoxPlus_DLNA.apk"
         local_ai_apk="$CACHE_DIR/$ai_apk"
         if [ ! -f "$local_ai_apk" ]; then
-            progress_finish
+            complete_r1_install_progress
             printf '%s>> [LỖI] Không tìm thấy file APK trên máy: %s%s\n' "$C_RED" "$local_ai_apk" "$C_RESET"
-            read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+            read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
             return 1
         fi
 
-        progress_update 88 "Đang chuyển AI Box vào loa"
-        if ! invoke_adb_step 0 -s "$SERIAL" push "$local_ai_apk" "/data/local/tmp/$ai_apk"; then
+        set_r1_install_progress 88 "Đang chuyển AI Box vào loa"
+        if ! invoke_adb_install_step 0 -s "$SERIAL" push "$local_ai_apk" "/data/local/tmp/$ai_apk"; then
+            complete_r1_install_progress
             printf '%s>> [LỖI] Tải file lên loa thất bại: %s%s\n' "$C_RED" "$ai_apk" "$C_RESET"
-            read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+            read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
             return 1
         fi
 
-        progress_update 92 "Đang cài AI Box Plus"
-        if ! invoke_adb_step 1 -s "$SERIAL" shell pm install -r "/data/local/tmp/$ai_apk"; then
+        set_r1_install_progress 92 "Đang cài AI Box Plus"
+        if ! invoke_adb_install_step 1 -s "$SERIAL" shell /system/bin/pm install -r "/data/local/tmp/$ai_apk"; then
+            complete_r1_install_progress
             printf '%s>> [LỖI] Cài đặt thất bại: %s%s\n' "$C_RED" "$ai_apk" "$C_RESET"
-            read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+            read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
             return 1
         fi
-        adb -s "$SERIAL" shell rm "/data/local/tmp/$ai_apk" >/dev/null 2>&1
+        adb -s "$SERIAL" shell rm "/data/local/tmp/$ai_apk" >/dev/null 2>&1 || true
 
-        progress_update 95 "Đang khởi chạy AI Box Plus trước khi reboot"
-        PRE_REBOOT_AI_OK=0
-        if start_ai_box; then
-            PRE_REBOOT_AI_OK=1
-        fi
-        sleep 3
-        wait_for_webui "$TARGET_IP" 10 96 "Đang chờ AI Box khởi tạo lần đầu" >/dev/null 2>&1 || true
+        set_r1_install_progress 95 "Đang khởi chạy AI Box Plus"
+        adb -s "$SERIAL" shell "tinymix -D 2 0 5; tinymix -D 2 1 5; tinymix -D 2 6 207; tinymix -D 2 7 207; tinymix -D 2 8 207; tinymix -D 2 9 207; tinymix -D 2 17 1; tinymix -D 2 18 1; tinymix -D 2 46 1; tinymix -D 2 47 1" >/dev/null 2>&1 || true
+        adb -s "$SERIAL" shell am start -n info.dourok.voicebot/.java.activities.MainActivity >/dev/null 2>&1 || true
+        sleep 5
 
-        progress_update 97 "Đang tối ưu cấu hình đèn & Bluetooth"
-        ensure_adb_alive >/dev/null 2>&1 || true
-        adb -s "$SERIAL" shell "settings put global bluetooth_on 1 2>/dev/null; service call bluetooth_manager 6 2>/dev/null; setprop persist.sys.r1_led 0 2>/dev/null; lights_test set 7fffff8000 0 2>/dev/null; lights_test set 7fffff0000 ffffff 2>/dev/null" >/dev/null 2>&1
+        complete_r1_install_progress
+        echo ""
+        echo "------------------------------------------------------------------------"
+        echo "Truy cập Xiaozhi.me để nhập mã 6 số và cấu hình AI."
+        echo "Nếu AI đã được cấu hình trước đó, có thể bỏ qua bước này."
+        echo "------------------------------------------------------------------------"
+        sleep 2
 
-        LAN_IP=$(adb -s "$SERIAL" shell "getprop dhcp.wlan0.ipaddress 2>/dev/null" 2>/dev/null | tr -d ' \r\n')
+        adb -s "$SERIAL" shell "settings put global bluetooth_on 1 2>/dev/null; service call bluetooth_manager 6 2>/dev/null; setprop persist.sys.r1_led 0 2>/dev/null; lights_test set 7fffff8000 0 2>/dev/null; lights_test set 7fffff0000 ffffff 2>/dev/null" >/dev/null 2>&1 || true
 
-        progress_update 98 "Đang khởi động lại loa"
+        printf '%s>> Cài đặt thành công, loa sẽ tự khởi động lại.%s\n' "$C_GREEN" "$C_RESET"
+        speaker_lan_ip=$(adb -s "$SERIAL" shell getprop dhcp.wlan0.ipaddress 2>/dev/null | tr -d ' \r\n')
+
+        set_r1_install_progress 98 "Đang khởi động lại loa"
         adb -s "$SERIAL" reboot >/dev/null 2>&1 || true
-        if wait_for_speaker_boot; then
-            progress_update 99 "Đang khởi chạy AI sau reboot"
-            if start_ai_box; then
-                POST_REBOOT_AI_OK=1
-                sleep 3
-                if wait_for_webui "${LAN_IP:-$TARGET_IP}" 15 99 "Đang chờ WebUI khởi động"; then
-                    WEBUI_READY=1
-                fi
+        if wait_r1_speaker_boot "$SERIAL"; then
+            set_r1_install_progress 99 "Đang khởi chạy AI sau reboot"
+            adb -s "$SERIAL" shell "tinymix -D 2 0 5; tinymix -D 2 1 5; tinymix -D 2 6 207; tinymix -D 2 7 207; tinymix -D 2 8 207; tinymix -D 2 9 207; tinymix -D 2 17 1; tinymix -D 2 18 1; tinymix -D 2 46 1; tinymix -D 2 47 1" >/dev/null 2>&1 || true
+            launch_out=$(adb -s "$SERIAL" shell am start -n info.dourok.voicebot/.java.activities.MainActivity 2>&1)
+            launch_code=$?
+            if [ "$launch_code" -eq 0 ] && ! printf '%s\n' "$launch_out" | grep -Eq '(?i)(Error:|Exception|does not exist)'; then
+                post_reboot_ai_started=1
+                sleep 5
+                web_try=1
+                while [ "$web_try" -le 15 ]; do
+                    if test_r1_tcp_port "$TARGET_IP" 8081 1; then
+                        webui_ready=1
+                        break
+                    fi
+                    set_r1_install_progress 99 "Đang chờ WebUI khởi động ($web_try/15)"
+                    sleep 1
+                    web_try=$((web_try + 1))
+                done
+            else
+                complete_r1_install_progress
+                printf '%s>> [CẢNH BÁO] Không khởi chạy được AI sau reboot:%s\n' "$C_YELLOW" "$C_RESET"
+                [ -n "$launch_out" ] && printf '%s\n' "$launch_out"
             fi
+        else
+            complete_r1_install_progress
+            printf '%s>> [CẢNH BÁO] Loa chưa kết nối lại sau reboot; không xác minh được AI/WebUI.%s\n' "$C_YELLOW" "$C_RESET"
         fi
-        progress_update 100 "Hoàn tất"
-        progress_finish
+        set_r1_install_progress 100 "Hoàn tất"
+        complete_r1_install_progress
     else
-        POST_REBOOT_AI_OK=0
-        WEBUI_READY=0
-        progress_update 100 "[DRY-RUN] Hoàn tất, loa chưa reboot"
-        progress_finish
-        LAN_IP=""
+        post_reboot_ai_started=0
+        webui_ready=0
+        set_r1_install_progress 100 "[DRY-RUN] Hoàn tất, loa chưa reboot"
+        complete_r1_install_progress
+        speaker_lan_ip=""
     fi
 
     # Dọn dẹp cache
-    for f in AIBoxPlus_DLNA.apk; do
-        rm -f "$CACHE_DIR/$f" "$CACHE_DIR/$f.tmp" 2>/dev/null || true
-    done
+    rm -f "$CACHE_DIR/AIBoxPlus_DLNA.apk" "$CACHE_DIR/AIBoxPlus_DLNA.apk.tmp" 2>/dev/null || true
 
-    UI_IP="$TARGET_IP"
-    [ -n "$LAN_IP" ] && UI_IP="$LAN_IP"
+    ui_ip="$TARGET_IP"
+    [ -n "$speaker_lan_ip" ] && ui_ip="$speaker_lan_ip"
 
     echo ""
     printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
@@ -1261,38 +1078,34 @@ run_install_lan() {
     printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
     if [ "$R1_DRYRUN" = "1" ]; then
         printf '%s>> Chạy thử hoàn tất; loa chưa được reboot.%s\n' "$C_YELLOW" "$C_RESET"
+        echo ">> Khi cài thật, truy cập bảng điều khiển sau khi loa khởi động:"
     else
         printf '%s>> Đã gửi lệnh khởi động lại (Reboot) loa.%s\n' "$C_GREEN" "$C_RESET"
         echo ">> Loa đang khởi động lại (thường mất khoảng 30 - 45 giây)."
-        if [ "$POST_REBOOT_AI_OK" = "1" ]; then
+        if [ "$post_reboot_ai_started" = "1" ]; then
             printf '%s>> AI đã được khởi chạy sau reboot.%s\n' "$C_GREEN" "$C_RESET"
         else
             printf '%s>> [CẢNH BÁO] Chưa xác minh được AI chạy sau reboot.%s\n' "$C_YELLOW" "$C_RESET"
         fi
-        if [ "$WEBUI_READY" = "1" ]; then
+        if [ "$webui_ready" = "1" ]; then
             printf '%s>> WebUI đã phản hồi tại cổng 8081.%s\n' "$C_GREEN" "$C_RESET"
         else
             printf '%s>> [CẢNH BÁO] WebUI chưa phản hồi tại cổng 8081.%s\n' "$C_YELLOW" "$C_RESET"
         fi
-    fi
-    echo ""
-    if [ "$R1_DRYRUN" = "1" ]; then
-        echo ">> Khi cài thật, truy cập bảng điều khiển sau khi loa khởi động:"
-    else
+        echo ""
         echo ">> Sau khi loa khởi động xong, truy cập bảng điều khiển tại:"
     fi
-    printf '%s   👉 http://%s:8081/%s\n' "$C_CYAN" "$UI_IP" "$C_RESET"
+    printf '%s   👉 http://%s:8081/%s\n' "$C_CYAN" "$ui_ip" "$C_RESET"
     printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
-
+    echo ""
     if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
-        echo ""
-        read_val "Nhấn Enter để quay lại menu chính: " "" >/dev/null 2>&1 || true
+        read_r1_input "Nhấn Enter để quay lại menu chính" "" >/dev/null 2>&1 || true
     fi
     return 0
 }
 
 # ------------------------------------------------------------------------------
-# 8. [MỤC 3] CHỈ CÀI ĐẶT / CẬP NHẬT AIBOXPLUS RIÊNG (GIỮ NGUYÊN TOKEN & APP KHÁC)
+# 8. [MỤC 3] CHỈ CÀI ĐẶT / CẬP NHẬT AIBOXPLUS (ĐỒNG BỘ THEO Run-Install-AiOnly PS1)
 # ------------------------------------------------------------------------------
 run_install_ai_only() {
     target_param="$1"
@@ -1302,21 +1115,20 @@ run_install_ai_only() {
         scan_speaker_ip
         if [ "$TOTAL_FOUND" -gt 0 ]; then
             echo ""
-            PICK=$(read_val "   Chọn số thứ tự loa để cập nhật AIBoxPlus (1-$TOTAL_FOUND) hoặc nhập IP khác [Mặc định: 1]: " "1")
-            PICK=$(printf '%s' "$PICK" | tr -d ' ')
-            if [ "$PICK" -ge 1 ] 2>/dev/null && [ "$PICK" -le "$TOTAL_FOUND" ] 2>/dev/null; then
-                TARGET_IP=$(sed -n "${PICK}p" "$scan_tmp/ips.txt")
-            elif printf '%s' "$PICK" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$'; then
-                TARGET_IP="$PICK"
+            pick=$(read_r1_input "   Chọn số thứ tự loa để cập nhật AIBoxPlus (1-$TOTAL_FOUND) hoặc nhập IP khác [Mặc định: 1]: " "1")
+            pick=$(printf '%s' "$pick" | tr -d ' ')
+            if [ "$pick" -ge 1 ] 2>/dev/null && [ "$pick" -le "$TOTAL_FOUND" ] 2>/dev/null; then
+                TARGET_IP=$(sed -n "${pick}p" "$scan_tmp/ips.txt")
+            elif printf '%s' "$pick" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$'; then
+                TARGET_IP="$pick"
             else
                 TARGET_IP=$(head -n 1 "$scan_tmp/ips.txt")
             fi
         else
             echo ""
-            printf '%s>> Không tìm thấy loa trong mạng LAN.%s\n' "$C_YELLOW" "$C_RESET"
-            MANUAL=$(read_val "   Nhập IP loa thủ công (Enter để quay lại menu): " "")
-            if [ -n "$MANUAL" ]; then
-                TARGET_IP="$MANUAL"
+            manual=$(read_r1_input "   Không tìm thấy loa. Nhập IP loa thủ công (Enter để quay lại menu): " "")
+            if [ -n "$manual" ]; then
+                TARGET_IP="$manual"
             else
                 rm -rf "$scan_tmp" 2>/dev/null || true
                 return 1
@@ -1325,91 +1137,106 @@ run_install_ai_only() {
         rm -rf "$scan_tmp" 2>/dev/null || true
     fi
 
+    if [ "$TARGET_IP" = "192.168.43.1" ]; then
+        echo ""
+        printf '%s==========================================================%s\n' "$C_RED" "$C_RESET"
+        printf '%s  [CẢNH BÁO] KHÔNG THỂ CẬP NHẬT APK QUA AP 192.168.43.1!%s\n' "$C_YELLOW" "$C_RESET"
+        printf '%s==========================================================%s\n' "$C_RED" "$C_RESET"
+        read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+        return 1
+    fi
+
     TARGET_IP=$(printf '%s' "$TARGET_IP" | tr -d '[:space:]')
-    TARGET_PORT="5555"
     case "$TARGET_IP" in
-        *:*)
-            TARGET_PORT="${TARGET_IP##*:}"
-            TARGET_IP="${TARGET_IP%:*}"
-            ;;
+        *:5555) TARGET_IP="${TARGET_IP%:5555}" ;;
     esac
-    SERIAL="${TARGET_IP}:${TARGET_PORT}"
+    SERIAL="$TARGET_IP:5555"
 
     echo ""
-    printf '%s>> Sẽ kết nối tới loa: %s%s\n' "$C_CYAN" "$SERIAL" "$C_RESET"
+    printf '%s>> Sẽ kết nối tới loa: %s%s\n' "$C_CYAN" "$TARGET_IP" "$C_RESET"
 
-    ensure_adb || return 1
-
-    # Chuẩn bị file AIBoxPlus APK
-    ai_apk="AIBoxPlus_DLNA.apk"
-    # Tải file AIBoxPlus APK mới nhất trực tiếp từ GitHub version.json
-    if ! download_latest_ai_apk; then
-        read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
-        return 1
-    fi
-    local_ai_apk="$CACHE_DIR/AIBoxPlus_DLNA.apk"
-
-    printf '%s>> Đang kết nối tới loa qua ADB...%s\n' "$C_CYAN" "$C_RESET"
-    if ! connect_speaker_adb "$TARGET_IP" "$TARGET_PORT"; then
-        printf '%s>> [LỖI] Không thể kết nối ADB tới loa tại %s.%s\n' "$C_RED" "$SERIAL" "$C_RESET"
-        read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+    if ! ensure_adb; then
+        printf '%s>> [LỖI] Không thể khởi tạo công cụ ADB.%s\n' "$C_RED" "$C_RESET"
+        read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
         return 1
     fi
 
-    if [ "$R1_DRYRUN" = "1" ]; then
-        printf '%s[DRY-RUN] Đã mô phỏng chuyển file và cài đặt AIBoxPlus thành công.%s\n' "$C_YELLOW" "$C_RESET"
-    else
-        printf '%s>> Đang bật quyền cài đặt ứng dụng...%s\n' "$C_CYAN" "$C_RESET"
-        adb -s "$SERIAL" shell settings put secure install_non_market_apps 1 >/dev/null 2>&1 || true
+    if ! ensure_apk_ai_only; then return 1; fi
 
-        printf '%s>> Đang tải %s lên loa...%s\n' "$C_CYAN" "$ai_apk" "$C_RESET"
-        if ! invoke_adb_step 0 -s "$SERIAL" push "$local_ai_apk" "/data/local/tmp/$ai_apk"; then
-            printf '%s>> [LỖI] Tải file lên loa thất bại.%s\n' "$C_RED" "$C_RESET"
-            read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+    echo ""
+    printf '%s>> Đang kết nối tới loa qua ADB (%s)...%s\n' "$C_CYAN" "$SERIAL" "$C_RESET"
+
+    if [ "$R1_DRYRUN" != "1" ]; then
+        adb connect "$SERIAL" >/dev/null 2>&1 || true
+        sleep 1
+        state=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d ' \r\n')
+        if [ "$state" != "device" ]; then
+            revive_speaker "$TARGET_IP"
+            adb connect "$SERIAL" >/dev/null 2>&1 || true
+            sleep 1
+            state=$(adb -s "$SERIAL" get-state 2>/dev/null | tr -d ' \r\n')
+        fi
+
+        if [ "$state" != "device" ]; then
+            echo ""
+            printf '%s>> [LỖI] Không thể kết nối tới loa tại %s.%s\n' "$C_RED" "$SERIAL" "$C_RESET"
+            read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
             return 1
         fi
 
-        printf '%s>> Đang cài đặt / cập nhật AIBoxPlus (giữ nguyên token)...%s\n' "$C_CYAN" "$C_RESET"
-        if ! invoke_adb_step 1 -s "$SERIAL" shell pm install -r "/data/local/tmp/$ai_apk"; then
-            printf '%s>> [LỖI] Cài đặt thất bại.%s\n' "$C_RED" "$C_RESET"
-            read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+        printf '%s>> Đã kết nối thành công tới loa.%s\n' "$C_GREEN" "$C_RESET"
+        printf '%s>> Đang bật quyền cài đặt ứng dụng...%s\n' "$C_CYAN" "$C_RESET"
+        adb -s "$SERIAL" shell settings put secure install_non_market_apps 1 >/dev/null 2>&1 || true
+
+        ai_apk="AIBoxPlus_DLNA.apk"
+        local_ai_apk="$CACHE_DIR/$ai_apk"
+
+        printf '%s>> Đang tải AIBoxPlus lên loa...%s\n' "$C_CYAN" "$C_RESET"
+        if ! invoke_adb_install_step 0 -s "$SERIAL" push "$local_ai_apk" "/data/local/tmp/$ai_apk"; then
+            printf '%s>> [LỖI] Tải file lên loa thất bại: %s%s\n' "$C_RED" "$ai_apk" "$C_RESET"
+            read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+            return 1
+        fi
+
+        printf '%s>> Đang cài đặt / cập nhật AIBoxPlus (giữ nguyên token Xiaozhi)...%s\n' "$C_CYAN" "$C_RESET"
+        if ! invoke_adb_install_step 1 -s "$SERIAL" shell /system/bin/pm install -r "/data/local/tmp/$ai_apk"; then
+            printf '%s>> [LỖI] Cài đặt thất bại: %s%s\n' "$C_RED" "$ai_apk" "$C_RESET"
+            read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
             return 1
         fi
         adb -s "$SERIAL" shell rm "/data/local/tmp/$ai_apk" >/dev/null 2>&1 || true
 
         printf '%s>> Đang khởi động AIBoxPlus...%s\n' "$C_CYAN" "$C_RESET"
-        start_ai_box >/dev/null 2>&1 || true
-        sleep 3
+        adb -s "$SERIAL" shell "tinymix -D 2 0 5; tinymix -D 2 1 5; tinymix -D 2 6 207; tinymix -D 2 7 207; tinymix -D 2 8 207; tinymix -D 2 9 207; tinymix -D 2 17 1; tinymix -D 2 18 1; tinymix -D 2 46 1; tinymix -D 2 47 1" >/dev/null 2>&1 || true
+        adb -s "$SERIAL" shell am start -n info.dourok.voicebot/.java.activities.MainActivity >/dev/null 2>&1 || true
+        sleep 4
     fi
 
     echo ""
     printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
     printf '%s             CẬP NHẬT AIBOXPLUS HOÀN TẤT!                 %s\n' "$C_YELLOW" "$C_RESET"
     printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
-    printf '%s>> AIBoxPlus đã được cập nhật thành công (giữ nguyên token).%s\n' "$C_GREEN" "$C_RESET"
+    printf '%s>> AIBoxPlus đã được cài đặt / cập nhật thành công (giữ nguyên dữ liệu).%s\n' "$C_GREEN" "$C_RESET"
     printf '%s>> Bảng điều khiển WebUI: http://%s:8081/%s\n' "$C_CYAN" "$TARGET_IP" "$C_RESET"
     printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
     echo ""
 
-    if [ "$R1_DRYRUN" != "1" ]; then
-        reboot_ans="n"
-        if [ "$ASSUME_YES" != "1" ]; then
-            reboot_ans=$(read_val "Khởi động lại loa ngay bây giờ? [y/N]: " "n")
-        fi
+    if [ "$ASSUME_YES" != "1" ]; then
+        reboot_ans=$(read_r1_input "Khởi động lại loa ngay bây giờ? [y/N]: " "n")
         case "$(printf '%s' "$reboot_ans" | tr '[:upper:]' '[:lower:]')" in
             "y"|"yes")
                 adb -s "$SERIAL" reboot >/dev/null 2>&1 || true
                 printf '%s>> Đã gửi lệnh khởi động lại loa.%s\n' "$C_GREEN" "$C_RESET"
                 ;;
         esac
+        echo ""
+        read_r1_input "Nhấn Enter để quay lại menu chính" "" >/dev/null 2>&1 || true
     fi
-    echo ""
-    [ "$ASSUME_YES" != "1" ] && read_val "Nhấn Enter để quay lại menu chính: " "" >/dev/null 2>&1 || true
     return 0
 }
 
 # ------------------------------------------------------------------------------
-# 9. MENU CHÍNH (ĐỒNG BỘ VỚI Show-Menu TRONG INSTALL.PS1)
+# 9. MENU CHÍNH (ĐỒNG BỘ THEO Show-Menu TRONG INSTALL.PS1)
 # ------------------------------------------------------------------------------
 show_menu() {
     echo ""
@@ -1420,65 +1247,56 @@ show_menu() {
     printf '%s     -> Dùng khi loa vừa reset, đang phát WiFi Phicomm_R1_xxxx%s\n' "$C_GRAY" "$C_RESET"
     echo ""
     echo "  2) Cài đặt mới hoàn toàn (AIBox Plus All-in-One)"
-    printf '%s     -> Dùng khi cài mới hoàn toàn cho loa%s\n' "$C_GRAY" "$C_RESET"
+    printf '%s     -> Dùng khi cài mới hoàn toàn cho loa (ưu tiên file local)%s\n' "$C_GRAY" "$C_RESET"
     echo ""
     echo "  3) Chỉ cài đặt / cập nhật AIBoxPlus (giữ nguyên token & app cũ)"
-    printf '%s     -> Nâng cấp AIBoxPlus nhanh, không ảnh hưởng DLNA%s\n' "$C_GRAY" "$C_RESET"
+    printf '%s     -> Nâng cấp AIBoxPlus nhanh, không ảnh hưởng DLNA (ưu tiên local)%s\n' "$C_GRAY" "$C_RESET"
     echo ""
     echo "  4) Quét tìm IP loa Phicomm R1 trong LAN (chỉ kiểm tra)"
     echo "  5) Thoát"
     printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
-    printf "Chọn [1-5]: "
-    CHOICE=""
-    if ! read -r CHOICE 2>/dev/null; then
-        CHOICE="5"
-    fi
-    CHOICE=$(printf '%s' "$CHOICE" | tr -d ' \r\n')
+    choice=$(read_r1_input "Chọn [1-5]: " "5")
+    choice=$(printf '%s' "$choice" | tr -d ' \r\n')
+    echo "$choice"
 }
 
-# Xử lý tham số CLI trực tiếp (Automation / Scripts)
-if [ "$CLI_MODE" = "wifi" ]; then
-    configure_wifi_ap
-    exit 0
-elif [ "$CLI_MODE" = "aionly" ]; then
+# Xử lý tham số dòng lệnh trực tiếp (Automation / Scripts)
+if [ -n "$RUN_WIFI_CLI" ]; then
+    run_wifi_config
+    exit $?
+fi
+
+if [ -n "$RUN_AIONLY_CLI" ]; then
     run_install_ai_only "$USER_IP"
     exit $?
-elif [ "$CLI_MODE" = "install" ]; then
-    run_install_lan "$USER_IP"
+fi
+
+if [ -n "$USER_IP" ]; then
+    run_install "$USER_IP"
     exit $?
-elif [ "$CLI_MODE" = "scan" ]; then
+fi
+
+if [ -n "$RUN_SCAN_CLI" ]; then
     scan_speaker_ip
-    if [ "$TOTAL_FOUND" -gt 0 ]; then
-        printf '%s>> Tìm thấy %s loa Phicomm R1 trong mạng LAN.%s\n' "$C_GREEN" "$TOTAL_FOUND" "$C_RESET"
-    else
-        printf '%s>> Không tìm thấy loa R1 trong dải mạng hiện tại.%s\n' "$C_YELLOW" "$C_RESET"
-    fi
-    rm -rf "$scan_tmp" 2>/dev/null || true
     exit 0
 fi
 
 # Vòng lặp Menu chính
 while :; do
-    show_menu
-    case "$CHOICE" in
+    c=$(show_menu)
+    case "$c" in
         1)
-            configure_wifi_ap
+            run_wifi_config
             ;;
         2)
-            run_install_lan ""
+            run_install ""
             ;;
         3)
             run_install_ai_only ""
             ;;
         4)
             scan_speaker_ip
-            if [ "$TOTAL_FOUND" -eq 0 ]; then
-                echo ""
-                printf '%s>> Không tìm thấy loa R1 trong dải mạng hiện tại.%s\n' "$C_YELLOW" "$C_RESET"
-            fi
-            rm -rf "$scan_tmp" 2>/dev/null || true
-            echo ""
-            read_val "Nhấn Enter để quay lại menu chính: " "" >/dev/null 2>&1 || true
+            read_r1_input "   Nhấn Enter để quay lại menu chính" "" >/dev/null 2>&1 || true
             ;;
         5|"q"|"Q"|"exit")
             printf '%sThoát chương trình.%s\n' "$C_YELLOW" "$C_RESET"
