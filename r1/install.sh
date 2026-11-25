@@ -84,7 +84,13 @@ read_r1_input() {
     fi
     printf "%s" "$prompt" >&2
     val=""
-    read -r val 2>/dev/null || val=""
+    if [ -t 0 ]; then
+        read -r val 2>/dev/null || val=""
+    elif [ -r /dev/tty ]; then
+        read -r val < /dev/tty 2>/dev/null || val=""
+    else
+        read -r val 2>/dev/null || val=""
+    fi
     val=$(printf '%s' "$val" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
     [ -z "$val" ] && val="$default_val"
     echo "$val"
@@ -1255,9 +1261,8 @@ show_menu() {
     echo "  4) Quét tìm IP loa Phicomm R1 trong LAN (chỉ kiểm tra)"
     echo "  5) Thoát"
     printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
-    choice=$(read_r1_input "Chọn [1-5]: " "5")
-    choice=$(printf '%s' "$choice" | tr -d ' \r\n')
-    echo "$choice"
+    CHOICE=$(read_r1_input "Chọn [1-5]: " "5")
+    CHOICE=$(printf '%s' "$CHOICE" | tr -d ' \r\n')
 }
 
 # Xử lý tham số dòng lệnh trực tiếp (Automation / Scripts)
@@ -1283,8 +1288,8 @@ fi
 
 # Vòng lặp Menu chính
 while :; do
-    c=$(show_menu)
-    case "$c" in
+    show_menu
+    case "$CHOICE" in
         1)
             run_wifi_config
             ;;
