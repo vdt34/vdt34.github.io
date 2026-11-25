@@ -1003,38 +1003,16 @@ ensure_apks() {
     printf '%s>> Đang chuẩn bị và tự động tải bộ cài từ vdt34.github.io/r1...%s\n' "$C_CYAN" "$C_RESET"
     mkdir -p "$CACHE_DIR" 2>/dev/null || true
 
-    for f in autodlna.apk AIBoxPlus_DLNA.apk; do
+    for f in AIBoxPlus_DLNA.apk; do
         rm -f "$CACHE_DIR/$f" "$CACHE_DIR/$f.tmp" 2>/dev/null || true
     done
 
-    TS=$(date +%s 2>/dev/null || echo "1")
-    idx=0
     missing=0
-    for f in autodlna.apk; do
-        p_start=$((5 + idx * 10))
-        progress_update "$p_start" "Đang chuẩn bị $f"
-
-        if command -v curl >/dev/null 2>&1; then
-            curl -k -fsSL --connect-timeout 20 --max-time 45 -o "$CACHE_DIR/$f.tmp" "$BASE_URL/$f?t=$TS" 2>/dev/null && mv -f "$CACHE_DIR/$f.tmp" "$CACHE_DIR/$f"
-        elif command -v wget >/dev/null 2>&1; then
-            wget -q --no-check-certificate --timeout=45 -O "$CACHE_DIR/$f.tmp" "$BASE_URL/$f?t=$TS" 2>/dev/null && mv -f "$CACHE_DIR/$f.tmp" "$CACHE_DIR/$f"
-        fi
-
-        if [ ! -f "$CACHE_DIR/$f" ] || [ "$(wc -c < "$CACHE_DIR/$f" 2>/dev/null || echo 0)" -lt 1000000 ]; then
-            missing=1
-            break
-        fi
-
-        p_done=$((15 + idx * 10))
-        progress_update "$p_done" "Đã xử lý $f"
-        idx=$((idx + 1))
-    done
-
-    progress_update 25 "Đang kiểm tra AIBoxPlus mới nhất"
+    progress_update 20 "Đang kiểm tra AIBoxPlus mới nhất"
     if ! download_latest_ai_apk; then
         missing=1
     fi
-    progress_update 35 "Đã chuẩn bị AIBoxPlus"
+    progress_update 35 "Đã chuẩn bị xong file APK"
 
     if [ "$missing" = "1" ]; then
         progress_finish
@@ -1167,23 +1145,6 @@ run_install_lan() {
         adb -s "$SERIAL" shell pm hide com.phicomm.speaker.productiontest >/dev/null 2>&1
         adb -s "$SERIAL" shell pm hide com.phicomm.speaker.bugreport >/dev/null 2>&1
 
-        push_percent=60
-        for f in autodlna.apk; do
-            progress_update "$push_percent" "Đang chuyển $f vào loa"
-            local_apk="$CACHE_DIR/$f"
-            if [ ! -f "$local_apk" ]; then
-                progress_finish
-                printf '%s>> [LỖI] Không tìm thấy file APK trên máy: %s%s\n' "$C_RED" "$local_apk" "$C_RESET"
-                read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
-                return 1
-            fi
-            if ! invoke_adb_step 0 -s "$SERIAL" push "$local_apk" "//data/local/tmp/$f"; then
-                printf '%s>> [LỖI] Tải file lên loa thất bại: %s%s\n' "$C_RED" "$f" "$C_RESET"
-                read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
-                return 1
-            fi
-            push_percent=$((push_percent + 4))
-        done
     else
         progress_update 68 "[DRY-RUN] Đã mô phỏng chuẩn bị loa"
     fi
@@ -1192,20 +1153,6 @@ run_install_lan() {
     if [ "$R1_DRYRUN" != "1" ]; then
         POST_REBOOT_AI_OK=0
         WEBUI_READY=0
-        install_percent=70
-        for f in autodlna.apk; do
-            progress_update "$install_percent" "Đang cài $f"
-            if ! invoke_adb_step 1 -s "$SERIAL" shell pm install -r "//data/local/tmp/$f"; then
-                printf '%s>> [LỖI] Cài đặt thất bại: %s%s\n' "$C_RED" "$f" "$C_RESET"
-                read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
-                return 1
-            fi
-            install_percent=$((install_percent + 5))
-        done
-
-        for f in autodlna.apk; do
-            adb -s "$SERIAL" shell rm "//data/local/tmp/$f" >/dev/null 2>&1
-        done
 
         progress_update 80 "Đang khởi chạy dịch vụ loa"
         ensure_adb_alive >/dev/null 2>&1 || true
@@ -1282,7 +1229,7 @@ run_install_lan() {
     fi
 
     # Dọn dẹp cache
-    for f in autodlna.apk AIBoxPlus_DLNA.apk; do
+    for f in AIBoxPlus_DLNA.apk; do
         rm -f "$CACHE_DIR/$f" "$CACHE_DIR/$f.tmp" 2>/dev/null || true
     done
 
@@ -1453,7 +1400,7 @@ show_menu() {
     echo "  1) Cấu hình WiFi cho loa (kết nối AP 192.168.43.1)"
     printf '%s     -> Dùng khi loa vừa reset, đang phát WiFi Phicomm_R1_xxxx%s\n' "$C_GRAY" "$C_RESET"
     echo ""
-    echo "  2) Cài đặt đầy đủ 2 ứng dụng (AutoDLNA + AI)"
+    echo "  2) Cài đặt mới hoàn toàn (AIBox Plus All-in-One)"
     printf '%s     -> Dùng khi cài mới hoàn toàn cho loa%s\n' "$C_GRAY" "$C_RESET"
     echo ""
     echo "  3) Chỉ cài đặt / cập nhật AIBoxPlus (giữ nguyên token & app cũ)"
