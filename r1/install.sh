@@ -139,8 +139,8 @@ setup_tools() {
             if [ -f /etc/apk/repositories ]; then
                 sed -i 's/^#\(.*\/community\)/\1/' /etc/apk/repositories 2>/dev/null || true
             fi
-            apk add --no-cache android-tools netcat-openbsd >/dev/null 2>&1 || \
-            apk add --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community android-tools netcat-openbsd >/dev/null 2>&1 || true
+            apk add --no-cache android-tools netcat-openbsd psmisc >/dev/null 2>&1 || \
+            apk add --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community android-tools netcat-openbsd psmisc >/dev/null 2>&1 || true
         elif command -v pkg >/dev/null 2>&1; then
             pkg install -y android-tools netcat-openbsd >/dev/null 2>&1 || true
         elif command -v apt-get >/dev/null 2>&1; then
@@ -582,6 +582,7 @@ reset_adb_daemon() {
     elif command -v pkill >/dev/null 2>&1; then
         pkill -9 adb >/dev/null 2>&1 || true
     fi
+    kill -9 $(pidof adb 2>/dev/null) 2>/dev/null || true
     adb kill-server >/dev/null 2>&1 || true
     adb start-server >/dev/null 2>&1 || true
     sleep 1
@@ -687,7 +688,25 @@ invoke_adb_step() {
             return 0
         fi
 
+        # Đặc trị cho iSH / Wi-Fi chập chờn khi pm install APK lớn (11MB+):
+        # dex2oat trên RK3229 (Android 5.1.1) ngốn 100% CPU trong 30-45 giây khiến adb connection bị đóng (error: closed),
+        # nhưng PMS trên loa vẫn tiếp tục biên dịch và cài đặt ngầm.
+        # Ta kiên nhẫn kiểm tra xem gói info.dourok.voicebot đã xuất hiện trên hệ thống chưa:
+        if [ "$require_success" = "1" ]; then
+            progress_update 94 "Đang chờ loa hoàn tất biên dịch & cài đặt"
+            check_try=1
+            while [ "$check_try" -le 8 ]; do
+                sleep 5
+                adb connect "$SERIAL" >/dev/null 2>&1 || true
+                if adb -s "$SERIAL" shell pm path info.dourok.voicebot 2>/dev/null | grep -q "info.dourok.voicebot"; then
+                    return 0
+                fi
+                check_try=$((check_try + 1))
+            done
+        fi
+
         if [ "$attempt" -lt 2 ]; then
+            reset_adb_daemon
             revive_speaker "$TARGET_IP"
             adb disconnect "$SERIAL" >/dev/null 2>&1 || true
             adb connect "$SERIAL" >/dev/null 2>&1 || true
@@ -1178,19 +1197,19 @@ run_install_lan() {
         fi
 
         progress_update 88 "Đang chuyển AI Box vào loa"
-        if ! invoke_adb_step 0 -s "$SERIAL" push "$local_ai_apk" "//data/local/tmp/$ai_apk"; then
+        if ! invoke_adb_step 0 -s "$SERIAL" push "$local_ai_apk" "/data/local/tmp/$ai_apk"; then
             printf '%s>> [LỖI] Tải file lên loa thất bại: %s%s\n' "$C_RED" "$ai_apk" "$C_RESET"
             read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
             return 1
         fi
 
         progress_update 92 "Đang cài AI Box Plus"
-        if ! invoke_adb_step 1 -s "$SERIAL" shell pm install -r "//data/local/tmp/$ai_apk"; then
+        if ! invoke_adb_step 1 -s "$SERIAL" shell pm install -r "/data/local/tmp/$ai_apk"; then
             printf '%s>> [LỖI] Cài đặt thất bại: %s%s\n' "$C_RED" "$ai_apk" "$C_RESET"
             read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
             return 1
         fi
-        adb -s "$SERIAL" shell rm "//data/local/tmp/$ai_apk" >/dev/null 2>&1
+        adb -s "$SERIAL" shell rm "/data/local/tmp/$ai_apk" >/dev/null 2>&1
 
         progress_update 95 "Đang khởi chạy AI Box Plus trước khi reboot"
         PRE_REBOOT_AI_OK=0
@@ -1344,19 +1363,19 @@ run_install_ai_only() {
         adb -s "$SERIAL" shell settings put secure install_non_market_apps 1 >/dev/null 2>&1 || true
 
         printf '%s>> Đang tải %s lên loa...%s\n' "$C_CYAN" "$ai_apk" "$C_RESET"
-        if ! invoke_adb_step 0 -s "$SERIAL" push "$local_ai_apk" "//data/local/tmp/$ai_apk"; then
+        if ! invoke_adb_step 0 -s "$SERIAL" push "$local_ai_apk" "/data/local/tmp/$ai_apk"; then
             printf '%s>> [LỖI] Tải file lên loa thất bại.%s\n' "$C_RED" "$C_RESET"
             read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
             return 1
         fi
 
         printf '%s>> Đang cài đặt / cập nhật AIBoxPlus (giữ nguyên token)...%s\n' "$C_CYAN" "$C_RESET"
-        if ! invoke_adb_step 1 -s "$SERIAL" shell pm install -r "//data/local/tmp/$ai_apk"; then
+        if ! invoke_adb_step 1 -s "$SERIAL" shell pm install -r "/data/local/tmp/$ai_apk"; then
             printf '%s>> [LỖI] Cài đặt thất bại.%s\n' "$C_RED" "$C_RESET"
             read_val "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
             return 1
         fi
-        adb -s "$SERIAL" shell rm "//data/local/tmp/$ai_apk" >/dev/null 2>&1 || true
+        adb -s "$SERIAL" shell rm "/data/local/tmp/$ai_apk" >/dev/null 2>&1 || true
 
         printf '%s>> Đang khởi động AIBoxPlus...%s\n' "$C_CYAN" "$C_RESET"
         start_ai_box >/dev/null 2>&1 || true
