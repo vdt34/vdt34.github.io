@@ -1,4 +1,4 @@
-﻿# ==============================================================================
+# ==============================================================================
 # BỘ CÀI ĐẶT PHICOMM R1 SIÊU TỐC - WINDOWS POWERSHELL
 # Tự động cấu hình WiFi AP, quét tìm loa trong LAN, dọn sạch file cũ, giao diện UTF-8
 # ==============================================================================
@@ -604,7 +604,7 @@ function Ensure-Apks {
     Write-Host ""
     Write-Host ">> Đang chuẩn bị các gói cài đặt (ưu tiên file cục bộ, tự động tải từ máy chủ nếu thiếu)..." -ForegroundColor Cyan
 
-    foreach ($f in @("autodlna.apk", "AIBoxPlus_DLNA.apk")) {
+    foreach ($f in @("AIBoxPlus_DLNA.apk")) {
         $oldFile = Join-Path $TempDir $f
         if (Test-Path $oldFile) { Remove-Item $oldFile -Force -ErrorAction SilentlyContinue }
     }
@@ -612,36 +612,13 @@ function Ensure-Apks {
     Get-ChildItem -Path $TempDir -Filter "*.cmd" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 
     $Missing = $false
-    $UnixTs = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 
-    # 1. autodlna.apk: ưu tiên tìm local trước, nếu không có thì tải từ server
-    Set-R1InstallProgress -Percent 15 -Status "Đang chuẩn bị autodlna.apk"
-    $localDlna = if ($ScriptDir) { Join-Path $ScriptDir "autodlna.apk" } else { $null }
-    $cacheDlna = Join-Path $TempDir "autodlna.apk"
-
-    if ($localDlna -and (Test-Path $localDlna)) {
-        Write-Host ">> [LOCAL] Đã tìm thấy autodlna.apk cục bộ: $localDlna" -ForegroundColor Green
-        Copy-Item $localDlna $cacheDlna -Force
-    } else {
-        Write-Host ">> [ONLINE] Không có autodlna.apk cục bộ trong '$ScriptDir'. Đang tải từ máy chủ ($BaseUrl/autodlna.apk)..." -ForegroundColor Cyan
-        try {
-            $old = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
-            Invoke-WebRequest -Uri "$BaseUrl/autodlna.apk`?t=$UnixTs" -OutFile "$cacheDlna.tmp" -TimeoutSec 45 -UseBasicParsing
-            Move-Item "$cacheDlna.tmp" $cacheDlna -Force
-            $ProgressPreference = $old
-        } catch {
-            $ProgressPreference = $old
-            $Missing = $true
-        }
-    }
-    Set-R1InstallProgress -Percent 25 -Status "Đã chuẩn bị autodlna.apk"
-
-    # 2. AIBoxPlus APK: ưu tiên tìm local trước, nếu không có thì tải từ server
-    Set-R1InstallProgress -Percent 30 -Status "Đang kiểm tra AIBoxPlus"
+    # AIBoxPlus All-in-One APK: ưu tiên tìm local trước, nếu không có thì tải từ server
+    Set-R1InstallProgress -Percent 20 -Status "Đang kiểm tra AIBoxPlus"
     if (-not (Ensure-Apk-AiOnly)) {
         $Missing = $true
     }
-    Set-R1InstallProgress -Percent 35 -Status "Đã chuẩn bị xong các file APK"
+    Set-R1InstallProgress -Percent 35 -Status "Đã chuẩn bị xong file APK"
 
     if ($Missing) {
         Complete-R1InstallProgress
@@ -844,8 +821,8 @@ function Run-Install {
     }
     Set-R1InstallProgress -Percent 52 -Status "Đã kết nối với loa"
 
-    # [3/4] Đẩy APK lên bộ nhớ tạm của loa
-    $Apks = @("autodlna.apk")
+    # [3/4] Dọn dẹp và chuẩn bị loa
+    $Apks = @()
     Set-R1InstallProgress -Percent 54 -Status "Đang dọn dẹp và chuẩn bị loa"
     if (-not $DryRun -and $env:R1_DRYRUN -ne "1") {
         adb -s $Serial shell rm /sdcard/otaprop.txt 2>$null | Out-Null
@@ -1001,7 +978,7 @@ function Run-Install {
     }
 
     # Dọn dẹp cache
-    foreach ($f in @("autodlna.apk", "AIBoxPlus_DLNA.apk")) {
+    foreach ($f in @("AIBoxPlus_DLNA.apk")) {
         $tmpFile = Join-Path $TempDir $f
         if (Test-Path $tmpFile) { Remove-Item $tmpFile -Force -ErrorAction SilentlyContinue }
     }
@@ -1169,7 +1146,7 @@ function Show-Menu {
     Write-Host "  1) Cấu hình WiFi cho loa (kết nối AP 192.168.43.1)" -ForegroundColor White
     Write-Host "     -> Dùng khi loa vừa reset, đang phát WiFi Phicomm_R1_xxxx" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "  2) Cài đặt đầy đủ 2 ứng dụng (AutoDLNA + AI)" -ForegroundColor White
+    Write-Host "  2) Cài đặt mới hoàn toàn (AIBox Plus All-in-One)" -ForegroundColor White
     Write-Host "     -> Dùng khi cài mới hoàn toàn cho loa (ưu tiên file local)" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  3) Chỉ cài đặt / cập nhật AIBoxPlus (giữ nguyên token & app cũ)" -ForegroundColor White
