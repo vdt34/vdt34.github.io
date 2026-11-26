@@ -20,23 +20,32 @@ if ($args.Count -gt 0) {
         if ($a -eq "192.168.43.1") {
             $Ip = $a
             $RunWifiCli = $true
-        } elseif (($a -eq "-Ip" -or $a -eq "--ip") -and ($i + 1) -lt $args.Count) {
+        }
+        elseif (($a -eq "-Ip" -or $a -eq "--ip") -and ($i + 1) -lt $args.Count) {
             $Ip = $args[++$i]
-        } elseif ($a -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}') {
+        }
+        elseif ($a -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}') {
             $Ip = $a
-        } elseif ($a -eq "-Yes" -or $a -eq "-y") {
+        }
+        elseif ($a -eq "-Yes" -or $a -eq "-y") {
             $Yes = $true
-        } elseif ($a -eq "-DryRun") {
+        }
+        elseif ($a -eq "-DryRun") {
             $DryRun = $true
-        } elseif ($a -eq "-Wifi" -or $a -eq "--wifi") {
+        }
+        elseif ($a -eq "-Wifi" -or $a -eq "--wifi") {
             $RunWifiCli = $true
-        } elseif ($a -eq "-Scan" -or $a -eq "--scan") {
+        }
+        elseif ($a -eq "-Scan" -or $a -eq "--scan") {
             $RunScanCli = $true
-        } elseif ($a -eq "-AiOnly" -or $a -eq "--ai-only" -or $a -eq "-ai") {
+        }
+        elseif ($a -eq "-AiOnly" -or $a -eq "--ai-only" -or $a -eq "-ai") {
             $RunAiOnlyCli = $true
-        } elseif ($a -eq "-LocalDir" -and ($i + 1) -lt $args.Count) {
+        }
+        elseif ($a -eq "-LocalDir" -and ($i + 1) -lt $args.Count) {
             $ScriptDir = $args[++$i]
-        } elseif ($a -eq "-ApkBase" -and ($i + 1) -lt $args.Count) {
+        }
+        elseif ($a -eq "-ApkBase" -and ($i + 1) -lt $args.Count) {
             $BaseUrl = $args[++$i]
         }
     }
@@ -50,15 +59,20 @@ function Read-R1Input {
 if (-not $ScriptDir) {
     if ($global:R1_SCRIPT_DIR) {
         $ScriptDir = $global:R1_SCRIPT_DIR
-    } elseif ($env:R1_BAT_DIR) {
+    }
+    elseif ($env:R1_BAT_DIR) {
         $ScriptDir = $env:R1_BAT_DIR
-    } elseif ($PSScriptRoot) {
+    }
+    elseif ($PSScriptRoot) {
         $ScriptDir = $PSScriptRoot
-    } elseif ($MyInvocation.MyCommand.Path) {
+    }
+    elseif ($MyInvocation.MyCommand.Path) {
         $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-    } elseif ($MyInvocation.PSCommandPath) {
+    }
+    elseif ($MyInvocation.PSCommandPath) {
         $ScriptDir = Split-Path -Parent $MyInvocation.PSCommandPath
-    } else {
+    }
+    else {
         $ScriptDir = (Get-Location).Path
     }
 }
@@ -148,9 +162,11 @@ function Test-R1TcpPort {
         if (-not $asyncResult.AsyncWaitHandle.WaitOne($TimeoutMilliseconds)) { return $false }
         $client.EndConnect($asyncResult)
         return $true
-    } catch {
+    }
+    catch {
         return $false
-    } finally {
+    }
+    finally {
         if ($asyncResult) { $asyncResult.AsyncWaitHandle.Close() }
         $client.Close()
     }
@@ -174,7 +190,8 @@ function Ensure-Adb {
         $ProgressPreference = $old
         $env:PATH = "$TempDir\platform-tools;" + $env:PATH
         return (Test-Path (Join-Path $TempDir "platform-tools\adb.exe"))
-    } catch {
+    }
+    catch {
         Write-Host ">> [LỖI] Không thể tải ADB. Vui lòng kiểm tra kết nối mạng." -ForegroundColor Red
         return $false
     }
@@ -217,7 +234,8 @@ function Revive-Speaker {
             }
         }
         $tcp.Close()
-    } catch {}
+    }
+    catch {}
     return $wsWoke
 }
 
@@ -231,10 +249,10 @@ function Send-WifiConfig {
     )
 
     $bodyObj = @{
-        ssid = $Ssid
-        secure = $Secure
+        ssid     = $Ssid
+        secure   = $Secure
         password = $Password
-        mac = ""
+        mac      = ""
     }
     $json = $bodyObj | ConvertTo-Json -Compress
 
@@ -248,7 +266,8 @@ function Send-WifiConfig {
         $resp = Invoke-RestMethod -Uri "http://$($TargetIp):8989/api/configwifi" -Method Post -ContentType "application/json" -Body $json -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
         $ProgressPreference = $old
         return $true
-    } catch {
+    }
+    catch {
         # Loa thường ngắt kết nối ngay khi nhận lệnh để chuyển mạng, coi như đã gửi thành công
         return $true
     }
@@ -280,11 +299,13 @@ function Run-WifiConfig {
             $connectedApi = $true
         }
         $client.Close()
-    } catch {}
+    }
+    catch {}
 
     if ($connectedApi) {
         Write-Host "   [OK] Đã kết nối được API của loa." -ForegroundColor Green
-    } else {
+    }
+    else {
         if (-not $DryRun -and $env:R1_DRYRUN -ne "1") {
             Write-Host "   [CẢNH BÁO] Chưa kết nối được 192.168.43.1:8989." -ForegroundColor Yellow
             Write-Host "   Kiểm tra: Máy tính đã chọn WiFi Phicomm_R1 chưa? Loa còn phát AP không?" -ForegroundColor Gray
@@ -303,7 +324,8 @@ function Run-WifiConfig {
     if ($Yes -or $DryRun -or $env:R1_DRYRUN -eq "1") {
         $ssid = "MyWiFi"
         $pass = "12345678"
-    } else {
+    }
+    else {
         while (-not $ssid) {
             $ssid = Read-Host ">> Tên WiFi nhà (SSID, phân biệt HOA/thường)"
             $ssid = if ($ssid) { $ssid.Trim() } else { "" }
@@ -319,7 +341,8 @@ function Run-WifiConfig {
     if (-not $pass) {
         $secure = "INSECURE"
         Write-Host "   -> Chế độ WiFi không mật khẩu (INSECURE)" -ForegroundColor Gray
-    } else {
+    }
+    else {
         if ($pass.Length -lt 8) {
             Write-Host "   [!] CẢNH BÁO: Mật khẩu WiFi thông thường từ 8 ký tự trở lên!" -ForegroundColor Yellow
         }
@@ -357,7 +380,8 @@ function Get-LocalSubnet {
             $parts = $localIp.Split('.')
             return "$($parts[0]).$($parts[1]).$($parts[2])"
         }
-    } catch {}
+    }
+    catch {}
 
     try {
         $ip = (Get-CimInstance Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled -and $_.DefaultIPGateway } | Select-Object -ExpandProperty IPAddress | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' -and $_ -notlike '127.*' -and $_ -notlike '169.254.*' } | Select-Object -First 1)
@@ -365,7 +389,8 @@ function Get-LocalSubnet {
             $parts = $ip.Split('.')
             return "$($parts[0]).$($parts[1]).$($parts[2])"
         }
-    } catch {}
+    }
+    catch {}
     return "192.168.1"
 }
 
@@ -392,7 +417,8 @@ function Scan-SpeakerIp {
         $clients[$targetIp] = $c
         try {
             $handles[$targetIp] = $c.BeginConnect($targetIp, 5555, $null, $null)
-        } catch {}
+        }
+        catch {}
     }
 
     $adbIps = @()
@@ -412,7 +438,8 @@ function Scan-SpeakerIp {
                     try {
                         $clients[$ip].EndConnect($h)
                         $adbIps += $ip
-                    } catch {}
+                    }
+                    catch {}
                 }
             }
         }
@@ -435,11 +462,11 @@ function Scan-SpeakerIp {
         }
     }
     # Giải phóng các socket còn lại ngầm ở background
-    [System.Threading.Tasks.Task]::Run([Action]{
-        foreach ($c in $clients.Values) {
-            try { $c.Close() } catch {}
-        }
-    }) | Out-Null
+    [System.Threading.Tasks.Task]::Run([Action] {
+            foreach ($c in $clients.Values) {
+                try { $c.Close() } catch {}
+            }
+        }) | Out-Null
 
     Start-Sleep -Milliseconds 300
 
@@ -500,20 +527,22 @@ function Scan-SpeakerIp {
             $isPhicomm = ($model -match "(?i)r1") -or ($hostname -match "(?i)phicomm_r1") -or ($model -match "(?i)rk322x")
 
             $devInfo = [PSCustomObject]@{
-                IP = $ip
+                IP       = $ip
                 Hostname = if ($hostname) { $hostname } else { "Phicomm_R1" }
-                Model = if ($model) { $model } else { "Phicomm R1" }
-                Android = if ($androidVer) { $androidVer } else { "5.1.1" }
+                Model    = if ($model) { $model } else { "Phicomm R1" }
+                Android  = if ($androidVer) { $androidVer } else { "5.1.1" }
             }
 
             if ($isPhicomm) {
                 Write-Host "✓" -ForegroundColor Green
                 $phicommDevices += $devInfo
-            } else {
+            }
+            else {
                 Write-Host " (không phải Phicomm R1)" -ForegroundColor Yellow
                 $otherDevices += $devInfo
             }
-        } else {
+        }
+        else {
             Write-Host "✗" -ForegroundColor Red
         }
     }
@@ -532,13 +561,14 @@ function Scan-SpeakerIp {
             Write-Host "   ┌─── Loa #$idx ──────────────────────────────────────────────────────" -ForegroundColor Green
             Write-Host "   │  📍 IP:         $($dev.IP)" -ForegroundColor Yellow
             if ($dev.Hostname) { Write-Host "   │  🏷️  Hostname:   $($dev.Hostname)" -ForegroundColor White }
-            if ($dev.Model)    { Write-Host "   │  📱 Model:      $($dev.Model)" -ForegroundColor White }
-            if ($dev.Android)  { Write-Host "   │  🤖 Android:    $($dev.Android)" -ForegroundColor White }
+            if ($dev.Model) { Write-Host "   │  📱 Model:      $($dev.Model)" -ForegroundColor White }
+            if ($dev.Android) { Write-Host "   │  🤖 Android:    $($dev.Android)" -ForegroundColor White }
             Write-Host "   └────────────────────────────────────────────────────────────────" -ForegroundColor Green
             Write-Host ""
             $idx++
         }
-    } else {
+    }
+    else {
         Write-Host "   ⚠️  Không tìm thấy loa Phicomm R1." -ForegroundColor Yellow
         Write-Host ""
     }
@@ -571,8 +601,8 @@ function Get-LocalAiApk {
 
     # 1. Tìm bản có phiên bản cao nhất theo dạng ai-box-plus-X-Y-Z.apk
     $files = Get-ChildItem -Path $ScriptDir -File -Filter 'ai-box-plus-*-*-*.apk' -ErrorAction SilentlyContinue |
-        Where-Object { $_.BaseName -match '^ai-box-plus-(\d+)-(\d+)-(\d+)$' } |
-        Sort-Object { [version]($_.BaseName -replace '^ai-box-plus-','' -replace '-','.') } -Descending
+    Where-Object { $_.BaseName -match '^ai-box-plus-(\d+)-(\d+)-(\d+)$' } |
+    Sort-Object { [version]($_.BaseName -replace '^ai-box-plus-', '' -replace '-', '.') } -Descending
     if ($files -and $files.Count -gt 0) {
         return $files[0]
     }
@@ -591,8 +621,8 @@ function Get-LocalAiApk {
 
     # 4. Tìm bất kỳ file apk nào có tên bắt đầu bằng ai-box-plus hoặc aiboxplus
     $other = Get-ChildItem -Path $ScriptDir -File -Filter '*.apk' -ErrorAction SilentlyContinue |
-        Where-Object { $_.BaseName -match '^(?i)(ai[-_]?box|aiboxplus)' } |
-        Sort-Object LastWriteTime -Descending
+    Where-Object { $_.BaseName -match '^(?i)(ai[-_]?box|aiboxplus)' } |
+    Sort-Object LastWriteTime -Descending
     if ($other -and $other.Count -gt 0) {
         return $other[0]
     }
@@ -655,7 +685,8 @@ function Ensure-Apk-AiOnly {
         $jsonRaw = (Invoke-RestMethod -Uri "$BaseUrl/version.json`?t=$UnixTs" -UseBasicParsing -TimeoutSec 15)
         if ($jsonRaw -is [string]) {
             $meta = $jsonRaw.TrimStart([char]0xFEFF) | ConvertFrom-Json
-        } else {
+        }
+        else {
             $meta = $jsonRaw
         }
 
@@ -670,7 +701,8 @@ function Ensure-Apk-AiOnly {
         Move-Item "$cacheFile.tmp" $cacheFile -Force
         $ProgressPreference = $old
         return $true
-    } catch {
+    }
+    catch {
         $ProgressPreference = $old
         Write-Host ">> [LỖI] Không tìm thấy file APK cục bộ và không thể tải AIBoxPlus từ máy chủ ($($_.Exception.Message))." -ForegroundColor Red
         Read-R1Input "Nhấn Enter để quay lại menu"
@@ -693,7 +725,8 @@ function Invoke-AdbInstallStep {
         }
         if ($exitCode -ne 0) {
             Write-Host ">> [LỖI] ADB kết thúc với mã lỗi $exitCode." -ForegroundColor Red
-        } elseif ($packageInstallFailed) {
+        }
+        elseif ($packageInstallFailed) {
             Write-Host ">> [LỖI] ADB không xác nhận cài đặt thành công." -ForegroundColor Red
         }
         return $false
@@ -712,7 +745,8 @@ function Remove-LegacyR1Apps {
 
     if ($ShowProgress) {
         Set-R1InstallProgress -Percent 59 -Status "Đang kiểm tra AutoDLNA & Unisound cũ"
-    } else {
+    }
+    else {
         Write-Host ">> Đang kiểm tra AutoDLNA & Unisound cũ..." -ForegroundColor Cyan
     }
 
@@ -722,7 +756,8 @@ function Remove-LegacyR1Apps {
     if ($installedPkgs -match 'package:com\.phicomm\.speaker\.player(\r|\n|$)') {
         if ($ShowProgress) {
             Set-R1InstallProgress -Percent 62 -Status "Đang gỡ bỏ AutoDLNA cũ (com.phicomm.speaker.player)"
-        } else {
+        }
+        else {
             Write-Host ">> Phát hiện AutoDLNA cũ (com.phicomm.speaker.player), đang gỡ bỏ..." -ForegroundColor Yellow
         }
         adb -s $Serial shell "am force-stop com.phicomm.speaker.player 2>/dev/null; /system/bin/pm uninstall com.phicomm.speaker.player 2>/dev/null; /system/bin/pm uninstall --user 0 com.phicomm.speaker.player 2>/dev/null" 2>$null | Out-Null
@@ -735,7 +770,8 @@ function Remove-LegacyR1Apps {
     if ($installedPkgs -match 'package:com\.phicomm\.speaker\.device(\r|\n|$)') {
         if ($ShowProgress) {
             Set-R1InstallProgress -Percent 64 -Status "Đang gỡ bỏ Unisound cũ (com.phicomm.speaker.device)"
-        } else {
+        }
+        else {
             Write-Host ">> Phát hiện Unisound cũ (com.phicomm.speaker.device), đang gỡ bỏ..." -ForegroundColor Yellow
         }
         adb -s $Serial shell "am force-stop com.phicomm.speaker.device 2>/dev/null; /system/bin/pm uninstall com.phicomm.speaker.device 2>/dev/null; /system/bin/pm uninstall --user 0 com.phicomm.speaker.device 2>/dev/null" 2>$null | Out-Null
@@ -757,16 +793,20 @@ function Run-Install {
             $pick = if ($pick) { $pick.Trim() } else { "1" }
             if ($pick -match '^\d+$' -and [int]$pick -ge 1 -and [int]$pick -le $foundList.Count) {
                 $TargetIp = $foundList[[int]$pick - 1].IP
-            } elseif ($pick -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') {
+            }
+            elseif ($pick -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') {
                 $TargetIp = $pick
-            } else {
+            }
+            else {
                 $TargetIp = $foundList[0].IP
             }
-        } else {
+        }
+        else {
             $manual = Read-R1Input "   Không tìm thấy loa. Nhập IP loa thủ công (Enter để quay lại menu)"
             if ($manual -and $manual.Trim()) {
                 $TargetIp = $manual.Trim()
-            } else {
+            }
+            else {
                 return
             }
         }
@@ -1005,17 +1045,20 @@ function Run-Install {
                     Set-R1InstallProgress -Percent 99 -Status "Đang chờ WebUI khởi động ($try/15)"
                     Start-Sleep -Seconds 1
                 }
-            } else {
+            }
+            else {
                 Complete-R1InstallProgress
                 Write-Host ">> [CẢNH BÁO] Không khởi chạy được AI sau reboot:" -ForegroundColor Yellow
                 if ($launchOutput) { $launchOutput | ForEach-Object { Write-Host $_ } }
             }
-        } else {
+        }
+        else {
             Complete-R1InstallProgress
             Write-Host ">> [CẢNH BÁO] Loa chưa kết nối lại sau reboot; không xác minh được AI/WebUI." -ForegroundColor Yellow
         }
         Set-R1InstallProgress -Percent 100 -Status "Hoàn tất"
-    } else {
+    }
+    else {
         $PostRebootAiStarted = $false
         $WebUiReady = $false
         Set-R1InstallProgress -Percent 100 -Status "[DRY-RUN] Hoàn tất, loa chưa reboot"
@@ -1036,24 +1079,28 @@ function Run-Install {
     Write-Host "==========================================================" -ForegroundColor Green
     if ($DryRun -or $env:R1_DRYRUN -eq "1") {
         Write-Host ">> Chạy thử hoàn tất; loa chưa được reboot." -ForegroundColor Yellow
-    } else {
+    }
+    else {
         Write-Host ">> Đã gửi lệnh khởi động lại (Reboot) loa." -ForegroundColor Green
         Write-Host ">> Loa đang khởi động lại (thường mất khoảng 30 - 45 giây)." -ForegroundColor White
         if ($PostRebootAiStarted) {
             Write-Host ">> AI đã được khởi chạy sau reboot." -ForegroundColor Green
-        } else {
+        }
+        else {
             Write-Host ">> [CẢNH BÁO] Chưa xác minh được AI chạy sau reboot." -ForegroundColor Yellow
         }
         if ($WebUiReady) {
             Write-Host ">> WebUI đã phản hồi tại cổng 8081." -ForegroundColor Green
-        } else {
+        }
+        else {
             Write-Host ">> [CẢNH BÁO] WebUI chưa phản hồi tại cổng 8081." -ForegroundColor Yellow
         }
     }
     Write-Host ""
     if ($DryRun -or $env:R1_DRYRUN -eq "1") {
         Write-Host ">> Khi cài thật, truy cập bảng điều khiển sau khi loa khởi động:" -ForegroundColor White
-    } else {
+    }
+    else {
         Write-Host ">> Sau khi loa khởi động xong, truy cập bảng điều khiển tại:" -ForegroundColor White
     }
     Write-Host "   👉 http://$($UiIp):8081/" -ForegroundColor Cyan
@@ -1075,16 +1122,20 @@ function Run-Install-AiOnly {
             $pick = if ($pick) { $pick.Trim() } else { "1" }
             if ($pick -match '^\d+$' -and [int]$pick -ge 1 -and [int]$pick -le $foundList.Count) {
                 $TargetIp = $foundList[[int]$pick - 1].IP
-            } elseif ($pick -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') {
+            }
+            elseif ($pick -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$') {
                 $TargetIp = $pick
-            } else {
+            }
+            else {
                 $TargetIp = $foundList[0].IP
             }
-        } else {
+        }
+        else {
             $manual = Read-R1Input "   Không tìm thấy loa. Nhập IP loa thủ công (Enter để quay lại menu)"
             if ($manual -and $manual.Trim()) {
                 $TargetIp = $manual.Trim()
-            } else {
+            }
+            else {
                 return
             }
         }
@@ -1237,19 +1288,25 @@ while ($true) {
     $c = Show-Menu
     if ($c -eq "1") {
         Run-WifiConfig | Out-Null
-    } elseif ($c -eq "2") {
+    }
+    elseif ($c -eq "2") {
         Run-Install ""
-    } elseif ($c -eq "3") {
+    }
+    elseif ($c -eq "3") {
         Run-Install-AiOnly ""
-    } elseif ($c -eq "4") {
+    }
+    elseif ($c -eq "4") {
         $null = Scan-SpeakerIp
         Read-R1Input "   Nhấn Enter để quay lại menu chính"
-    } elseif ($c -eq "5" -or $c -eq "q" -or $c -eq "Q" -or $c -eq "exit") {
+    }
+    elseif ($c -eq "5" -or $c -eq "q" -or $c -eq "Q" -or $c -eq "exit") {
         Write-Host "Thoát chương trình." -ForegroundColor Yellow
         break
-    } elseif ($c -eq "") {
+    }
+    elseif ($c -eq "") {
         continue
-    } else {
+    }
+    else {
         Write-Host "Lựa chọn không hợp lệ. Vui lòng nhập số từ 1 đến 5." -ForegroundColor Yellow
         Start-Sleep -Milliseconds 600
     }
