@@ -671,6 +671,15 @@ function Ensure-Apk {
         $aiDownloadUrl = $meta.files[0].url
         $aiApkName = $meta.files[0].name
         $aiVersion = $meta.version
+        if (-not $aiDownloadUrl -and $meta.url) {
+            $aiDownloadUrl = $meta.url
+            $aiApkName = $meta.name
+        }
+        if (-not $aiDownloadUrl) {
+            $aiDownloadUrl = "$BaseUrl/ai-box-plus-1-1-16.apk"
+            $aiApkName = "ai-box-plus-1-1-16.apk"
+            $aiVersion = "1.1.16"
+        }
         Write-Host ">> Phiên bản mới nhất trên máy chủ: $aiApkName (v$aiVersion)" -ForegroundColor Green
         Write-Host ">> Đang tải: $aiDownloadUrl..." -ForegroundColor Cyan
 
@@ -682,9 +691,24 @@ function Ensure-Apk {
     }
     catch {
         $ProgressPreference = $old
-        Write-Host ">> [LỖI] Không tìm thấy file APK cục bộ và không thể tải APK từ máy chủ ($($_.Exception.Message))." -ForegroundColor Red
-        Read-R1Input "Nhấn Enter để quay lại menu"
-        return $false
+        # Fallback thử tải trực tiếp file APK nếu tải version.json lỗi
+        Write-Host ">> [THỬ LẠI] Đang thử tải trực tiếp file APK từ máy chủ..." -ForegroundColor Yellow
+        try {
+            $directUrl = "$BaseUrl/ai-box-plus-1-1-16.apk"
+            $old = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
+            Invoke-WebRequest -Uri "$directUrl" -OutFile "$cacheFile.tmp" -TimeoutSec 60 -UseBasicParsing
+            Move-Item "$cacheFile.tmp" $cacheFile -Force
+            $ProgressPreference = $old
+            Write-Host ">> Đã tải thành công file APK!" -ForegroundColor Green
+            return $true
+        }
+        catch {
+            $ProgressPreference = $old
+            Write-Host ">> [LỖI] Không tìm thấy file APK cục bộ và không thể tải APK từ máy chủ ($($_.Exception.Message))." -ForegroundColor Red
+            Write-Host ">> Lưu ý: Nếu máy tính đang kết nối vào WiFi AP của loa (192.168.43.1), hãy chuyển về WiFi nhà có Internet trước để tải APK!" -ForegroundColor Yellow
+            Read-R1Input "Nhấn Enter để quay lại menu"
+            return $false
+        }
     }
 }
 

@@ -211,7 +211,7 @@ setup_tools() {
     if ! command -v adb >/dev/null 2>&1 || ! command -v nc >/dev/null 2>&1; then
         if command -v apk >/dev/null 2>&1; then
             if [ -f /etc/apk/repositories ]; then
-                sed -i 's/^#\(.*\/community\)//' /etc/apk/repositories 2>/dev/null || true
+                sed -i 's/^#\(.*\/community\)/\1/' /etc/apk/repositories 2>/dev/null || true
             fi
             apk update >/dev/null 2>&1 || true
             apk add --no-cache android-tools netcat-openbsd >/dev/null 2>&1 || apk add --no-cache android-tools >/dev/null 2>&1 || true
@@ -770,11 +770,11 @@ ensure_apk() {
     fi
 
     ai_download_url=$(printf '%s
-' "$json_raw" | sed -n 's/.*"url": *"\([^"]*\)".*//p' | head -n 1)
+' "$json_raw" | sed -n 's/.*"url": *"\([^"]*\)".*/\1/p' | head -n 1)
     ai_apk_name=$(printf '%s
-' "$json_raw" | sed -n 's/.*"name": *"\([^"]*\)".*//p' | head -n 1)
+' "$json_raw" | sed -n 's/.*"name": *"\([^"]*\)".*/\1/p' | head -n 1)
     ai_ver=$(printf '%s
-' "$json_raw" | sed -n 's/.*"version": *"\([^"]*\)".*//p' | head -n 1)
+' "$json_raw" | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' | head -n 1)
 
     if [ -z "$ai_download_url" ]; then
         printf '%s>> [LỖI] Không tìm thấy file APK cục bộ và không thể tải APK từ máy chủ.%s
