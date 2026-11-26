@@ -910,6 +910,42 @@ function Do-ExecuteInstall {
 }
 
 # 9. Giao diện Menu chính
+function Prepare-ApInstall {
+    param([int]$CleanMode = 0)
+
+    Write-Host ""
+    Write-Host "==========================================================" -ForegroundColor Cyan
+    Write-Host "   CHUẨN BỊ CÀI ĐẶT QUA CHẾ ĐỘ AP (192.168.43.1)" -ForegroundColor Yellow
+    Write-Host "==========================================================" -ForegroundColor Cyan
+
+    # Bước 1: Kiểm tra file APK trên máy trước
+    Set-R1InstallProgress -Percent 10 -Status "Đang kiểm tra file APK AIBoxPlus trên máy"
+    if (-not (Ensure-Apk)) {
+        Complete-R1InstallProgress
+        Write-Host ""
+        Write-Host "==========================================================" -ForegroundColor Red
+        Write-Host "  [LỖI THIẾU FILE APK]" -ForegroundColor Red
+        Write-Host "==========================================================" -ForegroundColor Red
+        Write-Host "Khi kết nối vào WiFi AP của loa (192.168.43.1), máy sẽ KHÔNG CÓ INTERNET!" -ForegroundColor Yellow
+        Write-Host "-> Vui lòng kết nối Internet/WiFi nhà trước để tải APK về máy," -ForegroundColor Yellow
+        Write-Host "hoặc copy file ai-box-plus-*.apk vào cùng thư mục với script này!" -ForegroundColor Yellow
+        Write-Host "==========================================================" -ForegroundColor Red
+        Read-R1Input "Nhấn Enter để quay lại menu"
+        return
+    }
+    Complete-R1InstallProgress
+
+    # Bước 2: Hướng dẫn kết nối WiFi AP
+    Write-Host ""
+    Write-Host " Hướng dẫn kết nối:" -ForegroundColor White
+    Write-Host "  1. File APK đã sẵn sàng trên máy (không cần Internet nữa)." -ForegroundColor Green
+    Write-Host "  2. Bây giờ hãy vào Cài đặt WiFi -> Kết nối vào 'Phicomm_R1_xxxx'." -ForegroundColor White
+    Write-Host "==========================================================" -ForegroundColor Cyan
+    Read-R1Input "Nhấn Enter sau khi ĐÃ KẾT NỐI vào WiFi của loa"
+
+    Do-ExecuteInstall -TargetIpParam "192.168.43.1" -CleanMode $CleanMode
+}
+
 function Show-Menu {
     Write-Host ""
     Write-Host "==========================================================" -ForegroundColor Cyan
@@ -971,10 +1007,10 @@ while ($true) {
         Run-WifiConfig | Out-Null
     }
     elseif ($c -eq "2" -or $c -eq "2.1") {
-        Do-ExecuteInstall -TargetIpParam "192.168.43.1" -CleanMode 1
+        Prepare-ApInstall -CleanMode 1
     }
     elseif ($c -eq "2.2") {
-        Do-ExecuteInstall -TargetIpParam "192.168.43.1" -CleanMode 0
+        Prepare-ApInstall -CleanMode 0
     }
     elseif ($c -eq "3" -or $c -eq "3.1") {
         $devs = Scan-SpeakerIp

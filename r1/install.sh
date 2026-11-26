@@ -1057,6 +1057,41 @@ do_execute_install() {
 # ------------------------------------------------------------------------------
 # 9. GIAO DIỆN MENU CHÍNH
 # ------------------------------------------------------------------------------
+prepare_ap_install() {
+    clean_mode="$1"
+    echo ""
+    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
+    printf '%s   CHUẨN BỊ CÀI ĐẶT QUA CHẾ ĐỘ AP (192.168.43.1)%s\n' "$C_YELLOW" "$C_RESET"
+    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
+
+    # Bước 1: Kiểm tra file APK trên máy trước
+    set_r1_install_progress 10 "Đang kiểm tra file APK AIBoxPlus trên máy"
+    if ! ensure_apk; then
+        complete_r1_install_progress
+        echo ""
+        printf '%s==========================================================%s\n' "$C_RED" "$C_RESET"
+        printf '%s  [LỖI THIẾU FILE APK]%s\n' "$C_RED" "$C_RESET"
+        printf '%s==========================================================%s\n' "$C_RED" "$C_RESET"
+        printf '%sKhi kết nối vào WiFi AP của loa (192.168.43.1), máy sẽ KHÔNG CÓ INTERNET!%s\n' "$C_YELLOW" "$C_RESET"
+        printf '%s-> Vui lòng kết nối Internet/WiFi nhà trước để tải APK về máy,%s\n' "$C_YELLOW" "$C_RESET"
+        printf '%shoặc copy file ai-box-plus-*.apk vào cùng thư mục với script này!%s\n' "$C_YELLOW" "$C_RESET"
+        printf '%s==========================================================%s\n' "$C_RED" "$C_RESET"
+        read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+        return 1
+    fi
+    complete_r1_install_progress
+
+    # Bước 2: Hướng dẫn kết nối WiFi AP
+    echo ""
+    echo " Hướng dẫn kết nối:"
+    echo "  1. File APK đã sẵn sàng trên máy (không cần Internet nữa)."
+    echo "  2. Bây giờ hãy vào Cài đặt WiFi -> Kết nối vào 'Phicomm_R1_xxxx'."
+    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
+    read_r1_input "Nhấn Enter sau khi ĐÃ KẾT NỐI vào WiFi của loa: " "" >/dev/null 2>&1 || true
+
+    do_execute_install "192.168.43.1" "$clean_mode"
+}
+
 show_menu() {
     echo ""
     printf '%s==========================================================%s
@@ -1119,10 +1154,10 @@ while :; do
             run_wifi_config
             ;;
         2|2.1)
-            do_execute_install "192.168.43.1" 1
+            prepare_ap_install 1
             ;;
         2.2)
-            do_execute_install "192.168.43.1" 0
+            prepare_ap_install 0
             ;;
         3|3.1)
             scan_speaker_ip
