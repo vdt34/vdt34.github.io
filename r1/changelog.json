@@ -2,8 +2,10 @@
   {
     "version": "1.1.16",
     "date": "2026-11-26",
-    "title": "Nhấn giữ nút đỉnh loa >= 2s dừng tất cả nhạc, Tối ưu & Chuẩn hóa kiến trúc LED Phicomm R1",
+    "title": "Nhấn giữ nút đỉnh loa >= 2s dừng tất cả nhạc, Sửa lỗi cấu hình WiFi AP Mode & Tối ưu LED",
     "changes": [
+      "Khắc phục triệt để lỗi cấu hình Wi-Fi qua AP Mode (192.168.43.1:8081): Triển khai REST API /api/configwifi và /api/getwifilist trực tiếp trên WebUI cổng 8081, tự động bypass AuthHttpHandler cho AP hotspot, quét sóng Wi-Fi chính xác, cấu hình chuẩn WPA/Open và tự thoát AP kết nối Wi-Fi nhà.",
+      "Sửa dứt điểm WebUI wifi.html: Loại bỏ thông báo thành công giả lập trong khối bắt lỗi, hiển thị chính xác trạng thái phản hồi HTTP và báo lỗi rõ ràng nếu cấu hình thất bại.",
       "Tính năng phần cứng mới: Nhấn giữ nút đỉnh loa >= 2.0s lập tức dừng tất cả nguồn phát nhạc (Radio VOV, Zing MP3, YouTube Web, DLNA Media Renderer, AirPlay Shairport) mà không cần đánh thức hay ra lệnh giọng nói; tự động nuốt sự kiện nhả tay chống chạm nhầm đánh thức.",
       "Dọn sạch mã nguồn chết LED: Xóa bỏ hoàn toàn LedManager.js, xóa checkbox #sw-led cũ, gỡ bỏ các nhánh LED toggle/get_state thừa trên WebSocket :8082, bảo toàn 100% các tính năng chat Zalo và điều khiển nhạc.",
       "Chuẩn hóa Đơn Cửa Ngõ Điều Phối LED (Single Coordinator Architecture): Mọi luồng WebUI (/api/fast-led), MCP Tools (self.led.*), Voice Controller đều qua Singleton LedStateManager kết nối FastLED Engine (:23162); đồng bộ màu mặc định khởi tạo chuẩn #6366F1 (Indigo).",
