@@ -1,4 +1,4 @@
-# ==============================================================================
+﻿# ==============================================================================
 # BỘ CÀI ĐẶT PHICOMM R1 SIÊU TỐC - WINDOWS POWERSHELL
 # Tự động cấu hình WiFi AP, quét tìm loa trong LAN, dọn sạch file cũ, giao diện UTF-8
 # ==============================================================================
@@ -701,6 +701,50 @@ function Invoke-AdbInstallStep {
     return $true
 }
 
+# Hàm kiểm tra và gỡ bỏ 2 ứng dụng cũ: AutoDLNA (com.phicomm.speaker.player) và Unisound (com.phicomm.speaker.device)
+function Remove-LegacyR1Apps {
+    param(
+        [string]$Serial,
+        [switch]$ShowProgress
+    )
+
+    if ($DryRun -or $env:R1_DRYRUN -eq "1") { return }
+
+    if ($ShowProgress) {
+        Set-R1InstallProgress -Percent 59 -Status "Đang kiểm tra AutoDLNA & Unisound cũ"
+    } else {
+        Write-Host ">> Đang kiểm tra AutoDLNA & Unisound cũ..." -ForegroundColor Cyan
+    }
+
+    $installedPkgs = (& adb -s $Serial shell pm list packages 2>$null | Out-String)
+
+    # 1. Kiểm tra và gỡ bỏ AutoDLNA cũ nếu có
+    if ($installedPkgs -match 'package:com\.phicomm\.speaker\.player(\r|\n|$)') {
+        if ($ShowProgress) {
+            Set-R1InstallProgress -Percent 62 -Status "Đang gỡ bỏ AutoDLNA cũ (com.phicomm.speaker.player)"
+        } else {
+            Write-Host ">> Phát hiện AutoDLNA cũ (com.phicomm.speaker.player), đang gỡ bỏ..." -ForegroundColor Yellow
+        }
+        adb -s $Serial shell "am force-stop com.phicomm.speaker.player 2>/dev/null; /system/bin/pm uninstall com.phicomm.speaker.player 2>/dev/null; /system/bin/pm uninstall --user 0 com.phicomm.speaker.player 2>/dev/null" 2>$null | Out-Null
+        if (-not $ShowProgress) {
+            Write-Host "   -> Đã gỡ bỏ AutoDLNA cũ thành công." -ForegroundColor Green
+        }
+    }
+
+    # 2. Kiểm tra và gỡ bỏ Unisound cũ nếu có
+    if ($installedPkgs -match 'package:com\.phicomm\.speaker\.device(\r|\n|$)') {
+        if ($ShowProgress) {
+            Set-R1InstallProgress -Percent 64 -Status "Đang gỡ bỏ Unisound cũ (com.phicomm.speaker.device)"
+        } else {
+            Write-Host ">> Phát hiện Unisound cũ (com.phicomm.speaker.device), đang gỡ bỏ..." -ForegroundColor Yellow
+        }
+        adb -s $Serial shell "am force-stop com.phicomm.speaker.device 2>/dev/null; /system/bin/pm uninstall com.phicomm.speaker.device 2>/dev/null; /system/bin/pm uninstall --user 0 com.phicomm.speaker.device 2>/dev/null" 2>$null | Out-Null
+        if (-not $ShowProgress) {
+            Write-Host "   -> Đã gỡ bỏ Unisound cũ thành công." -ForegroundColor Green
+        }
+    }
+}
+
 # 6. [MỤC 2] Luồng Quét IP LAN & Cài đặt APK (GIỮ NGUYÊN CODE CHUẨN)
 function Run-Install {
     param([string]$TargetIpParam = "")
@@ -839,6 +883,8 @@ function Run-Install {
         adb -s $Serial shell /system/bin/pm hide com.phicomm.speaker.otaservice 2>$null | Out-Null
         adb -s $Serial shell /system/bin/pm hide com.phicomm.speaker.productiontest 2>$null | Out-Null
         adb -s $Serial shell /system/bin/pm hide com.phicomm.speaker.bugreport 2>$null | Out-Null
+
+        Remove-LegacyR1Apps -Serial $Serial -ShowProgress
     }
 
     for ($i = 0; $i -lt $Apks.Count; $i++) {
@@ -886,7 +932,6 @@ function Run-Install {
 
         Set-R1InstallProgress -Percent 80 -Status "Đang khởi chạy dịch vụ loa"
         adb -s $Serial shell am startservice com.phicomm.speaker.player/.EchoService 2>$null | Out-Null
-        adb -s $Serial shell am startservice com.phicomm.speaker.player/.DlnaPlayerService 2>$null | Out-Null
         adb -s $Serial shell /system/bin/pm uninstall com.phicomm.speaker.device 2>$null | Out-Null
         Start-Sleep -Seconds 2
 
@@ -1093,6 +1138,8 @@ function Run-Install-AiOnly {
         Write-Host ">> Đang bật quyền cài đặt ứng dụng..." -ForegroundColor Cyan
         adb -s $Serial shell settings put secure install_non_market_apps 1 2>$null | Out-Null
 
+        Remove-LegacyR1Apps -Serial $Serial
+
         $aiApk = "AIBoxPlus_DLNA.apk"
         $localAiApk = Join-Path $TempDir $aiApk
 
@@ -1150,7 +1197,7 @@ function Show-Menu {
     Write-Host "     -> Dùng khi cài mới hoàn toàn cho loa (ưu tiên file local)" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  3) Chỉ cài đặt / cập nhật AIBoxPlus (giữ nguyên token & app cũ)" -ForegroundColor White
-    Write-Host "     -> Nâng cấp AIBoxPlus nhanh, không ảnh hưởng DLNA (ưu tiên local)" -ForegroundColor Gray
+    Write-Host "     -> Nâng cấp AIBoxPlus nhanh, tự động gỡ AutoDLNA/Unisound cũ nếu có" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  4) Quét tìm IP loa Phicomm R1 trong LAN (chỉ kiểm tra)" -ForegroundColor White
     Write-Host "  5) Thoát" -ForegroundColor White
