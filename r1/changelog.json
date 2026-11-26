@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.1.16",
+    "date": "2026-11-26",
+    "title": "Nhấn giữ nút đỉnh loa >= 2s dừng tất cả nhạc, Tối ưu & Chuẩn hóa kiến trúc LED Phicomm R1",
+    "changes": [
+      "Tính năng phần cứng mới: Nhấn giữ nút đỉnh loa >= 2.0s lập tức dừng tất cả nguồn phát nhạc (Radio VOV, Zing MP3, YouTube Web, DLNA Media Renderer, AirPlay Shairport) mà không cần đánh thức hay ra lệnh giọng nói; tự động nuốt sự kiện nhả tay chống chạm nhầm đánh thức.",
+      "Dọn sạch mã nguồn chết LED: Xóa bỏ hoàn toàn LedManager.js, xóa checkbox #sw-led cũ, gỡ bỏ các nhánh LED toggle/get_state thừa trên WebSocket :8082, bảo toàn 100% các tính năng chat Zalo và điều khiển nhạc.",
+      "Chuẩn hóa Đơn Cửa Ngõ Điều Phối LED (Single Coordinator Architecture): Mọi luồng WebUI (/api/fast-led), MCP Tools (self.led.*), Voice Controller đều qua Singleton LedStateManager kết nối FastLED Engine (:23162); đồng bộ màu mặc định khởi tạo chuẩn #6366F1 (Indigo).",
+      "Bảo toàn 100% các thao tác nút vật lý: Nhấn 1 lần (đánh thức trợ lý ảo), 2 lần (bật/tắt chế độ đánh thức), 3 lần (bật/tắt Bluetooth), nhấn giữ 6s (chế độ AP cấu hình Wi-Fi)."
+    ]
+  },
+  {
     "version": "1.1.15",
     "date": "2026-11-24",
     "title": "Tích hợp Não AI Gemini (Flash & Live), Chuẩn hóa hệ thống LED & Sửa lỗi crash UDP Audio",
