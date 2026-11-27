@@ -1189,6 +1189,9 @@ if [ -n "$USER_IP" ]; then
     exit $?
 fi
 
+# Tự động đảm bảo công cụ cần thiết (ADB, Netcat, v.v.) ngay khi khởi chạy
+setup_tools
+
 # Vòng lặp Menu chính
 while :; do
     show_menu
