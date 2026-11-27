@@ -1,9 +1,9 @@
 #!/bin/sh
-# ==============================================================================
+# =================================================================
 # BỘ CÀI ĐẶT PHICOMM R1 SIÊU TỐC - iSH (iPHONE) / LINUX / ANDROID / MACOS
 # Đồng bộ chuẩn xác 100% theo install.ps1 (install_src.ps1)
 # Hỗ trợ WiFi AP, Cài đặt qua AP Mode, Cài đặt qua LAN, Quét loa, ADB ổn định
-# ==============================================================================
+# =================================================================
 
 USER_IP=""
 ASSUME_YES=""
@@ -103,8 +103,8 @@ set_r1_install_progress() {
     percent="$1"
     status="$2"
     [ -t 1 ] || return 0
-    filled=$((percent / 2))
-    empty=$((50 - filled))
+    filled=$((percent / 4))
+    empty=$((25 - filled))
     bar=""
     i=0
     while [ "$i" -lt "$filled" ]; do bar="${bar}█"; i=$((i + 1)); done
@@ -114,10 +114,8 @@ set_r1_install_progress() {
         printf '[2A
 [J'
     fi
-    printf '[?7l%s   %s%s
-' "$C_CYAN" "$status" "$C_RESET"
-    printf '%s   [%s] %3s%%%s[?7h
-' "$C_CYAN" "$bar" "$percent" "$C_RESET"
+    printf '[?7l%s   %s%s\n' "$C_CYAN" "$status" "$C_RESET"
+    printf '%s   [%s] %3s%%%s[?7h\n' "$C_CYAN" "$bar" "$percent" "$C_RESET"
     R1_PROGRESS_ACTIVE=1
 }
 
@@ -232,8 +230,7 @@ ensure_adb() {
     if command -v adb >/dev/null 2>&1; then
         return 0
     fi
-    printf '%s>> [LỖI] Không tìm thấy công cụ adb trên hệ thống.%s
-' "$C_RED" "$C_RESET"
+    printf '%s>> [LỖI] Không tìm thấy công cụ adb trên hệ thống.%s\n' "$C_RED" "$C_RESET"
     return 1
 }
 
@@ -361,13 +358,13 @@ send_wifi_config() {
 
 run_wifi_config() {
     echo ""
-    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
+    printf '%s=============================================%s\n' "$C_CYAN" "$C_RESET"
     printf '%s  CẤU HÌNH WIFI CHO LOA (CHẾ ĐỘ AP 192.168.43.1)%s\n' "$C_YELLOW" "$C_RESET"
-    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
+    printf '%s=============================================%s\n' "$C_CYAN" "$C_RESET"
     echo " Hướng dẫn chuẩn bị:"
     echo "  1. Loa vừa reset sẽ phát mạng WiFi 'Phicomm_R1_xxxx'."
     echo "  2. Trên Điện thoại / Máy tính: Vào Cài đặt WiFi -> Kết nối 'Phicomm_R1_xxxx'."
-    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
+    printf '%s=============================================%s\n' "$C_CYAN" "$C_RESET"
 
     if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
         read_r1_input "Nhấn Enter khi đã kết nối WiFi của loa: " "" >/dev/null 2>&1 || true
@@ -558,15 +555,15 @@ END {
     send_wifi_config "192.168.43.1" "$ssid" "$pass" "$secure"
 
     echo ""
-    printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
+    printf '%s=============================================%s\n' "$C_GREEN" "$C_RESET"
     printf '%s            ĐÃ GỬI CẤU HÌNH WIFI CHO LOA!                 %s\n' "$C_YELLOW" "$C_RESET"
-    printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
+    printf '%s=============================================%s\n' "$C_GREEN" "$C_RESET"
     echo " THÔNG BÁO QUAN TRỌNG:"
     printf '  1. Loa đang chuyển sang kết nối WiFi '\''%s'\''.\n' "$ssid"
     printf '  2. Hãy chuyển Điện thoại / Máy tính về lại mạng WiFi nhà '\''%s'\''.\n' "$ssid"
     echo "  3. Chờ loa khởi động lại và nhận IP mới (khoảng 15-20s)."
     printf '%s  4. Sau đó bạn có thể chọn mục [4] trong menu để quét tìm IP mới của loa.%s\n' "$C_CYAN" "$C_RESET"
-    printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
+    printf '%s=============================================%s\n' "$C_GREEN" "$C_RESET"
 
     if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
         echo ""
@@ -672,11 +669,9 @@ EOF
                 (
                     target="${sub}.${i}"
                     if test_r1_tcp_port "$target" 5555 1; then
-                        printf '%03d|%s|5555
-' "$i" "$target" >> "$scan_tmp/raw.txt"
+                        printf '%03d|%s|5555\n' "$i" "$target" >> "$scan_tmp/raw.txt"
                     elif test_r1_tcp_port "$target" 8080 1; then
-                        printf '%03d|%s|8080
-' "$i" "$target" >> "$scan_tmp/raw.txt"
+                        printf '%03d|%s|8080\n' "$i" "$target" >> "$scan_tmp/raw.txt"
                     fi
                 ) &
                 i=$((i + 1))
@@ -720,11 +715,9 @@ EOF
             case "$hostname" in *[Pp][Hh][Ii][Cc][Oo][Mm][Mm]*|*[Rr]1*) is_r1=1 ;; esac
 
             if [ "$is_r1" = "1" ]; then
-                printf '%s|(ADB: 5555)|%s|%s|%s
-' "$cand_ip" "$hostname" "$model" "$aver" >> "$scan_tmp/result.txt"
+                printf '%s|(ADB: 5555)|%s|%s|%s\n' "$cand_ip" "$hostname" "$model" "$aver" >> "$scan_tmp/result.txt"
             else
-                printf '%s|%s
-' "$cand_ip" "$model" >> "$scan_tmp/other.txt"
+                printf '%s|%s\n' "$cand_ip" "$model" >> "$scan_tmp/other.txt"
             fi
         done < "$scan_tmp/adb_ips.txt"
     fi
@@ -734,17 +727,12 @@ scan_speaker_ip() {
     sub="$1"
     [ -z "$sub" ] && sub=$(detect_subnet)
     echo ""
-    printf '%s╔════════════════════════════════════════════════════════════════════╗%s
-' "$C_CYAN" "$C_RESET"
-    printf '%s║                         🔍 ĐANG TÌM KIẾM LOA                       ║%s
-' "$C_YELLOW" "$C_RESET"
-    printf '%s╚════════════════════════════════════════════════════════════════════╝%s
-' "$C_CYAN" "$C_RESET"
+    printf '%s╔════════════════════════════════════════════════════════════════════╗%s\n' "$C_CYAN" "$C_RESET"
+    printf '%s║                         🔍 ĐANG TÌM KIẾM LOA                       ║%s\n' "$C_YELLOW" "$C_RESET"
+    printf '%s╚════════════════════════════════════════════════════════════════════╝%s\n' "$C_CYAN" "$C_RESET"
     echo ""
-    printf '   📡 Mạng: %s.0/24
-' "$sub"
-    printf '%s   ⏱️  Thời gian: khoảng 15-30 giây%s
-' "$C_GRAY" "$C_RESET"
+    printf '   📡 Mạng: %s.0/24\n' "$sub"
+    printf '%s   ⏱️  Thời gian: khoảng 15-30 giây%s\n' "$C_GRAY" "$C_RESET"
     echo ""
 
     scan_tmp="/tmp/r1_scan_$$"
@@ -767,63 +755,45 @@ scan_speaker_ip() {
 
     if [ "$TOTAL_FOUND" -gt 0 ]; then
         echo ""
-        printf '%s╔════════════════════════════════════════════════════════════════════╗%s
-' "$C_CYAN" "$C_RESET"
-        printf '%s║                            🎯 KẾT QUẢ QUÉT                         ║%s
-' "$C_YELLOW" "$C_RESET"
-        printf '%s╚════════════════════════════════════════════════════════════════════╝%s
-' "$C_CYAN" "$C_RESET"
+        printf '%s╔════════════════════════════════════════════════════════════════════╗%s\n' "$C_CYAN" "$C_RESET"
+        printf '%s║                            🎯 KẾT QUẢ QUÉT                         ║%s\n' "$C_YELLOW" "$C_RESET"
+        printf '%s╚════════════════════════════════════════════════════════════════════╝%s\n' "$C_CYAN" "$C_RESET"
         echo ""
-        printf '%s   ✅ Tìm thấy %s loa Phicomm R1:%s
-' "$C_GREEN" "$TOTAL_FOUND" "$C_RESET"
+        printf '%s   ✅ Tìm thấy %s loa Phicomm R1:%s\n' "$C_GREEN" "$TOTAL_FOUND" "$C_RESET"
         echo ""
         d_idx=1
         while IFS='|' read -r s_ip s_ports h_name m_name a_ver || [ -n "$s_ip" ]; do
             s_ip=$(printf '%s' "$s_ip" | tr -d ' \r\n')
             [ -z "$s_ip" ] && continue
-            printf '%s   ┌─── Loa #%s ──────────────────────────────────────────────────────%s
-' "$C_GREEN" "$d_idx" "$C_RESET"
-            printf '%s   │  📍 IP:         %s%s
-' "$C_YELLOW" "$s_ip" "$C_RESET"
-            [ -n "$h_name" ] && printf '   │  🏷️  Hostname:   %s
-' "$h_name"
-            [ -n "$m_name" ] && printf '   │  📱 Model:      %s
-' "$m_name"
-            [ -n "$a_ver" ] && printf '   │  🤖 Android:    %s
-' "$a_ver"
-            printf '%s   └────────────────────────────────────────────────────────────────%s
-' "$C_GREEN" "$C_RESET"
+            printf '%s   ┌─── Loa #%s ──────────────────────────────────────────────────────%s\n' "$C_GREEN" "$d_idx" "$C_RESET"
+            printf '%s   │  📍 IP:         %s%s\n' "$C_YELLOW" "$s_ip" "$C_RESET"
+            [ -n "$h_name" ] && printf '   │  🏷️  Hostname:   %s\n' "$h_name"
+            [ -n "$m_name" ] && printf '   │  📱 Model:      %s\n' "$m_name"
+            [ -n "$a_ver" ] && printf '   │  🤖 Android:    %s\n' "$a_ver"
+            printf '%s   └────────────────────────────────────────────────────────────────%s\n' "$C_GREEN" "$C_RESET"
             echo ""
             d_idx=$((d_idx + 1))
         done < "$scan_tmp/result.txt"
 
         if [ -s "$scan_tmp/other.txt" ]; then
             other_cnt=$(grep -c '[0-9]' "$scan_tmp/other.txt" 2>/dev/null || echo 0)
-            printf '%s   ℹ️  Tìm thấy %s thiết bị khác có ADB:%s
-' "$C_YELLOW" "$other_cnt" "$C_RESET"
+            printf '%s   ℹ️  Tìm thấy %s thiết bị khác có ADB:%s\n' "$C_YELLOW" "$other_cnt" "$C_RESET"
             while IFS='|' read -r o_ip o_model || [ -n "$o_ip" ]; do
-                printf '%s      • %s - %s%s
-' "$C_GRAY" "$o_ip" "$o_model" "$C_RESET"
+                printf '%s      • %s - %s%s\n' "$C_GRAY" "$o_ip" "$o_model" "$C_RESET"
             done < "$scan_tmp/other.txt"
             echo ""
         fi
 
-        printf '%s   ──────────────────────────────────────────────────────────────────%s
-' "$C_GRAY" "$C_RESET"
-        printf '   Tổng số thiết bị:    %s
-' "$TOTAL_FOUND"
-        printf '   Loa Phicomm R1:      %s
-' "$TOTAL_FOUND"
-        printf '%s   ──────────────────────────────────────────────────────────────────%s
-' "$C_GRAY" "$C_RESET"
+        printf '%s   ──────────────────────────────────────────────────────────────────%s\n' "$C_GRAY" "$C_RESET"
+        printf '   Tổng số thiết bị:    %s\n' "$TOTAL_FOUND"
+        printf '   Loa Phicomm R1:      %s\n' "$TOTAL_FOUND"
+        printf '%s   ──────────────────────────────────────────────────────────────────%s\n' "$C_GRAY" "$C_RESET"
         echo ""
-        printf '%s   ✓ Quét hoàn tất!%s
-' "$C_GREEN" "$C_RESET"
+        printf '%s   ✓ Quét hoàn tất!%s\n' "$C_GREEN" "$C_RESET"
         echo ""
     else
         echo ""
-        printf '%s   ⚠️  Không tìm thấy loa Phicomm R1.%s
-' "$C_YELLOW" "$C_RESET"
+        printf '%s   ⚠️  Không tìm thấy loa Phicomm R1.%s\n' "$C_YELLOW" "$C_RESET"
         echo ""
     fi
 }
@@ -864,8 +834,7 @@ ensure_apk() {
     # 1. Ưu tiên tìm file local trước
     local_ai=$(get_local_ai_apk)
     if [ -n "$local_ai" ] && [ -f "$local_ai" ]; then
-        printf '%s>> [LOCAL] Đã tìm thấy file APK cục bộ: %s%s
-' "$C_GREEN" "$(basename "$local_ai")" "$C_RESET"
+        printf '%s>> [LOCAL] Đã tìm thấy file APK cục bộ: %s%s\n' "$C_GREEN" "$(basename "$local_ai")" "$C_RESET"
         cp -f "$local_ai" "$cache_file"
         return 0
     fi
@@ -882,24 +851,18 @@ ensure_apk() {
         json_raw=$(wget -q --no-check-certificate --timeout=30 -O - "$BASE_URL/version.json?t=$TS" 2>/dev/null)
     fi
 
-    ai_download_url=$(printf '%s
-' "$json_raw" | sed -n 's/.*"url": *"\([^"]*\)".*/\1/p' | head -n 1)
-    ai_apk_name=$(printf '%s
-' "$json_raw" | sed -n 's/.*"name": *"\([^"]*\)".*/\1/p' | head -n 1)
-    ai_ver=$(printf '%s
-' "$json_raw" | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' | head -n 1)
+    ai_download_url=$(printf '%s\n' "$json_raw" | sed -n 's/.*"url": *"\([^"]*\)".*/\1/p' | head -n 1)
+    ai_apk_name=$(printf '%s\n' "$json_raw" | sed -n 's/.*"name": *"\([^"]*\)".*/\1/p' | head -n 1)
+    ai_ver=$(printf '%s\n' "$json_raw" | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' | head -n 1)
 
     if [ -z "$ai_download_url" ]; then
-        printf '%s>> [LỖI] Không tìm thấy file APK cục bộ và không thể tải APK từ máy chủ.%s
-' "$C_RED" "$C_RESET"
+        printf '%s>> [LỖI] Không tìm thấy file APK cục bộ và không thể tải APK từ máy chủ.%s\n' "$C_RED" "$C_RESET"
         read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
         return 1
     fi
 
-    printf '%s>> Phiên bản mới nhất trên máy chủ: %s (v%s)%s
-' "$C_GREEN" "$ai_apk_name" "$ai_ver" "$C_RESET"
-    printf '%s>> Đang tải: %s...%s
-' "$C_CYAN" "$ai_download_url" "$C_RESET"
+    printf '%s>> Phiên bản mới nhất trên máy chủ: %s (v%s)%s\n' "$C_GREEN" "$ai_apk_name" "$ai_ver" "$C_RESET"
+    printf '%s>> Đang tải: %s...%s\n' "$C_CYAN" "$ai_download_url" "$C_RESET"
 
     if command -v curl >/dev/null 2>&1; then
         curl -k -fsSL --connect-timeout 20 --max-time 60 -o "$cache_file.tmp" "$ai_download_url?t=$TS" 2>/dev/null && mv -f "$cache_file.tmp" "$cache_file"
@@ -908,8 +871,7 @@ ensure_apk() {
     fi
 
     if [ ! -f "$cache_file" ] || [ "$(wc -c < "$cache_file" 2>/dev/null || echo 0)" -lt 1000000 ]; then
-        printf '%s>> [LỖI] Tải %s từ máy chủ thất bại.%s
-' "$C_RED" "$ai_apk_name" "$C_RESET"
+        printf '%s>> [LỖI] Tải %s từ máy chủ thất bại.%s\n' "$C_RED" "$ai_apk_name" "$C_RESET"
         read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
         return 1
     fi
@@ -927,10 +889,10 @@ invoke_adb_install_step() {
     exit_code=$?
     pkg_failed=0
     if [ "$require_success" = "1" ]; then
-        if ! printf '%s
-' "$output" | tr -d '\r\n' | grep -Eq '^[[:space:]]*Success[[:space:]]*$'; then
-            pkg_failed=1
-        fi
+        case "$output" in
+            *Success*) pkg_failed=0 ;;
+            *) pkg_failed=1 ;;
+        esac
     fi
 
     # Xử lý khi rớt stream ADB (iSH / WiFi AP timeout khi chạy dex2oat 30-45s)
@@ -948,14 +910,11 @@ invoke_adb_install_step() {
         fi
 
         complete_r1_install_progress
-        [ -n "$output" ] && printf '%s
-' "$output"
+        [ -n "$output" ] && printf '%s\n' "$output"
         if [ "$exit_code" -ne 0 ]; then
-            printf '%s>> [LỖI] ADB kết thúc với mã lỗi %s.%s
-' "$C_RED" "$exit_code" "$C_RESET"
+            printf '%s>> [LỖI] ADB kết thúc với mã lỗi %s.%s\n' "$C_RED" "$exit_code" "$C_RESET"
         elif [ "$pkg_failed" -eq 1 ]; then
-            printf '%s>> [LỖI] ADB không xác nhận cài đặt thành công.%s
-' "$C_RED" "$C_RESET"
+            printf '%s>> [LỖI] ADB không xác nhận cài đặt thành công.%s\n' "$C_RED" "$C_RESET"
         fi
         return 1
     fi
@@ -1031,14 +990,10 @@ do_execute_install() {
     fi
 
     echo ""
-    printf '%s==========================================================%s
-' "$C_CYAN" "$C_RESET"
-    printf '%s  BẮT ĐẦU: %s%s
-' "$C_YELLOW" "$mode_title" "$C_RESET"
-    printf '%s  Mục tiêu: %s%s
-' "$C_CYAN" "$SERIAL" "$C_RESET"
-    printf '%s==========================================================%s
-' "$C_CYAN" "$C_RESET"
+    printf '%s=============================================%s\n' "$C_CYAN" "$C_RESET"
+    printf '%s  BẮT ĐẦU: %s%s\n' "$C_YELLOW" "$mode_title" "$C_RESET"
+    printf '%s  Mục tiêu: %s%s\n' "$C_CYAN" "$SERIAL" "$C_RESET"
+    printf '%s=============================================%s\n' "$C_CYAN" "$C_RESET"
 
     if ! ensure_adb; then return 1; fi
 
@@ -1052,19 +1007,14 @@ do_execute_install() {
     if ! robust_adb_connect "$SERIAL" "$target_ip"; then
         complete_r1_install_progress
         echo ""
-        printf '%s==========================================================%s
-' "$C_RED" "$C_RESET"
-        printf '%s  [LỖI] KẾT NỐI THẤT BẠI TỚI LOA TẠI %s%s
-' "$C_RED" "$SERIAL" "$C_RESET"
-        printf '%s==========================================================%s
-' "$C_RED" "$C_RESET"
-        printf '%sVui lòng kiểm tra:%s
-' "$C_YELLOW" "$C_RESET"
+        printf '%s=============================================%s\n' "$C_RED" "$C_RESET"
+        printf '%s  [LỖI] KẾT NỐI THẤT BẠI TỚI LOA TẠI %s%s\n' "$C_RED" "$SERIAL" "$C_RESET"
+        printf '%s=============================================%s\n' "$C_RED" "$C_RESET"
+        printf '%sVui lòng kiểm tra:%s\n' "$C_YELLOW" "$C_RESET"
         echo " 1. Loa đã cắm nguồn và đang bật."
         echo " 2. Máy tính/Điện thoại đang kết nối ĐÚNG mạng (WiFi AP hoặc WiFi nhà)."
         echo " 3. Địa chỉ IP của loa ($target_ip) đã chính xác."
-        printf '%s==========================================================%s
-' "$C_RED" "$C_RESET"
+        printf '%s=============================================%s\n' "$C_RED" "$C_RESET"
         read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
         return 1
     fi
@@ -1107,8 +1057,7 @@ do_execute_install() {
     set_r1_install_progress 70 "Đang truyền file APK vào loa"
     if ! invoke_adb_install_step 0 -s "$SERIAL" push "$local_apk" "$remote_apk"; then
         complete_r1_install_progress
-        printf '%s>> [LỖI] Không thể truyền file APK lên loa tại %s.%s
-' "$C_RED" "$SERIAL" "$C_RESET"
+        printf '%s>> [LỖI] Không thể truyền file APK lên loa tại %s.%s\n' "$C_RED" "$SERIAL" "$C_RESET"
         read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
         return 1
     fi
@@ -1116,8 +1065,7 @@ do_execute_install() {
     set_r1_install_progress 80 "Đang cài đặt APK (pm install -r)..."
     if ! invoke_adb_install_step 1 -s "$SERIAL" shell /system/bin/pm install -r "$remote_apk"; then
         complete_r1_install_progress
-        printf '%s>> [LỖI] Cài đặt APK thất bại.%s
-' "$C_RED" "$C_RESET"
+        printf '%s>> [LỖI] Cài đặt APK thất bại.%s\n' "$C_RED" "$C_RESET"
         read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
         return 1
     fi
@@ -1134,22 +1082,17 @@ do_execute_install() {
     complete_r1_install_progress
 
     echo ""
-    printf '%s==========================================================%s
-' "$C_GREEN" "$C_RESET"
-    printf '%s                 CÀI ĐẶT THÀNH CÔNG!                      %s
-' "$C_YELLOW" "$C_RESET"
-    printf '%s==========================================================%s
-' "$C_GREEN" "$C_RESET"
+    printf '%s=============================================%s\n' "$C_GREEN" "$C_RESET"
+    printf '%s                 CÀI ĐẶT THÀNH CÔNG!                      %s\n' "$C_YELLOW" "$C_RESET"
+    printf '%s=============================================%s\n' "$C_GREEN" "$C_RESET"
     if [ "$clean_mode" = "1" ]; then
         echo ">> Đã cài mới hoàn toàn AIBoxPlus All-in-One."
         echo ">> Truy cập Xiaozhi.me để nhập mã kích hoạt 6 số nếu cần."
     else
         echo ">> Đã cập nhật thành công AIBoxPlus (giữ nguyên dữ liệu & token)."
     fi
-    printf '%s>> Bảng điều khiển WebUI: http://%s:8081/%s
-' "$C_CYAN" "$target_ip" "$C_RESET"
-    printf '%s==========================================================%s
-' "$C_GREEN" "$C_RESET"
+    printf '%s>> Bảng điều khiển WebUI: http://%s:8081/%s\n' "$C_CYAN" "$target_ip" "$C_RESET"
+    printf '%s=============================================%s\n' "$C_GREEN" "$C_RESET"
 
     if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
         echo ""
@@ -1157,8 +1100,7 @@ do_execute_install() {
         case "$(printf '%s' "$rb" | tr '[:upper:]' '[:lower:]')" in
             "y"|"yes")
                 adb -s "$SERIAL" reboot >/dev/null 2>&1 || true
-                printf '%s>> Đã gửi lệnh khởi động lại loa.%s
-' "$C_GREEN" "$C_RESET"
+                printf '%s>> Đã gửi lệnh khởi động lại loa.%s\n' "$C_GREEN" "$C_RESET"
                 ;;
         esac
         echo ""
@@ -1195,9 +1137,9 @@ select_target_speaker() {
 
 show_menu() {
     echo ""
-    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
+    printf '%s=============================================%s\n' "$C_CYAN" "$C_RESET"
     printf '%s  BỘ CÀI ĐẶT PHICOMM R1 (AI-BOX PLUS)                    %s\n' "$C_YELLOW" "$C_RESET"
-    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
+    printf '%s=============================================%s\n' "$C_CYAN" "$C_RESET"
     echo "  1) Cấu hình WiFi cho loa (chế độ AP 192.168.43.1)"
     printf '%s     -> Kết nối loa vào WiFi nhà khi loa vừa reset%s\n' "$C_GRAY" "$C_RESET"
     echo ""
@@ -1209,7 +1151,7 @@ show_menu() {
     echo ""
     echo "  4) Quét tìm IP loa Phicomm R1 trong mạng LAN"
     echo "  5) Thoát"
-    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
+    printf '%s=============================================%s\n' "$C_CYAN" "$C_RESET"
     CHOICE=$(read_r1_input "Chọn [1-5]: " "5")
     CHOICE=$(printf '%s' "$CHOICE" | tr -d ' ')
     [ -z "$CHOICE" ] && CHOICE="5"
