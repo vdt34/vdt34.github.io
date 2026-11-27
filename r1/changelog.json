@@ -1,5 +1,18 @@
 [
     {
+        "version": "1.1.19",
+        "date": "2026-11-27",
+        "title": "Sửa dứt điểm công tắc Led chờ & Khôi phục hiệu ứng LED nháy theo nhạc (FastLED)",
+        "changes": [
+            "Đổi tên mục điều khiển thành 'Led chờ' với logic rõ ràng: Tích (ON) để bật LED chờ mặc định; Bỏ tích (OFF) để tắt đèn khi loa nhàn rỗi.",
+            "Khôi phục cơ chế tự động kích hoạt hiệu ứng LED nháy theo nhạc (FastLED AudioVisualizer) khi tắt Led chờ và đang phát media (YouTube, Zing MP3, DLNA, Radio).",
+            "Tự động tắt đèn hoàn toàn (mMask=0, rgb=0, eMask=0, w=0) khi dừng hoặc tạm dừng media ở chế độ tắt Led chờ.",
+            "Khắc phục triệt để lỗi mất trạng thái standbyOff trong vòng lặp runLoop() của FastLED Controller sau các đợt build lại.",
+            "Mở quyền truy cập /api/fast-led và tích hợp đính kèm token xác thực trong LightControl.js, triệt tiêu lỗi 401 Unauthorized.",
+            "Bảo toàn và khôi phục 100% trạng thái cấu hình Led chờ đã lưu qua SharedPreferences sau khi khởi động lại loa."
+        ]
+    },
+    {
         "version": "1.1.18",
         "date": "2026-11-27",
         "title": "Gỡ bỏ bảo mật voice.html & Widget giám sát RAM, CPU, Nhiệt độ",
