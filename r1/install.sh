@@ -797,25 +797,27 @@ scan_speaker_ip() {
 # 5. CHUẨN BỊ FILE APK DUY NHẤT (AIBOXPLUS ALL-IN-ONE)
 # ------------------------------------------------------------------------------
 get_local_ai_apk() {
-    [ -z "$SCRIPT_DIR" ] || [ ! -d "$SCRIPT_DIR" ] && return 1
+    for check_dir in "$SCRIPT_DIR" "." "$HOME" "/tmp"; do
+        [ -n "$check_dir" ] && [ -d "$check_dir" ] || continue
 
-    # 1. Tìm bản có phiên bản theo dạng ai-box-plus-X-Y-Z.apk
-    best_file=""
-    for f in "$SCRIPT_DIR"/ai-box-plus-*-*-*.apk; do
-        [ -f "$f" ] || continue
-        best_file="$f"
-    done
-    if [ -n "$best_file" ]; then
-        echo "$best_file"
-        return 0
-    fi
-
-    # 2. Tìm bất kỳ file apk nào có tên bắt đầu bằng ai-box hoặc aiboxplus
-    for f in "$SCRIPT_DIR"/[aA][iI]-[bB][oO][xX]*.apk "$SCRIPT_DIR"/[aA][iI][bB][oO][xX]*.apk; do
-        if [ -f "$f" ]; then
-            echo "$f"
+        # 1. Tìm bản có phiên bản theo dạng ai-box-plus-X-Y-Z.apk
+        best_file=""
+        for f in "$check_dir"/ai-box-plus-*-*-*.apk; do
+            [ -f "$f" ] || continue
+            best_file="$f"
+        done
+        if [ -n "$best_file" ]; then
+            echo "$best_file"
             return 0
         fi
+
+        # 2. Tìm bất kỳ file apk nào có tên bắt đầu bằng ai-box hoặc aiboxplus
+        for f in "$check_dir"/[aA][iI]-[bB][oO][xX]*.apk "$check_dir"/[aA][iI][bB][oO][xX]*.apk; do
+            if [ -f "$f" ]; then
+                echo "$f"
+                return 0
+            fi
+        done
     done
 
     return 1
@@ -826,17 +828,26 @@ ensure_apk() {
     cache_file="$CACHE_DIR/$target_apk_name"
     mkdir -p "$CACHE_DIR" 2>/dev/null || true
 
-    # 1. Ưu tiên tìm file local trước
-    local_ai=$(get_local_ai_apk)
-    if [ -n "$local_ai" ] && [ -f "$local_ai" ]; then
-        printf '%s>> [LOCAL] Đã tìm thấy file APK cục bộ: %s%s\n' "$C_GREEN" "$(basename "$local_ai")" "$C_RESET"
-        cp -f "$local_ai" "$cache_file"
+    # 1. Ưu tiên kiểm tra file đã tải sẵn trong CACHE (đã tải ở Bước 1 của Cài đặt AP Mode hoặc lần chạy trước)
+    if [ -f "$cache_file" ] && [ "$(wc -c < "$cache_file" 2>/dev/null || echo 0)" -ge 1000000 ]; then
+        apk_bytes=$(wc -c < "$cache_file" 2>/dev/null | tr -d ' ')
+        apk_mb=$((apk_bytes / 1048576))
+        printf '%s>> [CACHE] Đã có sẵn file APK đã tải: %s (~%s MB). Bỏ qua bước tải lại!%s\n' "$C_GREEN" "$target_apk_name" "$apk_mb" "$C_RESET"
         return 0
     fi
 
-    # 2. Nếu local không có, tìm và tải trên server
-    printf '%s>> [ONLINE] Không có file APK cục bộ trong '''%s'''. Đang kiểm tra từ máy chủ (%s/version.json)...%s
-' "$C_CYAN" "$SCRIPT_DIR" "$BASE_URL" "$C_RESET"
+    # 2. Ưu tiên tìm file local trước
+    local_ai=$(get_local_ai_apk)
+    if [ -n "$local_ai" ] && [ -f "$local_ai" ]; then
+        printf '%s>> [LOCAL] Đã tìm thấy file APK cục bộ: %s%s\n' "$C_GREEN" "$(basename "$local_ai")" "$C_RESET"
+        if [ "$local_ai" != "$cache_file" ]; then
+            cp -f "$local_ai" "$cache_file"
+        fi
+        return 0
+    fi
+
+    # 3. Nếu local và cache đều chưa có, tìm và tải trên server
+    printf '%s>> [ONLINE] Đang kiểm tra phiên bản mới nhất từ máy chủ (%s/version.json)...%s\n' "$C_CYAN" "$BASE_URL" "$C_RESET"
 
     TS=$(date +%s 2>/dev/null || echo "1")
     json_raw=""

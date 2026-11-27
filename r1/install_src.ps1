@@ -688,41 +688,49 @@ function Scan-SpeakerIp {
 
 # 5. Chuẩn bị file APK duy nhất (AIBoxPlus All-in-One)
 function Get-LocalAiApk {
-    if (-not $ScriptDir -or -not (Test-Path $ScriptDir)) { return $null }
+    $dirs = @($ScriptDir, (Get-Location).Path, $env:USERPROFILE, $env:TEMP) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+    foreach ($d in $dirs) {
+        # 1. Tìm bản có phiên bản cao nhất theo dạng ai-box-plus-X-Y-Z.apk
+        $files = Get-ChildItem -Path $d -File -Filter 'ai-box-plus-*-*-*.apk' -ErrorAction SilentlyContinue |
+        Where-Object { $_.BaseName -match '^ai-box-plus-(\d+)-(\d+)-(\d+)$' } |
+        Sort-Object { [version]($_.BaseName -replace '^ai-box-plus-', '' -replace '-', '.') } -Descending
+        if ($files -and $files.Count -gt 0) {
+            return $files[0]
+        }
 
-    # 1. Tìm bản có phiên bản cao nhất theo dạng ai-box-plus-X-Y-Z.apk
-    $files = Get-ChildItem -Path $ScriptDir -File -Filter 'ai-box-plus-*-*-*.apk' -ErrorAction SilentlyContinue |
-    Where-Object { $_.BaseName -match '^ai-box-plus-(\d+)-(\d+)-(\d+)$' } |
-    Sort-Object { [version]($_.BaseName -replace '^ai-box-plus-', '' -replace '-', '.') } -Descending
-    if ($files -and $files.Count -gt 0) {
-        return $files[0]
+        # 2. Tìm bất kỳ file apk nào có tên bắt đầu bằng ai-box hoặc aiboxplus
+        $fallbackFiles = Get-ChildItem -Path $d -File -Filter "*.apk" -ErrorAction SilentlyContinue |
+        Where-Object { $_.BaseName -match '(?i)ai[-_]?box' }
+        if ($fallbackFiles -and $fallbackFiles.Count -gt 0) {
+            return $fallbackFiles[0]
+        }
     }
-
-    # 2. Tìm bất kỳ file apk nào có tên bắt đầu bằng ai-box hoặc aiboxplus
-    $fallbackFiles = Get-ChildItem -Path $ScriptDir -File -Filter "*.apk" -ErrorAction SilentlyContinue |
-    Where-Object { $_.BaseName -match '(?i)ai[-_]?box' }
-    if ($fallbackFiles -and $fallbackFiles.Count -gt 0) {
-        return $fallbackFiles[0]
-    }
-
     return $null
 }
 
 function Ensure-Apk {
     $targetApkName = "ai-box-plus-app.apk"
     $cacheFile = Join-Path $TempDir $targetApkName
-    if (Test-Path $cacheFile) { Remove-Item $cacheFile -Force -ErrorAction SilentlyContinue }
 
-    # 1. Ưu tiên tìm file local trước
-    $aiFile = Get-LocalAiApk
-    if ($aiFile) {
-        Write-Host ">> [LOCAL] Đã tìm thấy file APK cục bộ: $($aiFile.Name)" -ForegroundColor Green
-        Copy-Item $aiFile.FullName $cacheFile -Force
+    # 1. Ưu tiên kiểm tra file đã tải sẵn trong CACHE (đã tải ở Bước 1 của Cài đặt AP Mode hoặc lần chạy trước)
+    if ((Test-Path $cacheFile) -and ((Get-Item $cacheFile).Length -ge 1000000)) {
+        $mb = [math]::Round((Get-Item $cacheFile).Length / 1MB, 1)
+        Write-Host ">> [CACHE] Đã có sẵn file APK đã tải: $targetApkName (~$mb MB). Bỏ qua bước tải lại!" -ForegroundColor Green
         return $true
     }
 
-    # 2. Nếu local không có, tìm và tải trên server
-    Write-Host ">> [ONLINE] Không có file APK cục bộ trong '$ScriptDir'. Đang kiểm tra từ máy chủ ($BaseUrl/version.json)..." -ForegroundColor Cyan
+    # 2. Ưu tiên tìm file local trước
+    $aiFile = Get-LocalAiApk
+    if ($aiFile) {
+        Write-Host ">> [LOCAL] Đã tìm thấy file APK cục bộ: $($aiFile.Name)" -ForegroundColor Green
+        if ($aiFile.FullName -ne $cacheFile) {
+            Copy-Item $aiFile.FullName $cacheFile -Force
+        }
+        return $true
+    }
+
+    # 3. Nếu local và cache đều chưa có, tìm và tải trên server
+    Write-Host ">> [ONLINE] Đang kiểm tra phiên bản mới nhất từ máy chủ ($BaseUrl/version.json)..." -ForegroundColor Cyan
 
     try {
         $UnixTs = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
