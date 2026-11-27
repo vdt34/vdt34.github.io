@@ -85,7 +85,11 @@ read_r1_input() {
         echo "$default_val"
         return
     fi
-    printf "%s" "$prompt" >&2
+    if [ -w /dev/tty ]; then
+        printf "%s" "$prompt" > /dev/tty
+    else
+        printf "%s" "$prompt" >&2
+    fi
     val=""
     if [ -r /dev/tty ]; then
         read -r val < /dev/tty 2>/dev/null || val=""
@@ -367,7 +371,7 @@ run_wifi_config() {
     printf '%s=============================================%s\n' "$C_CYAN" "$C_RESET"
 
     if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
-        read_r1_input "Nhấn Enter khi đã kết nối WiFi của loa: " "" >/dev/null 2>&1 || true
+        read_r1_input "Nhấn Enter khi đã kết nối WiFi của loa: " "" >/dev/null || true
     fi
 
     echo ""
@@ -567,7 +571,7 @@ END {
 
     if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
         echo ""
-        read_r1_input "Nhấn Enter để quay lại menu chính" "" >/dev/null 2>&1 || true
+        read_r1_input "Nhấn Enter để quay lại menu chính" "" >/dev/null || true
     fi
     return 0
 }
@@ -848,7 +852,7 @@ ensure_apk() {
 
     if [ -z "$ai_download_url" ]; then
         printf '%s>> [LỖI] Không tìm thấy file APK cục bộ và không thể tải APK từ máy chủ.%s\n' "$C_RED" "$C_RESET"
-        read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+        read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null || true
         return 1
     fi
 
@@ -863,7 +867,7 @@ ensure_apk() {
 
     if [ ! -f "$cache_file" ] || [ "$(wc -c < "$cache_file" 2>/dev/null || echo 0)" -lt 1000000 ]; then
         printf '%s>> [LỖI] Tải %s từ máy chủ thất bại.%s\n' "$C_RED" "$ai_apk_name" "$C_RESET"
-        read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+        read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null || true
         return 1
     fi
     return 0
@@ -882,7 +886,13 @@ invoke_adb_install_step() {
     if [ "$require_success" = "1" ]; then
         case "$output" in
             *Success*) pkg_failed=0 ;;
-            *) pkg_failed=1 ;;
+            *)
+                if printf '%s\n' "$output" | grep -qi "success"; then
+                    pkg_failed=0
+                else
+                    pkg_failed=1
+                fi
+                ;;
         esac
     fi
 
@@ -1006,7 +1016,7 @@ do_execute_install() {
         echo " 2. Máy tính/Điện thoại đang kết nối ĐÚNG mạng (WiFi AP hoặc WiFi nhà)."
         echo " 3. Địa chỉ IP của loa ($target_ip) đã chính xác."
         printf '%s=============================================%s\n' "$C_RED" "$C_RESET"
-        read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+        read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null || true
         return 1
     fi
 
@@ -1049,7 +1059,7 @@ do_execute_install() {
     if ! invoke_adb_install_step 0 -s "$SERIAL" push "$local_apk" "$remote_apk"; then
         complete_r1_install_progress
         printf '%s>> [LỖI] Không thể truyền file APK lên loa tại %s.%s\n' "$C_RED" "$SERIAL" "$C_RESET"
-        read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+        read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null || true
         return 1
     fi
 
@@ -1057,7 +1067,7 @@ do_execute_install() {
     if ! invoke_adb_install_step 1 -s "$SERIAL" shell /system/bin/pm install -r "$remote_apk"; then
         complete_r1_install_progress
         printf '%s>> [LỖI] Cài đặt APK thất bại.%s\n' "$C_RED" "$C_RESET"
-        read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
+        read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null || true
         return 1
     fi
     adb -s "$SERIAL" shell rm "$remote_apk" >/dev/null 2>&1 || true
@@ -1110,7 +1120,7 @@ do_execute_install() {
                 ;;
         esac
         echo ""
-        read_r1_input "Nhấn Enter để quay lại menu chính..." "" >/dev/null 2>&1 || true
+        read_r1_input "Nhấn Enter để quay lại menu chính..." "" >/dev/null || true
     fi
     return 0
 }
@@ -1154,7 +1164,7 @@ run_ap_install() {
 
     if ! ensure_apk; then
         printf '%s>> [LỖI] Không thể tải trước file APK. Vui lòng kiểm tra mạng Internet.%s\n' "$C_RED" "$C_RESET"
-        read_r1_input "Nhấn Enter để quay lại menu chính..." "" >/dev/null 2>&1 || true
+        read_r1_input "Nhấn Enter để quay lại menu chính..." "" >/dev/null || true
         return 1
     fi
 
@@ -1169,7 +1179,7 @@ run_ap_install() {
     echo "     -> (Nếu điện thoại hỏi 'WiFi không có internet, giữ kết nối?': Chọn CÓ)."
     printf '%s---------------------------------------------%s\n' "$C_GRAY" "$C_RESET"
     echo ""
-    read_r1_input "Nhấn Enter khi ĐÃ KẾT NỐI vào WiFi của Loa: " "" >/dev/null 2>&1 || true
+    read_r1_input "Nhấn Enter khi ĐÃ KẾT NỐI vào WiFi của Loa: " "" >/dev/null || true
 
     echo ""
     printf '%s>> Đang kiểm tra kết nối tới loa (192.168.43.1)...%s\n' "$C_CYAN" "$C_RESET"
@@ -1280,7 +1290,7 @@ while :; do
         5)
             scan_speaker_ip
             echo ""
-            read_r1_input "   Nhấn Enter để quay lại menu chính: " "" >/dev/null 2>&1 || true
+            read_r1_input "   Nhấn Enter để quay lại menu chính: " "" >/dev/null || true
             ;;
         6|q|Q|exit)
             echo "Thoát chương trình."
