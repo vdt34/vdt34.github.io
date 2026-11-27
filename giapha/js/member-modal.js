@@ -29,6 +29,10 @@ export class MemberModalController {
       this.close();
     });
 
+    document.getElementById('drawer-backdrop')?.addEventListener('click', () => {
+      this.close();
+    });
+
     document.getElementById('btn-set-self')?.addEventListener('click', () => {
       if (!this.currentMember) return;
       this.selfId = this.currentMember.id;
@@ -212,6 +216,7 @@ export class MemberModalController {
     this.renderKinshipBox(m);
 
     this.drawerEl.classList.add('open');
+    document.getElementById('drawer-backdrop')?.classList.add('open');
   }
 
   renderKinshipBox(targetMember) {
@@ -253,6 +258,7 @@ export class MemberModalController {
 
   close() {
     this.drawerEl.classList.remove('open');
+    document.getElementById('drawer-backdrop')?.classList.remove('open');
   }
 
   populateParentSelectors(fatherId = null, motherId = null) {

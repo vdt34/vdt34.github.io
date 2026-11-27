@@ -2,7 +2,7 @@
 <html lang="vi" data-theme="light">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
   <title>Gia Phả Dòng Họ — Cây Gia Phả & Lịch Giỗ Tổ Tiên</title>
   <meta name="description" content="Hệ thống Cây Gia Phả tương tác, máy tính danh xưng xưng hô họ hàng, lịch giỗ âm lịch và bản đồ mộ phần tổ tiên.">
   <link rel="stylesheet" href="assets/css/style.css">
@@ -40,19 +40,19 @@
       <!-- Header Actions -->
       <div class="header-actions">
         <button id="btn-header-add" class="btn btn-primary btn-sm" title="Thêm thành viên mới vào gia phả">
-          ➕ Thêm Người
+          ➕ <span class="btn-text">Thêm Người</span>
         </button>
 
         <button id="btn-export-clan-ics" class="btn btn-gold btn-sm" title="Tải file .ics lịch giỗ cho iPhone">
-          📥 Xuất ICS Giỗ
+          📥 <span class="btn-text">Xuất ICS</span>
         </button>
 
         <button id="btn-backup-data" class="btn btn-outline btn-sm" title="Lưu trữ &amp; Sao lưu dữ liệu JSON">
-          💾 Sao lưu / JSON
+          💾 <span class="btn-text">Sao lưu</span>
         </button>
 
         <a href="../amlich/" class="btn btn-outline btn-sm" title="Mở Dashboard Lịch Âm Dương">
-          🌙 Lịch Âm
+          🌙 <span class="btn-text">Lịch Âm</span>
         </a>
 
         <button id="btn-theme-toggle" class="btn btn-outline btn-icon" title="Chuyển chế độ sáng/tối">
@@ -115,8 +115,12 @@
     </div>
   </main>
 
+  <!-- Drawer Backdrop for mobile & desktop -->
+  <div id="drawer-backdrop" class="drawer-backdrop"></div>
+
   <!-- Member Profile Drawer -->
   <aside id="member-drawer" class="member-drawer">
+    <div class="mobile-sheet-handle"></div>
     <div class="drawer-header">
       <div>
         <div id="drawer-generation" style="font-size: 0.75rem; font-weight: 600; color: var(--gold);">Đời thứ 1</div>
@@ -356,6 +360,6 @@
   <div id="toast-container" class="toast-container"></div>
 
   <!-- Main JavaScript Bootstrap -->
-  <script type="module" src="js/app.js?v=1.2.0"></script>
+  <script type="module" src="js/app.js?v=1.3.0"></script>
 </body>
 </html>

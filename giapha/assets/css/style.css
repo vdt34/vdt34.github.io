@@ -45,8 +45,10 @@ body {
   color: var(--text-primary);
   line-height: 1.5;
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
 }
 
 /* Header */
@@ -216,6 +218,10 @@ body {
   position: relative;
   overflow: hidden;
   height: calc(100vh - 120px);
+  height: calc(100dvh - 120px);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Tree Canvas */
@@ -225,6 +231,7 @@ body {
   cursor: grab;
   position: relative;
   user-select: none;
+  touch-action: none;
 }
 .tree-canvas-container:active {
   cursor: grabbing;
@@ -266,6 +273,32 @@ body {
 /* Tree Node Hover & Selection */
 .tree-node:hover rect {
   filter: drop-shadow(0 4px 8px rgba(0,0,0,0.12));
+}
+
+/* Drawer Backdrop */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 45;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.drawer-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mobile-sheet-handle {
+  display: none;
+  width: 40px;
+  height: 5px;
+  background-color: var(--border-color);
+  border-radius: 3px;
+  margin: 10px auto 4px auto;
 }
 
 /* Profile Drawer */
@@ -541,8 +574,208 @@ body {
   box-shadow: var(--shadow-md);
 }
 
+/* ==========================================================================
+   RESPONSIVE DESIGN FOR MULTIPLE DEVICES (MOBILE, TABLET, DESKTOP)
+   ========================================================================== */
+
+/* Tablet & iPad (<= 1024px) */
+@media (max-width: 1024px) {
+  .header-container {
+    padding: 0.5rem 1rem;
+    gap: 0.65rem;
+  }
+  .view-tabs {
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .view-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .main-content {
+    height: calc(100dvh - 160px);
+  }
+}
+
+/* Mobile Phones (<= 768px) */
+@media (max-width: 768px) {
+  .header-container {
+    padding: 0.45rem 0.75rem;
+  }
+
+  .brand-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+  .brand-subtitle {
+    display: none;
+  }
+  .brand-icon {
+    width: 30px;
+    height: 30px;
+    font-size: 0.9rem;
+    border-radius: 6px;
+  }
+
+  .header-actions {
+    gap: 0.35rem;
+  }
+
+  .header-actions .btn-sm {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  /* Compact secondary buttons on mobile, keep emojis/icons */
+  .header-actions #btn-export-clan-ics .btn-text,
+  .header-actions #btn-backup-data .btn-text,
+  .header-actions a[href="../amlich/"] .btn-text {
+    display: none;
+  }
+
+  .tab-btn {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+
+  .sub-toolbar {
+    padding: 0.4rem 0.75rem;
+  }
+
+  .sub-toolbar-container {
+    gap: 0.5rem;
+  }
+
+  /* Prevent iOS Safari auto-zoom on input focus */
+  .search-input, .select-input,
+  .form-input, .form-textarea, .form-select {
+    font-size: 16px !important;
+  }
+
+  .main-content {
+    height: calc(100dvh - 155px);
+  }
+
+  /* Tree Controls as a bottom floating pill */
+  .tree-controls {
+    bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
+    right: 1rem;
+    flex-direction: row;
+    border-radius: 20px;
+    padding: 0.2rem 0.4rem;
+    background: var(--bg-surface);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .tree-control-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 1.2rem;
+  }
+
+  /* Drawer transforms into smooth iOS-style bottom sheet */
+  .member-drawer {
+    top: auto;
+    bottom: 0;
+    right: 0 !important;
+    left: 0;
+    width: 100%;
+    max-width: 100%;
+    height: 84vh;
+    height: 84dvh;
+    border-radius: 20px 20px 0 0;
+    border-left: none;
+    border-top: 1px solid var(--border-color);
+    box-shadow: 0 -10px 35px rgba(0, 0, 0, 0.28);
+    transform: translateY(100%);
+    transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .member-drawer.open {
+    transform: translateY(0);
+  }
+
+  .mobile-sheet-handle {
+    display: block;
+  }
+
+  .drawer-header {
+    padding: 0.75rem 1.25rem 0.5rem 1.25rem;
+  }
+
+  .drawer-content {
+    padding: 1rem 1.25rem;
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 1.5rem));
+  }
+
+  /* Modal transforms into bottom sheet on mobile */
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .modal-content {
+    max-width: 100%;
+    max-height: 90vh;
+    max-height: 90dvh;
+    border-radius: 20px 20px 0 0;
+    border-bottom: none;
+    padding-bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  /* Toast notification position */
+  .toast-container {
+    bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
+    left: 1rem;
+    right: 1rem;
+    align-items: center;
+  }
+  .toast {
+    width: 100%;
+    text-align: center;
+  }
+
+  /* Book, Graves, and Anniversaries view on mobile */
+  .book-container {
+    margin: 0.75rem auto;
+    padding: 1rem 0.85rem;
+  }
+
+  .graves-container {
+    margin: 1rem auto;
+    padding: 0 0.75rem;
+  }
+
+  .graves-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Small Phones (<= 480px) */
+@media (max-width: 480px) {
+  .sub-toolbar-container > div {
+    width: 100%;
+    max-width: 100% !important;
+  }
+  .select-input {
+    width: 100%;
+  }
+  .header-actions #btn-header-add .btn-text {
+    display: inline;
+  }
+}
+
 @media print {
-  .app-header, .sub-toolbar, .tree-controls, .member-drawer {
+  .app-header, .sub-toolbar, .tree-controls, .member-drawer, .drawer-backdrop {
     display: none !important;
   }
   body, .book-container {

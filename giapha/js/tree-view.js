@@ -11,10 +11,11 @@ export class TreeVisualizer {
     this.members = [];
     this.selfId = null;
 
-    // Viewport transform
-    this.scale = 1.0;
-    this.translateX = 60;
-    this.translateY = 40;
+    // Viewport transform (responsive default)
+    const isMobile = window.innerWidth < 640;
+    this.scale = isMobile ? 0.75 : 1.0;
+    this.translateX = isMobile ? 15 : 60;
+    this.translateY = isMobile ? 20 : 40;
     this.isDragging = false;
     this.startX = 0;
     this.startY = 0;
@@ -52,7 +53,7 @@ export class TreeVisualizer {
       this.isDragging = false;
     });
 
-    // Touch support for mobile
+    // Touch support for mobile & tablet
     let initialTouchDist = 0;
     this.container.addEventListener('touchstart', (e) => {
       if (e.touches.length === 1 && !e.target.closest('.tree-node')) {
@@ -60,32 +61,37 @@ export class TreeVisualizer {
         this.startX = e.touches[0].clientX - this.translateX;
         this.startY = e.touches[0].clientY - this.translateY;
       } else if (e.touches.length === 2) {
+        this.isDragging = false;
         initialTouchDist = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY
         );
       }
-    });
+    }, { passive: true });
 
     this.container.addEventListener('touchmove', (e) => {
       if (e.touches.length === 1 && this.isDragging) {
+        e.preventDefault();
         this.translateX = e.touches[0].clientX - this.startX;
         this.translateY = e.touches[0].clientY - this.startY;
         this.applyTransform();
-      } else if (e.touches.length === 2) {
+      } else if (e.touches.length === 2 && initialTouchDist > 0) {
+        e.preventDefault();
         const dist = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY
         );
         const factor = dist / initialTouchDist;
-        this.scale = Math.max(0.4, Math.min(2.5, this.scale * factor));
+        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        this.zoom(factor, midX, midY);
         initialTouchDist = dist;
-        this.applyTransform();
       }
-    });
+    }, { passive: false });
 
     this.container.addEventListener('touchend', () => {
       this.isDragging = false;
+      initialTouchDist = 0;
     });
 
     // Wheel zoom
@@ -97,7 +103,7 @@ export class TreeVisualizer {
   }
 
   zoom(factor, clientX = null, clientY = null) {
-    const newScale = Math.max(0.4, Math.min(2.5, this.scale * factor));
+    const newScale = Math.max(0.35, Math.min(2.5, this.scale * factor));
     if (clientX !== null && clientY !== null) {
       const rect = this.container.getBoundingClientRect();
       const x = clientX - rect.left;
@@ -110,9 +116,10 @@ export class TreeVisualizer {
   }
 
   resetZoom() {
-    this.scale = 1.0;
-    this.translateX = 60;
-    this.translateY = 40;
+    const isMobile = window.innerWidth < 640;
+    this.scale = isMobile ? 0.75 : 1.0;
+    this.translateX = isMobile ? 15 : 60;
+    this.translateY = isMobile ? 20 : 40;
     this.applyTransform();
   }
 
