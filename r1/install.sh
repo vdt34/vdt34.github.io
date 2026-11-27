@@ -1111,25 +1111,29 @@ do_execute_install() {
         printf '%s=============================================%s\n' "$C_GREEN" "$C_RESET"
         printf '%s        CÀI ĐẶT THÀNH CÔNG QUA AP MODE!            %s\n' "$C_YELLOW" "$C_RESET"
         printf '%s=============================================%s\n' "$C_GREEN" "$C_RESET"
-        echo ">> Đã cài sạch và kích hoạt AIBoxPlus All-in-One."
+        if [ "$clean_mode" = "1" ]; then
+            echo ">> Đã cài sạch và kích hoạt AIBoxPlus All-in-One."
+        else
+            echo ">> Đã cập nhật AIBoxPlus thành công (giữ nguyên cấu hình & token)."
+        fi
         echo ">> Dịch vụ AI & WebUI (8081) của loa đang chạy!"
         echo ""
         printf '%s>> BƯỚC TIẾP THEO: CẤU HÌNH WIFI CHO LOA%s\n' "$C_YELLOW" "$C_RESET"
         printf '%s---------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
         echo "  1. Giữ nguyên kết nối vào WiFi 'Phicomm_R1_xxxx'."
         echo "  2. Mở trình duyệt (Safari / Chrome), truy cập:"
-        printf '%s     👉 http://192.168.43.1:8081%s\n' "$C_GREEN" "$C_RESET"
+        printf '%s     👉 http://192.168.43.1:8081/wifi.html%s\n' "$C_GREEN" "$C_RESET"
         echo "  3. Chọn mạng WiFi nhà bạn, nhập mật khẩu và bấm Kết nối."
         echo "  4. Loa sẽ tự kết nối WiFi nhà và tự động thoát AP."
         printf '%s---------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
 
         # Thử mở trình duyệt nếu hệ thống có hỗ trợ GUI
         if command -v termux-open-url >/dev/null 2>&1; then
-            termux-open-url "http://192.168.43.1:8081" >/dev/null 2>&1 || true
+            termux-open-url "http://192.168.43.1:8081/wifi.html" >/dev/null 2>&1 || true
         elif command -v xdg-open >/dev/null 2>&1; then
-            xdg-open "http://192.168.43.1:8081" >/dev/null 2>&1 || true
+            xdg-open "http://192.168.43.1:8081/wifi.html" >/dev/null 2>&1 || true
         elif command -v open >/dev/null 2>&1; then
-            open "http://192.168.43.1:8081" >/dev/null 2>&1 || true
+            open "http://192.168.43.1:8081/wifi.html" >/dev/null 2>&1 || true
         fi
 
         if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
@@ -1276,8 +1280,26 @@ run_ap_install() {
         printf '%s   [OK] Đã kết nối thành công tới loa tại 192.168.43.1!%s\n' "$C_GREEN" "$C_RESET"
     fi
 
-    # Thực hiện cài đặt sạch vào IP 192.168.43.1 (Clean Install = 1)
-    do_execute_install "192.168.43.1" 1
+    echo ""
+    printf '%s---------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
+    printf '%s  CHỌN PHƯƠNG THỨC CÀI ĐẶT CHO LOA (AP MODE)%s\n' "$C_YELLOW" "$C_RESET"
+    printf '%s---------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
+    echo "  1) Cài mới hoàn toàn (Clean Install)"
+    printf '%s     -> Gỡ sạch app rác cũ, cài đặt bản mới nhất%s\n' "$C_GRAY" "$C_RESET"
+    echo ""
+    echo "  2) Cập nhật / Nâng cấp (Update)"
+    printf '%s     -> Nâng cấp app, giữ nguyên cấu hình và token/license%s\n' "$C_GRAY" "$C_RESET"
+    printf '%s---------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
+    mode_pick=$(read_r1_input "Chọn chế độ [1-2, Mặc định: 1]: " "1")
+    mode_pick=$(printf '%s' "$mode_pick" | tr -d ' \r\n')
+    clean_mode=1
+    case "$mode_pick" in
+        "2") clean_mode=0 ;;
+        *) clean_mode=1 ;;
+    esac
+
+    # Thực hiện cài đặt vào IP 192.168.43.1
+    do_execute_install "192.168.43.1" "$clean_mode"
     return $?
 }
 
@@ -1287,7 +1309,7 @@ show_menu() {
     printf '%s     BỘ CÀI ĐẶT PHICOMM R1 (AI-BOX PLUS)     %s\n' "$C_YELLOW" "$C_RESET"
     printf '%s---------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
     echo "  1) Cài đặt trực tiếp qua WiFi Loa (AP Mode)"
-    printf '%s     -> Tải sẵn APK, kết nối WiFi loa và cài sạch ngay%s\n' "$C_GRAY" "$C_RESET"
+    printf '%s     -> Tải sẵn APK, kết nối WiFi loa (Cài mới hoặc Cập nhật)%s\n' "$C_GRAY" "$C_RESET"
     echo ""
     echo "  2) Cài đặt qua mạng LAN (Quét tìm IP loa)"
     printf '%s     -> Tùy chọn cài mới (gỡ app cũ) hoặc cập nhật (giữ token)%s\n' "$C_GRAY" "$C_RESET"

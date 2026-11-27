@@ -997,13 +997,18 @@ function Do-ExecuteInstall {
     if ($targetIp -eq "192.168.43.1") {
         Write-Host ""
         Write-Host "==========================================================" -ForegroundColor Green
-        Write-Host "                 CÀI ĐẶT THÀNH CÔNG!                      " -ForegroundColor Yellow
+        Write-Host "        CÀI ĐẶT THÀNH CÔNG QUA AP MODE!                   " -ForegroundColor Yellow
         Write-Host "==========================================================" -ForegroundColor Green
+        if ($CleanMode -eq 1) {
+            Write-Host ">> Đã cài mới hoàn toàn AIBoxPlus All-in-One." -ForegroundColor White
+        } else {
+            Write-Host ">> Đã cập nhật AIBoxPlus thành công (giữ nguyên cấu hình & token)." -ForegroundColor White
+        }
         Write-Host ">> BƯỚC TIẾP THEO: CẤU HÌNH WIFI CHO LOA" -ForegroundColor Yellow
         Write-Host "----------------------------------------------------------" -ForegroundColor Gray
         Write-Host "  1. Điện thoại / Máy tính vẫn đang kết nối WiFi của loa." -ForegroundColor White
         Write-Host "  2. Mở trình duyệt Web (Safari, Chrome...) và truy cập ngay:" -ForegroundColor White
-        Write-Host "     👉 http://192.168.43.1:8081" -ForegroundColor Cyan
+        Write-Host "     👉 http://192.168.43.1:8081/wifi.html" -ForegroundColor Cyan
         Write-Host "  3. Nhập tên WiFi & mật khẩu nhà bạn để loa kết nối Internet." -ForegroundColor White
         Write-Host "     (Sau khi kết nối thành công, loa sẽ tự thoát chế độ AP)." -ForegroundColor Gray
         Write-Host "----------------------------------------------------------" -ForegroundColor Gray
@@ -1135,7 +1140,22 @@ function Run-ApInstall {
         Write-Host "   [OK] Đã kết nối thành công tới loa tại 192.168.43.1!" -ForegroundColor Green
     }
 
-    Do-ExecuteInstall -TargetIpParam "192.168.43.1" -CleanMode 1
+    Write-Host ""
+    Write-Host "---------------------------------------------" -ForegroundColor Cyan
+    Write-Host "  CHỌN PHƯƠNG THỨC CÀI ĐẶT CHO LOA (AP MODE)" -ForegroundColor Yellow
+    Write-Host "---------------------------------------------" -ForegroundColor Cyan
+    Write-Host "  1) Cài mới hoàn toàn (Clean Install)" -ForegroundColor White
+    Write-Host "     -> Gỡ sạch app rác cũ, cài đặt bản mới nhất" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  2) Cập nhật / Nâng cấp (Update)" -ForegroundColor White
+    Write-Host "     -> Nâng cấp app, giữ nguyên cấu hình và token/license" -ForegroundColor Gray
+    Write-Host "---------------------------------------------" -ForegroundColor Cyan
+    $modePick = Read-R1Input "Chọn chế độ [1-2, Mặc định: 1]"
+    $modePick = if ($modePick) { $modePick.Trim() } else { "1" }
+    $clean = 1
+    if ($modePick -eq "2") { $clean = 0 }
+
+    Do-ExecuteInstall -TargetIpParam "192.168.43.1" -CleanMode $clean
 }
 
 function Show-Menu {
@@ -1144,7 +1164,7 @@ function Show-Menu {
     Write-Host "     BỘ CÀI ĐẶT PHICOMM R1 (AI-BOX PLUS)     " -ForegroundColor Yellow
     Write-Host "---------------------------------------------" -ForegroundColor Cyan
     Write-Host "  1) Cài đặt trực tiếp qua WiFi Loa (AP Mode)" -ForegroundColor White
-    Write-Host "     -> Tải sẵn APK, kết nối WiFi loa và cài sạch ngay" -ForegroundColor Gray
+    Write-Host "     -> Tải sẵn APK, kết nối WiFi loa (Cài mới hoặc Cập nhật)" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  2) Cài đặt qua mạng LAN (Quét tìm IP loa)" -ForegroundColor White
     Write-Host "     -> Tùy chọn cài mới (gỡ app cũ) hoặc cập nhật (giữ token)" -ForegroundColor Gray
