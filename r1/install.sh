@@ -1108,6 +1108,41 @@ do_execute_install() {
     set_r1_install_progress 100 "Hoàn tất cài đặt!"
     complete_r1_install_progress
 
+    # 1. Trường hợp cài đặt trực tiếp qua WiFi của Loa (AP Mode: 192.168.43.1)
+    if [ "$target_ip" = "192.168.43.1" ]; then
+        echo ""
+        printf '%s=============================================%s\n' "$C_GREEN" "$C_RESET"
+        printf '%s        CÀI ĐẶT THÀNH CÔNG QUA AP MODE!            %s\n' "$C_YELLOW" "$C_RESET"
+        printf '%s=============================================%s\n' "$C_GREEN" "$C_RESET"
+        echo ">> Đã cài sạch và kích hoạt AIBoxPlus All-in-One."
+        echo ">> Dịch vụ AI & WebUI (8081) của loa đang chạy!"
+        echo ""
+        printf '%s>> BƯỚC TIẾP THEO: CẤU HÌNH WIFI CHO LOA%s\n' "$C_YELLOW" "$C_RESET"
+        printf '%s---------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
+        echo "  1. Giữ nguyên kết nối vào WiFi 'Phicomm_R1_xxxx'."
+        echo "  2. Mở trình duyệt (Safari / Chrome), truy cập:"
+        printf '%s     👉 http://192.168.43.1:8081%s\n' "$C_GREEN" "$C_RESET"
+        echo "  3. Chọn mạng WiFi nhà bạn, nhập mật khẩu và bấm Kết nối."
+        echo "  4. Loa sẽ tự kết nối WiFi nhà và tự động thoát AP."
+        printf '%s---------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
+
+        # Thử mở trình duyệt nếu hệ thống có hỗ trợ GUI
+        if command -v termux-open-url >/dev/null 2>&1; then
+            termux-open-url "http://192.168.43.1:8081" >/dev/null 2>&1 || true
+        elif command -v xdg-open >/dev/null 2>&1; then
+            xdg-open "http://192.168.43.1:8081" >/dev/null 2>&1 || true
+        elif command -v open >/dev/null 2>&1; then
+            open "http://192.168.43.1:8081" >/dev/null 2>&1 || true
+        fi
+
+        if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
+            echo ""
+            read_r1_input "Nhấn Enter để quay lại menu chính..." "" >/dev/null || true
+        fi
+        return 0
+    fi
+
+    # 2. Trường hợp cài đặt qua mạng LAN (giữ nguyên hỏi Reboot)
     echo ""
     printf '%s=============================================%s\n' "$C_GREEN" "$C_RESET"
     printf '%s                 CÀI ĐẶT THÀNH CÔNG!                      %s\n' "$C_YELLOW" "$C_RESET"
