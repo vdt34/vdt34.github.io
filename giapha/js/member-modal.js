@@ -93,6 +93,38 @@ export class MemberModalController {
       const spouseSel = document.getElementById('edit-member-spouse');
       const curSpouse = spouseSel ? spouseSel.value : null;
       this.populateSpouseSelector(curId || null, curSpouse, e.target.value);
+
+      if (e.target.value === 'female' && curSpouse) {
+        this.renderChildrenAssignment(curSpouse, curId || null);
+      } else {
+        const assignGroup = document.getElementById('children-assignment-group');
+        if (assignGroup) assignGroup.style.display = 'none';
+      }
+    });
+
+    // Father selection change updates Mother options (prioritizes father's wives)
+    document.getElementById('edit-member-father')?.addEventListener('change', (e) => {
+      const curFatherId = e.target.value;
+      const motherSel = document.getElementById('edit-member-mother');
+      const curMotherId = motherSel ? motherSel.value : null;
+      this.updateMotherOptionsForFather(curFatherId, curMotherId);
+    });
+
+    // Spouse selection change updates children assignment (for female members)
+    document.getElementById('edit-member-spouse')?.addEventListener('change', (e) => {
+      const curGender = document.getElementById('edit-member-gender')?.value;
+      const curId = document.getElementById('edit-member-id')?.value;
+      if (curGender === 'female') {
+        this.renderChildrenAssignment(e.target.value, curId || null);
+      }
+    });
+
+    // Toggle all children assignment checkboxes
+    document.getElementById('check-all-children')?.addEventListener('change', (e) => {
+      const isChecked = e.target.checked;
+      document.querySelectorAll('.child-assign-check').forEach(cb => {
+        cb.checked = isChecked;
+      });
     });
 
     // Delete Member from Drawer
@@ -263,20 +295,68 @@ export class MemberModalController {
 
   populateParentSelectors(fatherId = null, motherId = null) {
     const fatherSel = document.getElementById('edit-member-father');
-    const motherSel = document.getElementById('edit-member-mother');
-    if (!fatherSel || !motherSel) return;
+    if (!fatherSel) return;
 
     let fHtml = '<option value="">-- Không xác định cha --</option>';
-    let mHtml = '<option value="">-- Không xác định mẹ --</option>';
 
     for (const m of this.clanData.members) {
       if (m.gender === 'male') {
         fHtml += `<option value="${m.id}" ${m.id === fatherId ? 'selected' : ''}>Đời ${m.generation}: ${m.name}</option>`;
-      } else {
-        mHtml += `<option value="${m.id}" ${m.id === motherId ? 'selected' : ''}>Đời ${m.generation}: ${m.name}</option>`;
       }
     }
     fatherSel.innerHTML = fHtml;
+
+    // Dynamically populate mother options prioritized by Father's wives
+    this.updateMotherOptionsForFather(fatherId, motherId);
+  }
+
+  updateMotherOptionsForFather(fatherId, selectedMotherId = null) {
+    const motherSel = document.getElementById('edit-member-mother');
+    if (!motherSel) return;
+
+    let mHtml = '<option value="">-- Không xác định mẹ --</option>';
+
+    if (fatherId) {
+      const father = this.clanData.members.find(x => x.id === fatherId);
+      const wives = (father && father.spouses)
+        ? father.spouses.map(sid => this.clanData.members.find(x => x.id === sid)).filter(Boolean)
+        : [];
+
+      if (wives.length > 0) {
+        mHtml += `<optgroup label="💍 Vợ của ${father.name}:">`;
+        for (const w of wives) {
+          const isSelected = w.id === selectedMotherId || (!selectedMotherId && wives.length === 1);
+          mHtml += `<option value="${w.id}" ${isSelected ? 'selected' : ''}>${w.name} (Vợ của ${father.name})</option>`;
+        }
+        mHtml += `</optgroup>`;
+
+        mHtml += `<optgroup label="Người khác / Chưa có trong danh sách:">`;
+        for (const m of this.clanData.members) {
+          if (m.gender === 'female' && !wives.some(w => w.id === m.id)) {
+            mHtml += `<option value="${m.id}" ${m.id === selectedMotherId ? 'selected' : ''}>Đời ${m.generation || 1}: ${m.name}</option>`;
+          }
+        }
+        mHtml += `</optgroup>`;
+      } else {
+        mHtml += `<optgroup label="Chưa ghi nhận vợ của ${father ? father.name : 'người này'}:">`;
+        mHtml += `<option value="">(Chọn người mẹ khác hoặc thêm vợ cho cha trước)</option>`;
+        mHtml += `</optgroup>`;
+        mHtml += `<optgroup label="Tất cả phụ nữ khác:">`;
+        for (const m of this.clanData.members) {
+          if (m.gender === 'female') {
+            mHtml += `<option value="${m.id}" ${m.id === selectedMotherId ? 'selected' : ''}>Đời ${m.generation || 1}: ${m.name}</option>`;
+          }
+        }
+        mHtml += `</optgroup>`;
+      }
+    } else {
+      for (const m of this.clanData.members) {
+        if (m.gender === 'female') {
+          mHtml += `<option value="${m.id}" ${m.id === selectedMotherId ? 'selected' : ''}>Đời ${m.generation || 1}: ${m.name}</option>`;
+        }
+      }
+    }
+
     motherSel.innerHTML = mHtml;
   }
 
@@ -287,24 +367,44 @@ export class MemberModalController {
 
     let html = '<option value="">-- Chưa có phối ngẫu / Độc thân --</option>';
 
-    // Filter members: exclude self
-    const candidates = this.clanData.members.filter(m => m.id !== currentMemberId);
+    const currentMember = currentMemberId ? this.clanData.members.find(x => x.id === currentMemberId) : null;
+    const currentGen = currentMember?.generation || parseInt(document.getElementById('edit-member-generation')?.value, 10) || 1;
 
-    // Prioritize opposite gender, then sort by generation
-    candidates.sort((a, b) => {
-      const aOpp = a.gender !== currentGender ? -1 : 1;
-      const bOpp = b.gender !== currentGender ? -1 : 1;
-      if (aOpp !== bOpp) return aOpp - bOpp;
-      return (a.generation || 1) - (b.generation || 1);
+    // Filter candidates strictly according to Vietnamese genealogy:
+    // 1. Must be opposite gender
+    // 2. Must NOT be blood relatives (no shared ancestors, never parents, ancestors, descendants, siblings!)
+    // 3. Generation gap <= 1
+    // 4. Exclude members already married to someone else
+    const candidates = this.clanData.members.filter(m => {
+      if (m.id === currentMemberId) return false;
+      if (m.gender === currentGender) return false;
+
+      // Filter out blood relatives if kinship resolver is available
+      if (currentMemberId && this.kinship && this.kinship.isBloodRelative(currentMemberId, m.id)) {
+        return false;
+      }
+
+      // Generation gap filter: must be same generation (+-1)
+      const genDiff = Math.abs((m.generation || 1) - currentGen);
+      if (genDiff > 1) return false;
+
+      // If already married to someone else (and not current spouse), exclude
+      if (m.spouses && m.spouses.length > 0 && m.id !== selectedSpouseId) {
+        return false;
+      }
+
+      return true;
     });
 
-    for (const m of candidates) {
-      const isSelected = m.id === selectedSpouseId;
-      const genStr = m.generation ? `Đời ${m.generation}` : '';
-      const genderStr = m.gender === 'male' ? 'Nam' : 'Nữ';
-      const hasSpouse = m.spouses && m.spouses.length > 0;
-      const spouseNote = hasSpouse && !isSelected ? ' (Đã kết hôn)' : '';
-      html += `<option value="${m.id}" ${isSelected ? 'selected' : ''}>${genStr} • ${m.name} (${genderStr})${spouseNote}</option>`;
+    if (candidates.length > 0) {
+      for (const m of candidates) {
+        const isSelected = m.id === selectedSpouseId;
+        const genStr = m.generation ? `Đời ${m.generation}` : '';
+        const genderStr = m.gender === 'male' ? 'Nam' : 'Nữ';
+        html += `<option value="${m.id}" ${isSelected ? 'selected' : ''}>${genStr} • ${m.name} (${genderStr})</option>`;
+      }
+    } else {
+      html += `<option value="" disabled>-- Chưa có hồ sơ ngoài họ phù hợp (Bấm nút "➕ Thêm vợ/chồng mới" ở trên để nhập) --</option>`;
     }
 
     spouseSel.innerHTML = html;
@@ -312,11 +412,65 @@ export class MemberModalController {
     if (selectedSpouseId) {
       const sp = this.clanData.members.find(x => x.id === selectedSpouseId);
       if (hintText && sp) {
-        hintText.textContent = `Đang kết nối phối ngẫu với: ${sp.name} (Đời ${sp.generation || 1})`;
+        hintText.textContent = `Đang liên kết phối ngẫu với: ${sp.name} (Đời ${sp.generation || 1})`;
       }
     } else if (hintText) {
-      hintText.textContent = 'Chọn người phối ngẫu trong gia phả hoặc bấm "Thêm vợ/chồng mới".';
+      hintText.textContent = 'Phối ngẫu thường là người ngoài họ. Bấm "Thêm vợ/chồng mới" để tạo hồ sơ dâu/rể chuẩn xác.';
     }
+  }
+
+  renderChildrenAssignment(husbandId, currentMotherId = null) {
+    const group = document.getElementById('children-assignment-group');
+    const listEl = document.getElementById('children-assignment-list');
+    const hintEl = document.getElementById('children-assignment-hint');
+    if (!group || !listEl) return;
+
+    if (!husbandId) {
+      group.style.display = 'none';
+      return;
+    }
+
+    const husband = this.clanData.members.find(x => x.id === husbandId);
+    if (!husband) {
+      group.style.display = 'none';
+      return;
+    }
+
+    // Find all children whose father is this husband
+    const husbandChildren = this.clanData.members.filter(m => m.father_id === husband.id);
+    if (husbandChildren.length === 0) {
+      group.style.display = 'none';
+      return;
+    }
+
+    group.style.display = 'block';
+    if (hintEl) {
+      hintEl.textContent = `Người chồng (${husband.name}) hiện có ${husbandChildren.length} người con. Đánh dấu người con chung của người mẹ này (bỏ tích nếu là con riêng của vợ khác):`;
+    }
+
+    let itemsHtml = '';
+    for (const child of husbandChildren) {
+      const isHerChild = child.mother_id === currentMotherId;
+      const isUnassigned = !child.mother_id;
+      const isChecked = isHerChild || isUnassigned;
+
+      const otherMother = (!isHerChild && child.mother_id)
+        ? this.clanData.members.find(x => x.id === child.mother_id)
+        : null;
+
+      const note = otherMother
+        ? ` <span style="color: #b45309; font-size: 0.75rem;">(Hiện là con của bà: ${otherMother.name})</span>`
+        : (isUnassigned ? ' <span style="color: #15803d; font-size: 0.75rem;">(Chưa ghi nhận mẹ)</span>' : '');
+
+      itemsHtml += `
+        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer; padding: 3px 0; border-bottom: 1px dashed var(--border-color);">
+          <input type="checkbox" class="child-assign-check" value="${child.id}" ${isChecked ? 'checked' : ''}>
+          <span><strong>${child.name}</strong> (Đời ${child.generation || 1})${note}</span>
+        </label>
+      `;
+    }
+
+    listEl.innerHTML = itemsHtml;
   }
 
   openCreateModal(params = {}) {
@@ -350,6 +504,14 @@ export class MemberModalController {
     this.populateParentSelectors(params.fatherId, params.motherId);
     this.populateSpouseSelector(null, params.spouseId || null, params.gender || 'male');
 
+    // If adding a female spouse to an existing husband, show children assignment
+    if (params.gender === 'female' && params.spouseId) {
+      this.renderChildrenAssignment(params.spouseId, null);
+    } else {
+      const assignGroup = document.getElementById('children-assignment-group');
+      if (assignGroup) assignGroup.style.display = 'none';
+    }
+
     modal.style.display = 'flex';
   }
 
@@ -375,6 +537,14 @@ export class MemberModalController {
 
     this.populateParentSelectors(m.father_id, m.mother_id);
     this.populateSpouseSelector(m.id, curSpouseId, m.gender || 'male');
+
+    // If editing a female member with a spouse, check for children assignment
+    if (m.gender === 'female' && curSpouseId) {
+      this.renderChildrenAssignment(curSpouseId, m.id);
+    } else {
+      const assignGroup = document.getElementById('children-assignment-group');
+      if (assignGroup) assignGroup.style.display = 'none';
+    }
 
     modal.style.display = 'flex';
   }
@@ -499,6 +669,28 @@ export class MemberModalController {
         if (mother) {
           mother.children = mother.children || [];
           if (!mother.children.includes(newId)) mother.children.push(newId);
+        }
+      }
+    }
+
+    // Process Children Assignment if active (linking children to this mother)
+    const assignGroup = document.getElementById('children-assignment-group');
+    if (assignGroup && assignGroup.style.display !== 'none' && gender === 'female') {
+      const checkedBoxes = Array.from(document.querySelectorAll('.child-assign-check:checked')).map(cb => cb.value);
+      const allBoxes = Array.from(document.querySelectorAll('.child-assign-check')).map(cb => cb.value);
+
+      for (const childId of allBoxes) {
+        const ch = this.clanData.members.find(x => x.id === childId);
+        if (!ch) continue;
+        if (checkedBoxes.includes(childId)) {
+          ch.mother_id = memberObj.id;
+          memberObj.children = memberObj.children || [];
+          if (!memberObj.children.includes(childId)) {
+            memberObj.children.push(childId);
+          }
+        } else if (ch.mother_id === memberObj.id) {
+          ch.mother_id = null;
+          memberObj.children = (memberObj.children || []).filter(cid => cid !== childId);
         }
       }
     }

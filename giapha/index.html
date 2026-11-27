@@ -278,6 +278,24 @@
             <span id="spouse-hint-text" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;"></span>
           </div>
 
+          <!-- Dynamic Children Assignment (Gán con cái cho Mẹ / Vợ) -->
+          <div id="children-assignment-group" class="form-group" style="display: none; background: var(--bg-surface-hover); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+              <label class="form-label" style="margin-bottom: 0; font-weight: 700; color: var(--gold);">
+                👶 Gán con cái cho người mẹ này:
+              </label>
+              <label style="font-size: 0.75rem; cursor: pointer; display: flex; align-items: center; gap: 0.25rem;">
+                <input type="checkbox" id="check-all-children" checked> Chọn tất cả
+              </label>
+            </div>
+            <div id="children-assignment-hint" style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+              Người chồng này đã có con trong cây gia phả. Chọn những người con chung của mẹ này (bỏ tích nếu là con riêng của vợ khác):
+            </div>
+            <div id="children-assignment-list" style="display: flex; flex-direction: column; gap: 0.35rem; max-height: 140px; overflow-y: auto;">
+              <!-- Checkboxes injected by JS -->
+            </div>
+          </div>
+
           <div class="form-group">
             <label class="form-label" for="edit-member-title">Danh hiệu / Vai vế (ví dụ: Thủy Tổ, Trưởng Nam, Đích Tôn...)</label>
             <input type="text" id="edit-member-title" class="form-input" placeholder="Ví dụ: Trưởng tộc, Con gái út...">
@@ -407,6 +425,6 @@
   <div id="toast-container" class="toast-container"></div>
 
   <!-- Main JavaScript Bootstrap -->
-  <script type="module" src="js/app.js?v=1.4.0"></script>
+  <script type="module" src="js/app.js?v=1.5.0"></script>
 </body>
 </html>

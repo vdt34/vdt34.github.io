@@ -207,4 +207,45 @@ export class KinshipResolver {
       explanation: `Hai người có quan hệ trong gia phả Họ Vũ.`
     };
   }
+
+  /**
+   * Check whether two people are blood relatives (share an ancestor or direct lineage).
+   * In Vietnamese clan genealogy, blood relatives cannot be spouses.
+   */
+  isBloodRelative(id1, id2) {
+    if (!id1 || !id2) return false;
+    if (id1 === id2) return true;
+
+    const getAncestors = (id) => {
+      const ancestors = new Set();
+      const queue = [id];
+      while (queue.length > 0) {
+        const curId = queue.shift();
+        const cur = this.getMember(curId);
+        if (!cur) continue;
+        if (cur.father_id && !ancestors.has(cur.father_id)) {
+          ancestors.add(cur.father_id);
+          queue.push(cur.father_id);
+        }
+        if (cur.mother_id && !ancestors.has(cur.mother_id)) {
+          ancestors.add(cur.mother_id);
+          queue.push(cur.mother_id);
+        }
+      }
+      return ancestors;
+    };
+
+    const anc1 = getAncestors(id1);
+    const anc2 = getAncestors(id2);
+
+    // Direct ancestor/descendant
+    if (anc1.has(id2) || anc2.has(id1)) return true;
+
+    // Shared common ancestor (brother/sister, cousin, clan bloodline)
+    for (const a of anc1) {
+      if (anc2.has(a)) return true;
+    }
+
+    return false;
+  }
 }
