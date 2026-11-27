@@ -44,9 +44,12 @@ export class MemberModalController {
     document.getElementById('btn-drawer-add-child')?.addEventListener('click', () => {
       if (!this.currentMember) return;
       const isFather = this.currentMember.gender === 'male';
+      const spouseId = (this.currentMember.spouses && this.currentMember.spouses.length > 0)
+        ? this.currentMember.spouses[0]
+        : null;
       this.openCreateModal({
-        fatherId: isFather ? this.currentMember.id : null,
-        motherId: !isFather ? this.currentMember.id : null,
+        fatherId: isFather ? this.currentMember.id : spouseId,
+        motherId: !isFather ? this.currentMember.id : spouseId,
         generation: (this.currentMember.generation || 1) + 1
       });
     });
@@ -59,6 +62,33 @@ export class MemberModalController {
         gender: this.currentMember.gender === 'male' ? 'female' : 'male',
         generation: this.currentMember.generation || 1
       });
+    });
+
+    // Quick Add Spouse button from inside Edit Modal
+    document.getElementById('btn-quick-add-spouse')?.addEventListener('click', () => {
+      const curId = document.getElementById('edit-member-id')?.value;
+      const curGender = document.getElementById('edit-member-gender')?.value || 'male';
+      const curGen = parseInt(document.getElementById('edit-member-generation')?.value, 10) || 1;
+
+      if (!curId) {
+        alert('Vui lòng nhập họ tên và bấm "Lưu thành viên" trước, sau đó bấm thêm vợ/chồng cho thành viên này.');
+        return;
+      }
+
+      const spouseGender = curGender === 'male' ? 'female' : 'male';
+      this.openCreateModal({
+        spouseId: curId,
+        gender: spouseGender,
+        generation: curGen
+      });
+    });
+
+    // Gender change in modal updates spouse options
+    document.getElementById('edit-member-gender')?.addEventListener('change', (e) => {
+      const curId = document.getElementById('edit-member-id')?.value;
+      const spouseSel = document.getElementById('edit-member-spouse');
+      const curSpouse = spouseSel ? spouseSel.value : null;
+      this.populateSpouseSelector(curId || null, curSpouse, e.target.value);
     });
 
     // Delete Member from Drawer
@@ -141,11 +171,36 @@ export class MemberModalController {
     document.getElementById('drawer-parents').textContent = `${father ? father.name : '—'} / ${mother ? mother.name : '—'}`;
 
     // Spouses
-    const spouseNames = (m.spouses || []).map(sid => {
+    const spouseList = (m.spouses || []).map(sid => {
       const sp = this.clanData.members.find(x => x.id === sid);
-      return sp ? sp.name : sid;
+      return sp ? `<a href="#" class="drawer-spouse-link" data-id="${sp.id}" style="color: var(--gold); font-weight: 600; text-decoration: underline;">${sp.name}</a>` : sid;
     });
-    document.getElementById('drawer-spouses').textContent = spouseNames.length > 0 ? spouseNames.join(', ') : 'Chưa có thông tin';
+
+    const spouseContainer = document.getElementById('drawer-spouses');
+    if (spouseContainer) {
+      if (spouseList.length > 0) {
+        spouseContainer.innerHTML = `${spouseList.join(', ')} <button type="button" class="btn btn-outline btn-sm btn-drawer-inline-spouse" style="padding: 1px 6px; font-size: 0.75rem; margin-left: 0.5rem; color: #ec4899; border-color: #fbcfe8;">💍 Thêm Vợ/Chồng</button>`;
+      } else {
+        spouseContainer.innerHTML = `<span style="color: var(--text-muted);">Chưa có thông tin</span> <button type="button" class="btn btn-outline btn-sm btn-drawer-inline-spouse" style="padding: 1px 6px; font-size: 0.75rem; margin-left: 0.5rem; color: #ec4899; border-color: #fbcfe8;">💍 Thêm Vợ/Chồng</button>`;
+      }
+
+      spouseContainer.querySelectorAll('.drawer-spouse-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          this.open(link.getAttribute('data-id'));
+        });
+      });
+
+      spouseContainer.querySelectorAll('.btn-drawer-inline-spouse').forEach(btn => {
+        btn.addEventListener('click', () => {
+          this.openCreateModal({
+            spouseId: m.id,
+            gender: m.gender === 'male' ? 'female' : 'male',
+            generation: m.generation || 1
+          });
+        });
+      });
+    }
 
     // Children
     const childrenNames = (m.children || []).map(cid => {
@@ -219,9 +274,57 @@ export class MemberModalController {
     motherSel.innerHTML = mHtml;
   }
 
+  populateSpouseSelector(currentMemberId = null, selectedSpouseId = null, currentGender = 'male') {
+    const spouseSel = document.getElementById('edit-member-spouse');
+    const hintText = document.getElementById('spouse-hint-text');
+    if (!spouseSel) return;
+
+    let html = '<option value="">-- Chưa có phối ngẫu / Độc thân --</option>';
+
+    // Filter members: exclude self
+    const candidates = this.clanData.members.filter(m => m.id !== currentMemberId);
+
+    // Prioritize opposite gender, then sort by generation
+    candidates.sort((a, b) => {
+      const aOpp = a.gender !== currentGender ? -1 : 1;
+      const bOpp = b.gender !== currentGender ? -1 : 1;
+      if (aOpp !== bOpp) return aOpp - bOpp;
+      return (a.generation || 1) - (b.generation || 1);
+    });
+
+    for (const m of candidates) {
+      const isSelected = m.id === selectedSpouseId;
+      const genStr = m.generation ? `Đời ${m.generation}` : '';
+      const genderStr = m.gender === 'male' ? 'Nam' : 'Nữ';
+      const hasSpouse = m.spouses && m.spouses.length > 0;
+      const spouseNote = hasSpouse && !isSelected ? ' (Đã kết hôn)' : '';
+      html += `<option value="${m.id}" ${isSelected ? 'selected' : ''}>${genStr} • ${m.name} (${genderStr})${spouseNote}</option>`;
+    }
+
+    spouseSel.innerHTML = html;
+
+    if (selectedSpouseId) {
+      const sp = this.clanData.members.find(x => x.id === selectedSpouseId);
+      if (hintText && sp) {
+        hintText.textContent = `Đang kết nối phối ngẫu với: ${sp.name} (Đời ${sp.generation || 1})`;
+      }
+    } else if (hintText) {
+      hintText.textContent = 'Chọn người phối ngẫu trong gia phả hoặc bấm "Thêm vợ/chồng mới".';
+    }
+  }
+
   openCreateModal(params = {}) {
     const modal = document.getElementById('member-edit-modal');
-    document.getElementById('edit-modal-title').textContent = 'Thêm Thành Viên Mới';
+    const isSpouseCreation = Boolean(params.spouseId);
+    const spouseTarget = isSpouseCreation ? this.clanData.members.find(x => x.id === params.spouseId) : null;
+
+    if (isSpouseCreation && spouseTarget) {
+      const roleName = params.gender === 'female' ? 'Vợ' : 'Chồng';
+      document.getElementById('edit-modal-title').textContent = `💍 Thêm ${roleName} Cho: ${spouseTarget.name} (Đời ${spouseTarget.generation || 1})`;
+    } else {
+      document.getElementById('edit-modal-title').textContent = 'Thêm Thành Viên Mới';
+    }
+
     document.getElementById('edit-member-id').value = ''; // empty means new member
     document.getElementById('edit-member-name').value = '';
     document.getElementById('edit-member-gender').value = params.gender || 'male';
@@ -239,6 +342,7 @@ export class MemberModalController {
     this.pendingSpouseId = params.spouseId || null;
 
     this.populateParentSelectors(params.fatherId, params.motherId);
+    this.populateSpouseSelector(null, params.spouseId || null, params.gender || 'male');
 
     modal.style.display = 'flex';
   }
@@ -246,7 +350,7 @@ export class MemberModalController {
   openEditModal(m) {
     if (!m) return;
     const modal = document.getElementById('member-edit-modal');
-    document.getElementById('edit-modal-title').textContent = 'Chỉnh Sửa Hồ Sơ Thành Viên';
+    document.getElementById('edit-modal-title').textContent = `Chỉnh Sửa Hồ Sơ: ${m.name}`;
     document.getElementById('edit-member-id').value = m.id;
     document.getElementById('edit-member-name').value = m.name || '';
     document.getElementById('edit-member-gender').value = m.gender || 'male';
@@ -261,7 +365,10 @@ export class MemberModalController {
     document.getElementById('edit-member-bio').value = m.bio || '';
 
     this.pendingSpouseId = null;
+    const curSpouseId = (m.spouses && m.spouses.length > 0) ? m.spouses[0] : null;
+
     this.populateParentSelectors(m.father_id, m.mother_id);
+    this.populateSpouseSelector(m.id, curSpouseId, m.gender || 'male');
 
     modal.style.display = 'flex';
   }
@@ -278,6 +385,7 @@ export class MemberModalController {
     const bio = document.getElementById('edit-member-bio').value.trim();
     const father_id = document.getElementById('edit-member-father')?.value || null;
     const mother_id = document.getElementById('edit-member-mother')?.value || null;
+    const spouse_id = document.getElementById('edit-member-spouse')?.value || this.pendingSpouseId || null;
 
     const lDay = parseInt(document.getElementById('edit-member-lunar-day').value, 10);
     const lMonth = parseInt(document.getElementById('edit-member-lunar-month').value, 10);
@@ -309,6 +417,35 @@ export class MemberModalController {
       memberObj.mother_id = mother_id;
       if (death) memberObj.death = death;
       if (grave) memberObj.grave = grave;
+
+      // Update spouse bi-directional relationship
+      const oldSpouses = memberObj.spouses || [];
+      const oldSpouseId = oldSpouses.length > 0 ? oldSpouses[0] : null;
+
+      if (oldSpouseId && oldSpouseId !== spouse_id) {
+        // Unlink old spouse
+        memberObj.spouses = memberObj.spouses.filter(sid => sid !== oldSpouseId);
+        const oldSpouse = this.clanData.members.find(x => x.id === oldSpouseId);
+        if (oldSpouse && oldSpouse.spouses) {
+          oldSpouse.spouses = oldSpouse.spouses.filter(sid => sid !== id);
+        }
+      }
+
+      if (spouse_id) {
+        memberObj.spouses = memberObj.spouses || [];
+        if (!memberObj.spouses.includes(spouse_id)) {
+          memberObj.spouses.push(spouse_id);
+        }
+        const newSpouse = this.clanData.members.find(x => x.id === spouse_id);
+        if (newSpouse) {
+          newSpouse.spouses = newSpouse.spouses || [];
+          if (!newSpouse.spouses.includes(id)) {
+            newSpouse.spouses.push(id);
+          }
+        }
+      } else if (!spouse_id && oldSpouseId) {
+        memberObj.spouses = [];
+      }
     } else {
       // Create new
       const newId = `p${Date.now().toString().slice(-6)}`;
@@ -326,18 +463,20 @@ export class MemberModalController {
         mother_id,
         death,
         grave,
-        spouses: this.pendingSpouseId ? [this.pendingSpouseId] : [],
+        spouses: spouse_id ? [spouse_id] : [],
         children: []
       };
 
       this.clanData.members.push(memberObj);
 
-      // Link to spouse
-      if (this.pendingSpouseId) {
-        const spouse = this.clanData.members.find(x => x.id === this.pendingSpouseId);
+      // Link to spouse bi-directionally
+      if (spouse_id) {
+        const spouse = this.clanData.members.find(x => x.id === spouse_id);
         if (spouse) {
           spouse.spouses = spouse.spouses || [];
-          if (!spouse.spouses.includes(newId)) spouse.spouses.push(newId);
+          if (!spouse.spouses.includes(newId)) {
+            spouse.spouses.push(newId);
+          }
         }
       }
 

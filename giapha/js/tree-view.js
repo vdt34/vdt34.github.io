@@ -221,12 +221,14 @@ export class TreeVisualizer {
         for (const spId of m.spouses) {
           if (spId > m.id && positions.has(spId)) {
             const spPos = positions.get(spId);
-            const x1 = Math.min(pos.x + pos.width, spPos.x + spPos.width);
-            const x2 = Math.max(pos.x, spPos.x);
-            const midY = pos.y + pos.height / 2;
+            const leftCard = pos.x <= spPos.x ? pos : spPos;
+            const rightCard = pos.x <= spPos.x ? spPos : pos;
+            const x1 = leftCard.x + leftCard.width;
+            const x2 = rightCard.x;
+            const midY = (leftCard.y + leftCard.height / 2 + rightCard.y + rightCard.height / 2) / 2;
             linksSvg += `
-              <line x1="${pos.x + pos.width}" y1="${midY}" x2="${spPos.x}" y2="${midY}"
-                    stroke="#ec4899" stroke-width="2" stroke-dasharray="4" opacity="0.75" />
+              <line x1="${x1}" y1="${midY}" x2="${x2}" y2="${midY}"
+                    stroke="#ec4899" stroke-width="2.5" stroke-dasharray="4,4" opacity="0.85" />
             `;
           }
         }

@@ -257,6 +257,20 @@
             </div>
           </div>
 
+          <!-- Spouse (Vợ / Chồng) Selector -->
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+              <label class="form-label" for="edit-member-spouse" style="margin-bottom: 0;">💍 Phối ngẫu (Vợ / Chồng)</label>
+              <button type="button" id="btn-quick-add-spouse" class="btn btn-outline btn-sm" style="font-size: 0.75rem; padding: 0.15rem 0.5rem; color: var(--gold);" title="Thêm nhanh hồ sơ vợ/chồng mới">
+                ➕ Thêm vợ/chồng mới
+              </button>
+            </div>
+            <select id="edit-member-spouse" class="form-select">
+              <!-- Injected by JS -->
+            </select>
+            <span id="spouse-hint-text" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;"></span>
+          </div>
+
           <div class="form-group">
             <label class="form-label" for="edit-member-title">Danh hiệu / Vai vế (ví dụ: Thủy Tổ, Trưởng Nam, Đích Tôn...)</label>
             <input type="text" id="edit-member-title" class="form-input" placeholder="Ví dụ: Trưởng tộc, Con gái út...">
@@ -342,6 +356,6 @@
   <div id="toast-container" class="toast-container"></div>
 
   <!-- Main JavaScript Bootstrap -->
-  <script type="module" src="js/app.js?v=1.1.0"></script>
+  <script type="module" src="js/app.js?v=1.2.0"></script>
 </body>
 </html>
