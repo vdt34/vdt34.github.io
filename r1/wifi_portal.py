@@ -3,7 +3,7 @@
 """
 Mini Web Portal + API Proxy cho loa Phicomm R1 (chạy trên iPhone/iSH, Linux, macOS)
 
-Phục vụ wifi.html và chuyển tiếp API quét/cài Wi-Fi tới loa (mặc định 192.168.43.1:8989).
+Phục vụ wifi.html và chuyển tiếp API quét/cài Wi-Fi tới loa (mặc định 192.168.43.1:8081).
 
 Điểm chính:
   - ThreadingHTTPServer, mọi response đều có Content-Length + Connection: close
@@ -18,7 +18,7 @@ Phục vụ wifi.html và chuyển tiếp API quét/cài Wi-Fi tới loa (mặc 
 
 Biến môi trường (tuỳ chọn):
   R1_PORT          cổng web (mặc định 8000; bận thì thử cổng kế tiếp)
-  R1_TARGET        địa chỉ loa (mặc định http://192.168.43.1:8989)
+  R1_TARGET        địa chỉ loa (mặc định http://192.168.43.1:8081)
   R1_HTML          đường dẫn wifi.html (mặc định: cạnh file này)
   R1_SCAN_TIMEOUT  timeout quét Wi-Fi, giây (mặc định 4)
   R1_IDLE          số giây không hoạt động thì tự thoát (mặc định 300)
@@ -57,7 +57,7 @@ def _env_int(name, default):
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PORT = _env_int("R1_PORT", 8000)
-TARGET_AP = os.environ.get("R1_TARGET", "http://192.168.43.1:8989").strip().rstrip("/")
+TARGET_AP = os.environ.get("R1_TARGET", "http://192.168.43.1:8081").strip().rstrip("/")
 HTML_FILE = os.environ.get("R1_HTML") or os.path.join(SCRIPT_DIR, "wifi.html")
 FALLBACK_HTML = "/tmp/r1_cache/wifi.html"
 

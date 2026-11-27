@@ -313,7 +313,7 @@ Sec-WebSocket-Version: 13
 }
 
 # ------------------------------------------------------------------------------
-# 3. CẤU HÌNH WIFI (HỖ TRỢ CỔNG 8081 VÀ 8989)
+# 3. CẤU HÌNH WIFI (HỖ TRỢ CỔNG 8081 VÀ 8089)
 # ------------------------------------------------------------------------------
 send_wifi_config() {
     target_ip="$1"
@@ -322,13 +322,12 @@ send_wifi_config() {
     secure="$4"
     [ -z "$secure" ] && secure="WPA"
 
-    esc_ssid=$(printf '%s' "$ssid" | sed 's/\/\\/g; s/"/\"/g')
-    esc_pass=$(printf '%s' "$pass" | sed 's/\/\\/g; s/"/\"/g')
-    payload="{"ssid":"$esc_ssid","secure":"$secure","password":"$esc_pass","mac":""}"
+    esc_ssid=$(printf '%s' "$ssid" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    esc_pass=$(printf '%s' "$pass" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    payload="{\"ssid\":\"$esc_ssid\",\"secure\":\"$secure\",\"password\":\"$esc_pass\",\"mac\":\"\"}"
 
     if [ "$R1_DRYRUN" = "1" ]; then
-        printf '%s   [DRY-RUN] Đã gửi cấu hình WiFi SSID='''%s''' tới http://%s:8081 & 8989%s
-' "$C_YELLOW" "$ssid" "$target_ip" "$C_RESET"
+        printf '%s   [DRY-RUN] Đã gửi cấu hình WiFi SSID='\''%s'\'' tới http://%s:8081 & 8089%s\n' "$C_YELLOW" "$ssid" "$target_ip" "$C_RESET"
         return 0
     fi
 
@@ -336,23 +335,24 @@ send_wifi_config() {
     if test_r1_tcp_port "$target_ip" 8081 2; then
         target_ports="8081"
     fi
-    if test_r1_tcp_port "$target_ip" 8989 2; then
-        target_ports="$target_ports 8989"
+    if test_r1_tcp_port "$target_ip" 8089 2; then
+        target_ports="$target_ports 8089"
     fi
-    [ -z "$target_ports" ] && target_ports="8081 8989"
+    [ -z "$target_ports" ] && target_ports="8081 8089"
 
     for p in $target_ports; do
-        printf '%s>> Đang gửi cấu hình tới http://%s:%s/api/configwifi...%s
-' "$C_CYAN" "$target_ip" "$p" "$C_RESET"
+        printf '%s>> Đang gửi cấu hình tới http://%s:%s/api/configwifi...%s\n' "$C_CYAN" "$target_ip" "$p" "$C_RESET"
         resp=""
         if command -v curl >/dev/null 2>&1; then
-            resp=$(curl -s -m 6 -X POST "http://$target_ip:$p/api/configwifi"                  -H "Content-Type: application/json"                  -d "$payload" 2>/dev/null || true)
+            resp=$(curl -s -m 6 -X POST "http://$target_ip:$p/api/configwifi" \
+                 -H "Content-Type: application/json" \
+                 -d "$payload" 2>/dev/null || true)
         elif command -v wget >/dev/null 2>&1; then
-            resp=$(wget -q -O- --timeout=6 --header="Content-Type: application/json"                  --post-data="$payload" "http://$target_ip:$p/api/configwifi" 2>/dev/null || true)
+            resp=$(wget -q -O- --timeout=6 --header="Content-Type: application/json" \
+                 --post-data="$payload" "http://$target_ip:$p/api/configwifi" 2>/dev/null || true)
         fi
         if printf '%s' "$resp" | grep -qi 'success.*true'; then
-            printf '%s   [OK] Loa đã xác nhận lưu cấu hình WiFi qua cổng %s!%s
-' "$C_GREEN" "$p" "$C_RESET"
+            printf '%s   [OK] Loa đã xác nhận lưu cấu hình WiFi qua cổng %s!%s\n' "$C_GREEN" "$p" "$C_RESET"
             break
         fi
     done
@@ -361,39 +361,37 @@ send_wifi_config() {
 
 run_wifi_config() {
     echo ""
-    printf '%s==========================================================%s
-' "$C_CYAN" "$C_RESET"
-    printf '%s  CẤU HÌNH WIFI CHO LOA (CHẾ ĐỘ AP 192.168.43.1)%s
-' "$C_YELLOW" "$C_RESET"
-    printf '%s==========================================================%s
-' "$C_CYAN" "$C_RESET"
+    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
+    printf '%s  CẤU HÌNH WIFI CHO LOA (CHẾ ĐỘ AP 192.168.43.1)%s\n' "$C_YELLOW" "$C_RESET"
+    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
     echo " Hướng dẫn chuẩn bị:"
     echo "  1. Loa vừa reset sẽ phát mạng WiFi 'Phicomm_R1_xxxx'."
     echo "  2. Trên Điện thoại / Máy tính: Vào Cài đặt WiFi -> Kết nối 'Phicomm_R1_xxxx'."
-    printf '%s==========================================================%s
-' "$C_CYAN" "$C_RESET"
+    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
 
     if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
         read_r1_input "Nhấn Enter khi đã kết nối WiFi của loa: " "" >/dev/null 2>&1 || true
     fi
 
     echo ""
-    printf '%s>> Đang kiểm tra kết nối tới loa (192.168.43.1:8081 / 8989)...%s
-' "$C_CYAN" "$C_RESET"
-    connected_api=0
-    if test_r1_tcp_port "192.168.43.1" 8081 2 || test_r1_tcp_port "192.168.43.1" 8989 2; then
-        connected_api=1
+    printf '%s>> Đang kiểm tra kết nối tới loa (192.168.43.1:8081 / 8089)...%s\n' "$C_CYAN" "$C_RESET"
+    port_8081_open=0
+    port_8089_open=0
+    if test_r1_tcp_port "192.168.43.1" 8081 2; then
+        port_8081_open=1
+    fi
+    if test_r1_tcp_port "192.168.43.1" 8089 2; then
+        port_8089_open=1
     fi
 
-    if [ "$connected_api" = "1" ]; then
-        printf '%s   [OK] Đã kết nối được API của loa.%s
-' "$C_GREEN" "$C_RESET"
+    if [ "$port_8081_open" = "1" ]; then
+        printf '%s   [OK] Đã kết nối API loa qua cổng 8081 (AIBoxPlus).%s\n' "$C_GREEN" "$C_RESET"
+    elif [ "$port_8089_open" = "1" ]; then
+        printf '%s   [OK] Đã kết nối API loa qua cổng 8089 (Daemon gốc).%s\n' "$C_GREEN" "$C_RESET"
     else
         if [ "$R1_DRYRUN" != "1" ]; then
-            printf '%s   [CẢNH BÁO] Chưa kết nối được cổng 8081/8989 trên 192.168.43.1.%s
-' "$C_YELLOW" "$C_RESET"
-            printf '%s   Kiểm tra: Thiết bị đã chọn WiFi Phicomm_R1 chưa? Loa còn phát AP không?%s
-' "$C_GRAY" "$C_RESET"
+            printf '%s   [CẢNH BÁO] Chưa kết nối được cổng 8081/8089 trên 192.168.43.1.%s\n' "$C_YELLOW" "$C_RESET"
+            printf '%s   Kiểm tra: Thiết bị đã chọn WiFi Phicomm_R1 chưa? Loa còn phát AP không?%s\n' "$C_GRAY" "$C_RESET"
             if [ "$ASSUME_YES" != "1" ]; then
                 cont=$(read_r1_input "   Vẫn tiếp tục gửi cấu hình WiFi? [y/N]: " "n")
                 case "$(printf '%s' "$cont" | tr '[:upper:]' '[:lower:]')" in
@@ -404,35 +402,105 @@ run_wifi_config() {
         fi
     fi
 
-    echo ""
-    echo "Nhập thông tin mạng WiFi nhà để loa kết nối:"
-    printf '%s----------------------------------------------------------%s
-' "$C_CYAN" "$C_RESET"
     ssid=""
     pass=""
+    secure="WPA"
+
     if [ "$ASSUME_YES" = "1" ] || [ "$R1_DRYRUN" = "1" ]; then
         ssid="MyWiFi"
         pass="12345678"
     else
+        scanned_count=0
+        scan_file="/tmp/r1_cache/scanned_wifi.txt"
+        mkdir -p "/tmp/r1_cache" 2>/dev/null || true
+        rm -f "$scan_file" 2>/dev/null || true
+
+        py_cmd=$(find_python)
+        if [ "$port_8081_open" = "1" ] && [ -n "$py_cmd" ]; then
+            printf '\n%s>> Đang quét các mạng WiFi xung quanh loa...%s\n' "$C_CYAN" "$C_RESET"
+            raw_scan=""
+            if command -v curl >/dev/null 2>&1; then
+                raw_scan=$(curl -s -m 5 "http://192.168.43.1:8081/api/getwifilist" 2>/dev/null || true)
+            elif command -v wget >/dev/null 2>&1; then
+                raw_scan=$(wget -q -O- --timeout=5 "http://192.168.43.1:8081/api/getwifilist" 2>/dev/null || true)
+            fi
+
+            if [ -n "$raw_scan" ]; then
+                "$py_cmd" -c '
+import sys, json
+try:
+    data = json.loads(sys.argv[1])
+    nets = data.get("networks", [])
+    seen = set()
+    uniq = []
+    for n in nets:
+        s = (n.get("ssid") or "").strip()
+        if s and s not in seen:
+            seen.add(s)
+            uniq.append((s, n.get("level", -100), bool(n.get("is_secure", True))))
+    with open(sys.argv[2], "w", encoding="utf-8") as f:
+        for s, lvl, sec in uniq[:15]:
+            f.write(f"{s}\t{lvl}\t{sec}\n")
+except Exception:
+    pass
+' "$raw_scan" "$scan_file" 2>/dev/null || true
+            fi
+        fi
+
+        if [ -s "$scan_file" ]; then
+            scanned_count=$(wc -l < "$scan_file" | tr -d ' ')
+            printf '%s>> Tìm thấy %s mạng WiFi xung quanh loa:%s\n' "$C_GREEN" "$scanned_count" "$C_RESET"
+            printf '%s----------------------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
+            idx=1
+            while IFS="$(printf '\t')" read -r net_ssid net_level net_sec || [ -n "$net_ssid" ]; do
+                [ -z "$net_ssid" ] && continue
+                sec_text="Khóa"
+                [ "$net_sec" = "False" ] && sec_text="Mở"
+                printf '  [%2d] %-28s (%s dBm) [%s]\n' "$idx" "$net_ssid" "$net_level" "$sec_text"
+                idx=$((idx + 1))
+            done < "$scan_file"
+            printf '  [ 0] Nhập tên WiFi thủ công (nếu WiFi bị ẩn)\n'
+            printf '%s----------------------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
+
+            pick=$(read_r1_input ">> Chọn số thứ tự WiFi (1-$scanned_count) hoặc 0 để tự nhập [Mặc định: 1]: " "1")
+            pick=$(printf '%s' "$pick" | tr -d ' ')
+            if [ "$pick" -ge 1 ] 2>/dev/null && [ "$pick" -le "$scanned_count" ] 2>/dev/null; then
+                line_picked=$(sed -n "${pick}p" "$scan_file")
+                ssid=$(printf '%s' "$line_picked" | cut -f1)
+                sec_val=$(printf '%s' "$line_picked" | cut -f3)
+                if [ "$sec_val" = "False" ]; then
+                    secure="INSECURE"
+                else
+                    secure="WPA"
+                fi
+                printf '%s   -> Đã chọn mạng: %s (%s)%s\n' "$C_GREEN" "$ssid" "$secure" "$C_RESET"
+            fi
+        fi
+
         while [ -z "$ssid" ]; do
+            echo ""
+            echo "Nhập thông tin mạng WiFi nhà để loa kết nối:"
+            printf '%s----------------------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
             ssid=$(read_r1_input ">> Tên WiFi nhà (SSID, phân biệt HOA/thường): " "")
             if [ -z "$ssid" ]; then
-                printf '%s   [!] Tên WiFi không được để trống!%s
-' "$C_YELLOW" "$C_RESET"
+                printf '%s   [!] Tên WiFi không được để trống!%s\n' "$C_YELLOW" "$C_RESET"
             fi
         done
-        pass=$(read_r1_input ">> Mật khẩu WiFi (nhấn Enter nếu WiFi không có pass): " "")
-    fi
 
-    secure="WPA"
-    if [ -z "$pass" ]; then
-        secure="INSECURE"
-        echo "   -> Chế độ WiFi không mật khẩu (INSECURE)"
-    else
-        pass_len=$(printf '%s' "$pass" | wc -c)
-        if [ "$pass_len" -lt 8 ]; then
-            printf '%s   [!] CẢNH BÁO: Mật khẩu WiFi thông thường từ 8 ký tự trở lên!%s
-' "$C_YELLOW" "$C_RESET"
+        if [ "$secure" = "INSECURE" ]; then
+            echo "   -> Mạng không có mật khẩu (INSECURE)"
+            pass=""
+        else
+            pass=$(read_r1_input ">> Mật khẩu WiFi (nhấn Enter nếu WiFi không có pass): " "")
+            if [ -z "$pass" ]; then
+                secure="INSECURE"
+                echo "   -> Chế độ WiFi không mật khẩu (INSECURE)"
+            else
+                pass_len=$(printf '%s' "$pass" | wc -c)
+                if [ "$pass_len" -lt 8 ]; then
+                    printf '%s   [!] CẢNH BÁO: Mật khẩu WiFi thông thường từ 8 ký tự trở lên!%s\n' "$C_YELLOW" "$C_RESET"
+                fi
+            fi
         fi
     fi
 
@@ -440,19 +508,15 @@ run_wifi_config() {
     send_wifi_config "192.168.43.1" "$ssid" "$pass" "$secure"
 
     echo ""
-    printf '%s==========================================================%s
-' "$C_GREEN" "$C_RESET"
-    printf '%s            ĐÃ GỬI CẤU HÌNH WIFI THÀNH CÔNG!              %s
-' "$C_YELLOW" "$C_RESET"
-    printf '%s==========================================================%s
-' "$C_GREEN" "$C_RESET"
+    printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
+    printf '%s            ĐÃ GỬI CẤU HÌNH WIFI CHO LOA!                 %s\n' "$C_YELLOW" "$C_RESET"
+    printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
     echo " THÔNG BÁO QUAN TRỌNG:"
-    echo "  1. Loa đang kết nối WiFi nhà, chờ khoảng 15-20 giây sẽ nhận IP mới."
-    echo "  2. Hãy chuyển Điện thoại / Máy tính về lại mạng WiFi nhà."
-    printf '%s  3. Sau đó quay lại menu để quét tìm IP và quản lý loa.%s
-' "$C_CYAN" "$C_RESET"
-    printf '%s==========================================================%s
-' "$C_GREEN" "$C_RESET"
+    printf '  1. Loa đang chuyển sang kết nối WiFi '\''%s'\''.\n' "$ssid"
+    printf '  2. Hãy chuyển Điện thoại / Máy tính về lại mạng WiFi nhà '\''%s'\''.\n' "$ssid"
+    echo "  3. Chờ loa khởi động lại và nhận IP mới (khoảng 15-20s)."
+    printf '%s  4. Sau đó bạn có thể chọn mục [4] trong menu để quét tìm IP mới của loa.%s\n' "$C_CYAN" "$C_RESET"
+    printf '%s==========================================================%s\n' "$C_GREEN" "$C_RESET"
 
     if [ "$ASSUME_YES" != "1" ] && [ "$R1_DRYRUN" != "1" ]; then
         echo ""
@@ -460,7 +524,6 @@ run_wifi_config() {
     fi
     return 0
 }
-
 # ------------------------------------------------------------------------------
 # 4. DÒ MẠNG & QUÉT TÌM IP LOA (CỔNG 5555 / 8080)
 # ------------------------------------------------------------------------------

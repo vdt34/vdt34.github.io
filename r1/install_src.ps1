@@ -1,4 +1,4 @@
-# ==============================================================================
+﻿# ==============================================================================
 # BỘ CÀI ĐẶT PHICOMM R1 SIÊU TỐC - WINDOWS POWERSHELL
 # Tự động cấu hình WiFi AP, quét tìm loa trong LAN, dọn sạch file cũ, giao diện UTF-8
 # Hỗ trợ WiFi AP, Cài đặt qua AP Mode, Cài đặt qua LAN, Quét loa, ADB ổn định
@@ -265,7 +265,7 @@ function Revive-Speaker {
     return $wsWoke
 }
 
-# 3. Cấu hình WiFi cho loa qua AP API (Hỗ trợ cả cổng 8081 và 8989)
+# 3. Cấu hình WiFi cho loa qua AP API (Hỗ trợ cả cổng 8081 và 8089)
 function Send-WifiConfig {
     param(
         [string]$TargetIp = "192.168.43.1",
@@ -283,21 +283,22 @@ function Send-WifiConfig {
     $json = $bodyObj | ConvertTo-Json -Compress
 
     if ($DryRun -or $env:R1_DRYRUN -eq "1") {
-        Write-Host "   [DRY-RUN] Đã gửi cấu hình WiFi SSID='$Ssid' tới http://$($TargetIp):8081 & 8989" -ForegroundColor Yellow
+        Write-Host "   [DRY-RUN] Đã gửi cấu hình WiFi SSID='$Ssid' tới http://$($TargetIp):8081 và 8089" -ForegroundColor Yellow
         return $true
     }
 
     $targetPorts = @()
-    if (Test-R1TcpPort -HostName $TargetIp -Port 8081 -TimeoutMilliseconds 2000) {
+    if (Test-R1TcpPort -HostName $TargetIp -Port 8081 -TimeoutMilliseconds 1500) {
         $targetPorts += 8081
     }
-    if (Test-R1TcpPort -HostName $TargetIp -Port 8989 -TimeoutMilliseconds 2000) {
-        $targetPorts += 8989
+    if (Test-R1TcpPort -HostName $TargetIp -Port 8089 -TimeoutMilliseconds 1500) {
+        $targetPorts += 8089
     }
     if ($targetPorts.Count -eq 0) {
-        $targetPorts = @(8081, 8989)
+        $targetPorts = @(8081, 8089)
     }
 
+    $success = $false
     foreach ($p in $targetPorts) {
         try {
             Write-Host ">> Đang gửi cấu hình tới http://$($TargetIp):$p/api/configwifi..." -ForegroundColor Cyan
@@ -307,14 +308,21 @@ function Send-WifiConfig {
             $respStr = ($resp | Out-String)
             if ($respStr -match '(?i)success.*true' -or ($resp.success -eq $true)) {
                 Write-Host "   [OK] Loa đã xác nhận lưu cấu hình WiFi qua cổng $p!" -ForegroundColor Green
+                $success = $true
                 break
             }
         }
         catch {
-            # Loa có thể ngắt kết nối ngay để switch mạng
+            # Loa có thể ngắt AP ngay sau khi nhận cấu hình để switch mạng
+            $exMsg = $_.Exception.Message
+            if ($exMsg -match 'timed out' -or $exMsg -match 'closed' -or $exMsg -match 'reset') {
+                Write-Host "   [OK] Loa đã tiếp nhận cấu hình và đang chuyển mạng WiFi qua cổng $p!" -ForegroundColor Green
+                $success = $true
+                break
+            }
         }
     }
-    return $true
+    return $success
 }
 
 function Run-WifiConfig {
@@ -331,20 +339,21 @@ function Run-WifiConfig {
         Read-Host "Nhấn Enter khi đã kết nối WiFi của loa"
     }
 
-    # Kiểm tra cổng 8081 hoặc 8989 trên loa AP
+    # Kiểm tra cổng 8081 hoặc 8089 trên loa AP
     Write-Host ""
-    Write-Host ">> Đang kiểm tra kết nối tới loa (192.168.43.1:8081 / 8989)..." -ForegroundColor Cyan
-    $connectedApi = $false
-    if ((Test-R1TcpPort -HostName "192.168.43.1" -Port 8081 -TimeoutMilliseconds 2000) -or (Test-R1TcpPort -HostName "192.168.43.1" -Port 8989 -TimeoutMilliseconds 2000)) {
-        $connectedApi = $true
-    }
+    Write-Host ">> Đang kiểm tra kết nối tới loa (192.168.43.1:8081 / 8089)..." -ForegroundColor Cyan
+    $port8081Open = Test-R1TcpPort -HostName "192.168.43.1" -Port 8081 -TimeoutMilliseconds 2000
+    $port8089Open = Test-R1TcpPort -HostName "192.168.43.1" -Port 8089 -TimeoutMilliseconds 2000
 
-    if ($connectedApi) {
-        Write-Host "   [OK] Đã kết nối được API của loa." -ForegroundColor Green
+    if ($port8081Open) {
+        Write-Host "   [OK] Đã kết nối API loa qua cổng 8081 (AIBoxPlus)." -ForegroundColor Green
+    }
+    elseif ($port8089Open) {
+        Write-Host "   [OK] Đã kết nối API loa qua cổng 8089 (Daemon gốc)." -ForegroundColor Green
     }
     else {
         if (-not $DryRun -and $env:R1_DRYRUN -ne "1") {
-            Write-Host "   [CẢNH BÁO] Chưa kết nối được cổng 8081/8989 trên 192.168.43.1." -ForegroundColor Yellow
+            Write-Host "   [CẢNH BÁO] Chưa kết nối được cổng 8081/8089 trên 192.168.43.1." -ForegroundColor Yellow
             Write-Host "   Kiểm tra: Máy tính đã chọn WiFi Phicomm_R1 chưa? Loa còn phát AP không?" -ForegroundColor Gray
             if (-not $Yes) {
                 $cont = Read-Host "   Vẫn tiếp tục gửi cấu hình WiFi? [y/N]"
@@ -353,33 +362,89 @@ function Run-WifiConfig {
         }
     }
 
-    Write-Host ""
-    Write-Host "Nhập thông tin mạng WiFi nhà để loa kết nối:" -ForegroundColor White
-    Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
     $ssid = ""
     $pass = ""
+    $secure = "WPA"
+
     if ($Yes -or $DryRun -or $env:R1_DRYRUN -eq "1") {
         $ssid = "MyWiFi"
         $pass = "12345678"
     }
     else {
+        # Thử quét danh sách WiFi từ loa nếu cổng 8081 mở
+        $scannedList = @()
+        if ($port8081Open) {
+            Write-Host ""
+            Write-Host ">> Đang quét các mạng WiFi xung quanh loa..." -ForegroundColor Cyan
+            try {
+                $old = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
+                $scanResp = Invoke-RestMethod -Uri "http://192.168.43.1:8081/api/getwifilist" -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
+                $ProgressPreference = $old
+                if ($scanResp -and $scanResp.networks) {
+                    $seen = @{}
+                    foreach ($net in $scanResp.networks) {
+                        $sName = [string]$net.ssid
+                        if ($sName -and $sName.Trim() -ne "" -and -not $seen.ContainsKey($sName)) {
+                            $seen[$sName] = $true
+                            $scannedList += $net
+                        }
+                    }
+                }
+            }
+            catch {}
+        }
+
+        if ($scannedList.Count -gt 0) {
+            Write-Host ">> Tìm thấy $($scannedList.Count) mạng WiFi xung quanh loa:" -ForegroundColor Green
+            Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
+            $maxShow = [Math]::Min(15, $scannedList.Count)
+            for ($i = 0; $i -lt $maxShow; $i++) {
+                $net = $scannedList[$i]
+                $secLabel = if ($net.is_secure) { "Khóa" } else { "Mở" }
+                $padIdx = (" " + ($i + 1)).Substring((" " + ($i + 1)).Length - 2)
+                $lvlStr = "$($net.level) dBm"
+                Write-Host "  [$padIdx] $($net.ssid.PadRight(28)) ($lvlStr) [$secLabel]" -ForegroundColor White
+            }
+            Write-Host "  [ 0] Nhập tên WiFi thủ công (nếu WiFi bị ẩn)" -ForegroundColor Gray
+            Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
+
+            $pickStr = Read-Host ">> Chọn số thứ tự WiFi (1-$maxShow) hoặc 0 để tự nhập [Mặc định: 1]"
+            $pickStr = if ($pickStr) { $pickStr.Trim() } else { "1" }
+            if ($pickStr -match '^\d+$' -and [int]$pickStr -ge 1 -and [int]$pickStr -le $maxShow) {
+                $selectedNet = $scannedList[[int]$pickStr - 1]
+                $ssid = $selectedNet.ssid
+                $secure = if ($selectedNet.is_secure) { "WPA" } else { "INSECURE" }
+                Write-Host "   -> Đã chọn mạng: $ssid ($secure)" -ForegroundColor Green
+            }
+        }
+
+        # Nếu chưa chọn được từ danh sách (hoặc chọn 0 / quét không ra)
         while (-not $ssid) {
+            Write-Host ""
+            Write-Host "Nhập thông tin mạng WiFi nhà để loa kết nối:" -ForegroundColor White
+            Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
             $ssid = Read-Host ">> Tên WiFi nhà (SSID, phân biệt HOA/thường)"
             if (-not $ssid) {
                 Write-Host "   [!] Tên WiFi không được để trống!" -ForegroundColor Yellow
             }
         }
-        $pass = Read-Host ">> Mật khẩu WiFi (nhấn Enter nếu WiFi không có pass)"
-    }
 
-    $secure = "WPA"
-    if (-not $pass -or $pass -eq "") {
-        $secure = "INSECURE"
-        Write-Host "   -> Chế độ WiFi không mật khẩu (INSECURE)" -ForegroundColor White
-    }
-    else {
-        if ($pass.Length -lt 8) {
-            Write-Host "   [!] CẢNH BÁO: Mật khẩu WiFi thông thường từ 8 ký tự trở lên!" -ForegroundColor Yellow
+        # Nhập mật khẩu nếu mạng có bảo mật
+        if ($secure -eq "INSECURE") {
+            Write-Host "   -> Mạng không có mật khẩu (INSECURE)" -ForegroundColor White
+            $pass = ""
+        }
+        else {
+            $pass = Read-Host ">> Mật khẩu WiFi (nhấn Enter nếu WiFi không có pass)"
+            if (-not $pass -or $pass -eq "") {
+                $secure = "INSECURE"
+                Write-Host "   -> Chế độ WiFi không mật khẩu (INSECURE)" -ForegroundColor White
+            }
+            else {
+                if ($pass.Length -lt 8) {
+                    Write-Host "   [!] CẢNH BÁO: Mật khẩu WiFi thông thường từ 8 ký tự trở lên!" -ForegroundColor Yellow
+                }
+            }
         }
     }
 
@@ -388,12 +453,13 @@ function Run-WifiConfig {
 
     Write-Host ""
     Write-Host "==========================================================" -ForegroundColor Green
-    Write-Host "            ĐÃ GỬI CẤU HÌNH WIFI THÀNH CÔNG!              " -ForegroundColor Yellow
+    Write-Host "            ĐÃ GỬI CẤU HÌNH WIFI CHO LOA!                 " -ForegroundColor Yellow
     Write-Host "==========================================================" -ForegroundColor Green
     Write-Host " THÔNG BÁO QUAN TRỌNG:" -ForegroundColor White
-    Write-Host "  1. Loa đang kết nối WiFi nhà, chờ khoảng 15-20 giây sẽ nhận IP mới." -ForegroundColor White
-    Write-Host "  2. Hãy chuyển máy tính về lại mạng WiFi nhà." -ForegroundColor White
-    Write-Host "  3. Sau đó quay lại menu để quét tìm IP và quản lý loa." -ForegroundColor Cyan
+    Write-Host "  1. Loa đang chuyển sang kết nối WiFi '$ssid'." -ForegroundColor White
+    Write-Host "  2. Hãy chuyển máy tính về lại mạng WiFi nhà '$ssid'." -ForegroundColor White
+    Write-Host "  3. Chờ loa khởi động lại và nhận IP mới (khoảng 15-20s)." -ForegroundColor White
+    Write-Host "  4. Sau đó bạn có thể chọn mục [4] trong menu để quét tìm IP mới của loa." -ForegroundColor Cyan
     Write-Host "==========================================================" -ForegroundColor Green
 
     if (-not $Yes -and -not $DryRun -and $env:R1_DRYRUN -ne "1") {
