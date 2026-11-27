@@ -194,7 +194,7 @@ function Ensure-Adb {
     if (Get-Command adb -ErrorAction SilentlyContinue) { return $true }
     $localAdb = Join-Path $ScriptDir "adb.exe"
     if (Test-Path $localAdb) { $env:PATH = "$ScriptDir;" + $env:PATH; return $true }
-    $cachedAdb = Join-Path $TempDir "platform-toolsdb.exe"
+    $cachedAdb = Join-Path (Join-Path $TempDir "platform-tools") "adb.exe"
     if (Test-Path $cachedAdb) { $env:PATH = "$TempDir\platform-tools;" + $env:PATH; return $true }
 
     Write-Host ">> Đang tải công cụ ADB chính thức từ Google..." -ForegroundColor Yellow
@@ -205,7 +205,7 @@ function Ensure-Adb {
         Expand-Archive -Path $zip -DestinationPath $TempDir -Force
         $ProgressPreference = $old
         $env:PATH = "$TempDir\platform-tools;" + $env:PATH
-        return (Test-Path (Join-Path $TempDir "platform-toolsdb.exe"))
+        return (Test-Path (Join-Path (Join-Path $TempDir "platform-tools") "adb.exe"))
     }
     catch {
         Write-Host ">> [LỖI] Không thể tải ADB. Vui lòng kiểm tra kết nối mạng." -ForegroundColor Red
@@ -742,9 +742,9 @@ function Ensure-Apk {
             $aiApkName = $meta.name
         }
         if (-not $aiDownloadUrl) {
-            $aiDownloadUrl = "$BaseUrl/ai-box-plus-1-1-16.apk"
-            $aiApkName = "ai-box-plus-1-1-16.apk"
-            $aiVersion = "1.1.16"
+            $aiDownloadUrl = "$BaseUrl/ai-box-plus-1-1-17.apk"
+            $aiApkName = "ai-box-plus-1-1-17.apk"
+            $aiVersion = "1.1.17"
         }
         Write-Host ">> Phiên bản mới nhất trên máy chủ: $aiApkName (v$aiVersion)" -ForegroundColor Green
         Write-Host ">> Đang tải: $aiDownloadUrl..." -ForegroundColor Cyan
@@ -760,7 +760,7 @@ function Ensure-Apk {
         # Fallback thử tải trực tiếp file APK nếu tải version.json lỗi
         Write-Host ">> [THỬ LẠI] Đang thử tải trực tiếp file APK từ máy chủ..." -ForegroundColor Yellow
         try {
-            $directUrl = "$BaseUrl/ai-box-plus-1-1-16.apk"
+            $directUrl = "$BaseUrl/ai-box-plus-1-1-17.apk"
             $old = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
             Invoke-WebRequest -Uri "$directUrl" -OutFile "$cacheFile.tmp" -TimeoutSec 60 -UseBasicParsing
             Move-Item "$cacheFile.tmp" $cacheFile -Force
@@ -818,7 +818,7 @@ function Invoke-AdbInstallStep {
     return $true
 }
 
-# 7. Kết nối ADB tin cậy
+# 7. Kết nối ADB tin cậy & tự động đánh thức cổng 5555
 function Robust-AdbConnect {
     param(
         [string]$Serial,
@@ -827,42 +827,46 @@ function Robust-AdbConnect {
 
     if ($DryRun -or $env:R1_DRYRUN -eq "1") { return $true }
 
-    Stop-Process -Name adb -Force -ErrorAction SilentlyContinue
-    adb kill-server 2>$null | Out-Null
+    # Đảm bảo adb server đã chạy
     adb start-server 2>$null | Out-Null
-    Start-Sleep -Seconds 1
 
-    $connected = $false
-    adb connect $Serial 2>$null | Out-Null
-    Start-Sleep -Milliseconds 1200
+    # Bước 1: Thử nhanh nếu cổng 5555 đã mở sẵn
+    if (Test-R1TcpPort -HostName $TargetIp -Port 5555 -TimeoutMilliseconds 800) {
+        adb disconnect $Serial 2>$null | Out-Null
+        adb connect $Serial 2>$null | Out-Null
+        Start-Sleep -Milliseconds 600
 
-    $state = (adb -s $Serial get-state 2>$null | Out-String).Trim()
-    if ($state -eq "device") {
-        adb -s $Serial shell ls /data 2>$null | Out-Null
-        if ($LASTEXITCODE -eq 0) { $connected = $true }
-    }
-
-    if (-not $connected) {
-        Revive-Speaker -TargetIp $TargetIp | Out-Null
-        Start-Sleep -Seconds 2
-
-        for ($try = 1; $try -le 6; $try++) {
-            adb connect $Serial 2>$null | Out-Null
-            Start-Sleep -Milliseconds 1200
-
-            $state = (adb -s $Serial get-state 2>$null | Out-String).Trim()
-            if ($state -eq "device") {
-                adb -s $Serial shell ls /data 2>$null | Out-Null
-                if ($LASTEXITCODE -eq 0) {
-                    $connected = $true
-                    break
-                }
-            }
-            Start-Sleep -Seconds 1
+        $state = (adb -s $Serial get-state 2>$null | Out-String).Trim()
+        if ($state -eq "device") {
+            adb -s $Serial shell echo 1 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) { return $true }
         }
     }
 
-    return $connected
+    # Bước 2: Cổng 5555 chưa mở -> Đánh thức qua WebSocket cổng 8080
+    Write-Host ">> Cổng ADB 5555 chưa mở. Đang kích hoạt ADB qua WebSocket 8080..." -ForegroundColor Yellow
+    Revive-Speaker -TargetIp $TargetIp | Out-Null
+    Start-Sleep -Seconds 2
+
+    # Bước 3: Vòng lặp chờ cổng 5555 sẵn sàng và kết nối
+    for ($try = 1; $try -le 8; $try++) {
+        if (Test-R1TcpPort -HostName $TargetIp -Port 5555 -TimeoutMilliseconds 800) {
+            adb disconnect $Serial 2>$null | Out-Null
+            adb connect $Serial 2>$null | Out-Null
+            Start-Sleep -Milliseconds 600
+
+            $state = (adb -s $Serial get-state 2>$null | Out-String).Trim()
+            if ($state -eq "device") {
+                adb -s $Serial shell echo 1 2>$null | Out-Null
+                if ($LASTEXITCODE -eq 0) {
+                    return $true
+                }
+            }
+        }
+        Start-Sleep -Milliseconds 1200
+    }
+
+    return $false
 }
 
 # 8. Hàm thực thi nạp APK (Do-ExecuteInstall)
@@ -999,63 +1003,50 @@ function Do-ExecuteInstall {
     }
 }
 
-# 9. Giao diện Menu chính
-function Prepare-ApInstall {
-    param([int]$CleanMode = 0)
-
-    Write-Host ""
-    Write-Host "==========================================================" -ForegroundColor Cyan
-    Write-Host "   CHUẨN BỊ CÀI ĐẶT QUA CHẾ ĐỘ AP (192.168.43.1)" -ForegroundColor Yellow
-    Write-Host "==========================================================" -ForegroundColor Cyan
-
-    # Bước 1: Kiểm tra file APK trên máy trước
-    Set-R1InstallProgress -Percent 10 -Status "Đang kiểm tra file APK AIBoxPlus trên máy"
-    if (-not (Ensure-Apk)) {
-        Complete-R1InstallProgress
+# 9. Giao diện Menu chính & Chọn loa
+function Select-TargetSpeaker {
+    $devs = Scan-SpeakerIp
+    $target = ""
+    if ($devs -and $devs.Count -gt 0) {
         Write-Host ""
-        Write-Host "==========================================================" -ForegroundColor Red
-        Write-Host "  [LỖI THIẾU FILE APK]" -ForegroundColor Red
-        Write-Host "==========================================================" -ForegroundColor Red
-        Write-Host "Khi kết nối vào WiFi AP của loa (192.168.43.1), máy sẽ KHÔNG CÓ INTERNET!" -ForegroundColor Yellow
-        Write-Host "-> Vui lòng kết nối Internet/WiFi nhà trước để tải APK về máy," -ForegroundColor Yellow
-        Write-Host "hoặc copy file ai-box-plus-*.apk vào cùng thư mục với script này!" -ForegroundColor Yellow
-        Write-Host "==========================================================" -ForegroundColor Red
-        Read-R1Input "Nhấn Enter để quay lại menu"
-        return
+        $pick = Read-R1Input "   Chọn số thứ tự loa (1-$($devs.Count)) hoặc nhập IP khác [Mặc định: 1]"
+        $pick = if ($pick) { $pick.Trim() } else { "1" }
+        if ($pick -match '^\d+$' -and [int]$pick -ge 1 -and [int]$pick -le $devs.Count) {
+            $target = $devs[[int]$pick - 1].IP
+        }
+        elseif ($pick -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}') {
+            $target = $pick
+        }
+        else {
+            $target = $devs[0].IP
+        }
     }
-    Complete-R1InstallProgress
-
-    # Bước 2: Hướng dẫn kết nối WiFi AP
-    Write-Host ""
-    Write-Host " Hướng dẫn kết nối:" -ForegroundColor White
-    Write-Host "  1. File APK đã sẵn sàng trên máy (không cần Internet nữa)." -ForegroundColor Green
-    Write-Host "  2. Bây giờ hãy vào Cài đặt WiFi -> Kết nối vào 'Phicomm_R1_xxxx'." -ForegroundColor White
-    Write-Host "==========================================================" -ForegroundColor Cyan
-    Read-R1Input "Nhấn Enter sau khi ĐÃ KẾT NỐI vào WiFi của loa"
-
-    Do-ExecuteInstall -TargetIpParam "192.168.43.1" -CleanMode $CleanMode
+    else {
+        Write-Host ""
+        $manual = Read-R1Input "   Không tìm thấy loa tự động. Nhập IP loa thủ công (Enter để quay lại)"
+        if ($manual -and $manual.Trim()) { $target = $manual.Trim() }
+    }
+    return $target
 }
 
 function Show-Menu {
     Write-Host ""
     Write-Host "==========================================================" -ForegroundColor Cyan
-    Write-Host "     CÔNG CỤ CÀI ĐẶT PHICOMM R1 - WINDOWS POWERSHELL      " -ForegroundColor Yellow
+    Write-Host "     CÔNG CỤ CÀI ĐẶT PHICOMM R1 (AI-BOX PLUS)             " -ForegroundColor Yellow
     Write-Host "==========================================================" -ForegroundColor Cyan
-    Write-Host "  1) Cấu hình WiFi cho loa (kết nối AP 192.168.43.1)" -ForegroundColor White
-    Write-Host "     -> Dùng khi loa vừa reset, đang phát WiFi Phicomm_R1_xxxx" -ForegroundColor Gray
+    Write-Host "  1) Cấu hình WiFi cho loa (chế độ AP 192.168.43.1)" -ForegroundColor White
+    Write-Host "     -> Kết nối loa vào WiFi nhà khi loa vừa reset" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "  2) Cài đặt qua chế độ AP (192.168.43.1):" -ForegroundColor White
-    Write-Host "     2.1) Cài đặt mới hoàn toàn (Clean Install)" -ForegroundColor White
-    Write-Host "     2.2) Cập nhật / Nâng cấp (Update - giữ dữ liệu)" -ForegroundColor White
+    Write-Host "  2) Cài đặt mới hoàn toàn (Clean Install qua mạng LAN)" -ForegroundColor White
+    Write-Host "     -> Gỡ sạch app rác cũ, cài đặt bản mới nhất v1.1.17" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "  3) Cài đặt qua mạng WiFi (IP LAN bình thường):" -ForegroundColor White
-    Write-Host "     3.1) Cài đặt mới hoàn toàn (Clean Install)" -ForegroundColor White
-    Write-Host "     3.2) Cập nhật / Nâng cấp (Update - giữ dữ liệu)" -ForegroundColor White
+    Write-Host "  3) Cập nhật / Nâng cấp (Update qua mạng LAN)" -ForegroundColor White
+    Write-Host "     -> Nâng cấp app, giữ nguyên cấu hình và token/license" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  4) Quét tìm IP loa Phicomm R1 trong mạng LAN" -ForegroundColor White
     Write-Host "  5) Thoát" -ForegroundColor White
     Write-Host "==========================================================" -ForegroundColor Cyan
-    $choice = Read-R1Input "Chọn [1-5, hoặc 2.1, 2.2, 3.1, 3.2]"
+    $choice = Read-R1Input "Chọn [1-5]"
     if ($null -eq $choice) { return "5" }
     if ($choice) { return $choice.Trim() }
     return ""
@@ -1096,56 +1087,14 @@ while ($true) {
     if ($c -eq "1") {
         Run-WifiConfig | Out-Null
     }
-    elseif ($c -eq "2" -or $c -eq "2.1") {
-        Prepare-ApInstall -CleanMode 1
-    }
-    elseif ($c -eq "2.2") {
-        Prepare-ApInstall -CleanMode 0
-    }
-    elseif ($c -eq "3" -or $c -eq "3.1") {
-        $devs = Scan-SpeakerIp
-        $target = ""
-        if ($devs -and $devs.Count -gt 0) {
-            $pick = Read-R1Input "   Chọn số thứ tự loa (1-$($devs.Count)) hoặc nhập IP khác [Mặc định: 1]"
-            $pick = if ($pick) { $pick.Trim() } else { "1" }
-            if ($pick -match '^\d+$' -and [int]$pick -ge 1 -and [int]$pick -le $devs.Count) {
-                $target = $devs[[int]$pick - 1].IP
-            }
-            elseif ($pick -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}') {
-                $target = $pick
-            }
-            else {
-                $target = $devs[0].IP
-            }
-        }
-        else {
-            $manual = Read-R1Input "   Không tìm thấy loa. Nhập IP loa thủ công (Enter để quay lại menu)"
-            if ($manual -and $manual.Trim()) { $target = $manual.Trim() }
-        }
+    elseif ($c -eq "2") {
+        $target = Select-TargetSpeaker
         if ($target) {
             Do-ExecuteInstall -TargetIpParam $target -CleanMode 1
         }
     }
-    elseif ($c -eq "3.2") {
-        $devs = Scan-SpeakerIp
-        $target = ""
-        if ($devs -and $devs.Count -gt 0) {
-            $pick = Read-R1Input "   Chọn số thứ tự loa (1-$($devs.Count)) hoặc nhập IP khác [Mặc định: 1]"
-            $pick = if ($pick) { $pick.Trim() } else { "1" }
-            if ($pick -match '^\d+$' -and [int]$pick -ge 1 -and [int]$pick -le $devs.Count) {
-                $target = $devs[[int]$pick - 1].IP
-            }
-            elseif ($pick -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}') {
-                $target = $pick
-            }
-            else {
-                $target = $devs[0].IP
-            }
-        }
-        else {
-            $manual = Read-R1Input "   Không tìm thấy loa. Nhập IP loa thủ công (Enter để quay lại menu)"
-            if ($manual -and $manual.Trim()) { $target = $manual.Trim() }
-        }
+    elseif ($c -eq "3") {
+        $target = Select-TargetSpeaker
         if ($target) {
             Do-ExecuteInstall -TargetIpParam $target -CleanMode 0
         }
@@ -1162,7 +1111,7 @@ while ($true) {
         continue
     }
     else {
-        Write-Host "Lựa chọn không hợp lệ. Vui lòng nhập số từ 1 đến 5 hoặc 2.1, 2.2, 3.1, 3.2." -ForegroundColor Yellow
+        Write-Host "Lựa chọn không hợp lệ. Vui lòng nhập số từ 1 đến 5." -ForegroundColor Yellow
         Start-Sleep -Milliseconds 600
     }
 }

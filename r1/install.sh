@@ -913,53 +913,53 @@ invoke_adb_install_step() {
 }
 
 # ------------------------------------------------------------------------------
-# 7. KẾT NỐI ADB CHẮC CHẮN VÀ AN TOÀN
+# 7. KẾT NỐI ADB CHẮC CHẮN VÀ TỰ ĐỘNG ĐÁNH THỨC CỔNG 5555
 # ------------------------------------------------------------------------------
 robust_adb_connect() {
     serial="$1"
     tip="$2"
 
-    if [ "$R1_DRYRUN" = "1" ]; then return 0; fi
+    [ "$R1_DRYRUN" = "1" ] && return 0
 
-    killall -9 adb 2>/dev/null || pkill -9 adb 2>/dev/null || true
-    adb kill-server >/dev/null 2>&1 || true
     adb start-server >/dev/null 2>&1 || true
-    sleep 1
 
-    connected=0
-    adb connect "$serial" >/dev/null 2>&1 || true
-    sleep 1
-
-    state=$(adb -s "$serial" get-state 2>/dev/null | tr -d ' \r\n')
-    if [ "$state" = "device" ]; then
-        if adb -s "$serial" shell ls /data >/dev/null 2>&1; then
-            connected=1
+    # Bước 1: Thử nhanh nếu cổng 5555 đã mở sẵn
+    if test_r1_tcp_port "$tip" 5555 1; then
+        adb disconnect "$serial" >/dev/null 2>&1 || true
+        adb connect "$serial" >/dev/null 2>&1 || true
+        sleep 0.5
+        state=$(adb -s "$serial" get-state 2>/dev/null | tr -d ' \r\n')
+        if [ "$state" = "device" ]; then
+            if adb -s "$serial" shell echo 1 >/dev/null 2>&1; then
+                return 0
+            fi
         fi
     fi
 
-    if [ "$connected" = "0" ]; then
-        revive_speaker "$tip"
-        sleep 2
-        try=1
-        while [ "$try" -le 6 ]; do
+    # Bước 2: Cổng 5555 chưa mở -> Đánh thức qua WebSocket cổng 8080
+    printf '%s>> Cổng ADB 5555 chưa mở. Đang kích hoạt ADB qua WebSocket 8080...%s\n' "$C_YELLOW" "$C_RESET"
+    revive_speaker "$tip"
+    sleep 2
+
+    # Bước 3: Vòng lặp chờ cổng 5555 sẵn sàng và kết nối
+    try=1
+    while [ "$try" -le 8 ]; do
+        if test_r1_tcp_port "$tip" 5555 1; then
+            adb disconnect "$serial" >/dev/null 2>&1 || true
             adb connect "$serial" >/dev/null 2>&1 || true
-            sleep 1
+            sleep 0.5
             state=$(adb -s "$serial" get-state 2>/dev/null | tr -d ' \r\n')
             if [ "$state" = "device" ]; then
-                if adb -s "$serial" shell ls /data >/dev/null 2>&1; then
-                    connected=1
-                    break
+                if adb -s "$serial" shell echo 1 >/dev/null 2>&1; then
+                    return 0
                 fi
             fi
-            sleep 1
-            try=$((try + 1))
-        done
-    fi
+        fi
+        sleep 1
+        try=$((try + 1))
+    done
 
-    if [ "$connected" = "0" ]; then
-        return 1
-    fi
-    return 0
+    return 1
 }
 
 # ------------------------------------------------------------------------------
@@ -1118,69 +1118,51 @@ do_execute_install() {
 }
 
 # ------------------------------------------------------------------------------
-# 9. GIAO DIỆN MENU CHÍNH
+# 9. GIAO DIỆN MENU CHÍNH & CHỌN LOA
 # ------------------------------------------------------------------------------
-prepare_ap_install() {
-    clean_mode="$1"
-    echo ""
-    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
-    printf '%s   CHUẨN BỊ CÀI ĐẶT QUA CHẾ ĐỘ AP (192.168.43.1)%s\n' "$C_YELLOW" "$C_RESET"
-    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
-
-    # Bước 1: Kiểm tra file APK trên máy trước
-    set_r1_install_progress 10 "Đang kiểm tra file APK AIBoxPlus trên máy"
-    if ! ensure_apk; then
-        complete_r1_install_progress
+select_target_speaker() {
+    scan_speaker_ip
+    target=""
+    if [ "$TOTAL_FOUND" -gt 0 ]; then
         echo ""
-        printf '%s==========================================================%s\n' "$C_RED" "$C_RESET"
-        printf '%s  [LỖI THIẾU FILE APK]%s\n' "$C_RED" "$C_RESET"
-        printf '%s==========================================================%s\n' "$C_RED" "$C_RESET"
-        printf '%sKhi kết nối vào WiFi AP của loa (192.168.43.1), máy sẽ KHÔNG CÓ INTERNET!%s\n' "$C_YELLOW" "$C_RESET"
-        printf '%s-> Vui lòng kết nối Internet/WiFi nhà trước để tải APK về máy,%s\n' "$C_YELLOW" "$C_RESET"
-        printf '%shoặc copy file ai-box-plus-*.apk vào cùng thư mục với script này!%s\n' "$C_YELLOW" "$C_RESET"
-        printf '%s==========================================================%s\n' "$C_RED" "$C_RESET"
-        read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null 2>&1 || true
-        return 1
+        pick=$(read_r1_input "   Chọn số thứ tự loa (1-$TOTAL_FOUND) hoặc nhập IP khác [Mặc định: 1]: " "1")
+        pick=$(printf '%s' "$pick" | tr -d ' ')
+        if [ "$pick" -ge 1 ] 2>/dev/null && [ "$pick" -le "$TOTAL_FOUND" ] 2>/dev/null; then
+            target=$(sed -n "${pick}p" "$scan_tmp/ips.txt" 2>/dev/null)
+        elif printf '%s' "$pick" | grep -Eq '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}'; then
+            target="$pick"
+        else
+            target=$(head -n 1 "$scan_tmp/ips.txt" 2>/dev/null)
+        fi
+    else
+        echo ""
+        manual=$(read_r1_input "   Không tìm thấy loa tự động. Nhập IP loa thủ công (Enter để quay lại): " "")
+        manual=$(printf '%s' "$manual" | tr -d ' ')
+        [ -n "$manual" ] && target="$manual"
     fi
-    complete_r1_install_progress
-
-    # Bước 2: Hướng dẫn kết nối WiFi AP
-    echo ""
-    echo " Hướng dẫn kết nối:"
-    echo "  1. File APK đã sẵn sàng trên máy (không cần Internet nữa)."
-    echo "  2. Bây giờ hãy vào Cài đặt WiFi -> Kết nối vào 'Phicomm_R1_xxxx'."
-    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
-    read_r1_input "Nhấn Enter sau khi ĐÃ KẾT NỐI vào WiFi của loa: " "" >/dev/null 2>&1 || true
-
-    do_execute_install "192.168.43.1" "$clean_mode"
+    echo "$target"
 }
 
 show_menu() {
     echo ""
-    printf '%s==========================================================%s
-' "$C_CYAN" "$C_RESET"
-    printf '%s     CÔNG CỤ CÀI ĐẶT PHICOMM R1 - iSH / LINUX / ANDROID   %s
-' "$C_YELLOW" "$C_RESET"
-    printf '%s==========================================================%s
-' "$C_CYAN" "$C_RESET"
-    echo "  1) Cấu hình WiFi cho loa (kết nối AP 192.168.43.1)"
-    printf '%s     -> Dùng khi loa vừa reset, đang phát WiFi Phicomm_R1_xxxx%s
-' "$C_GRAY" "$C_RESET"
+    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
+    printf '%s  BỘ CÀI ĐẶT PHICOMM R1 (AI-BOX PLUS)                    %s\n' "$C_YELLOW" "$C_RESET"
+    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
+    echo "  1) Cấu hình WiFi cho loa (chế độ AP 192.168.43.1)"
+    printf '%s     -> Kết nối loa vào WiFi nhà khi loa vừa reset%s\n' "$C_GRAY" "$C_RESET"
     echo ""
-    echo "  2) Cài đặt qua chế độ AP (192.168.43.1):"
-    echo "     2.1) Cài đặt mới hoàn toàn (Clean Install)"
-    echo "     2.2) Cập nhật / Nâng cấp (Update - giữ dữ liệu)"
+    echo "  2) Cài đặt mới hoàn toàn (Clean Install qua mạng LAN)"
+    printf '%s     -> Gỡ sạch app rác cũ, cài đặt bản mới nhất v1.1.17%s\n' "$C_GRAY" "$C_RESET"
     echo ""
-    echo "  3) Cài đặt qua mạng WiFi (IP LAN bình thường):"
-    echo "     3.1) Cài đặt mới hoàn toàn (Clean Install)"
-    echo "     3.2) Cập nhật / Nâng cấp (Update - giữ dữ liệu)"
+    echo "  3) Cập nhật / Nâng cấp (Update qua mạng LAN)"
+    printf '%s     -> Nâng cấp app, giữ nguyên cấu hình và token/license%s\n' "$C_GRAY" "$C_RESET"
     echo ""
     echo "  4) Quét tìm IP loa Phicomm R1 trong mạng LAN"
     echo "  5) Thoát"
-    printf '%s==========================================================%s
-' "$C_CYAN" "$C_RESET"
-    CHOICE=$(read_r1_input "Chọn [1-5, hoặc 2.1, 2.2, 3.1, 3.2]: " "5")
-    CHOICE=$(printf '%s' "$CHOICE" | tr -d ' \r\n')
+    printf '%s==========================================================%s\n' "$C_CYAN" "$C_RESET"
+    CHOICE=$(read_r1_input "Chọn [1-5]: " "5")
+    CHOICE=$(printf '%s' "$CHOICE" | tr -d ' ')
+    [ -z "$CHOICE" ] && CHOICE="5"
 }
 
 # Xử lý tham số dòng lệnh trực tiếp (Automation / Scripts)
@@ -1216,75 +1198,29 @@ while :; do
         1)
             run_wifi_config
             ;;
-        2|2.1)
-            prepare_ap_install 1
-            ;;
-        2.2)
-            prepare_ap_install 0
-            ;;
-        3|3.1)
-            scan_speaker_ip
-            target=""
-            if [ "$TOTAL_FOUND" -gt 0 ]; then
-                echo ""
-                pick=$(read_r1_input "   Chọn số thứ tự loa (1-$TOTAL_FOUND) hoặc nhập IP khác [Mặc định: 1]: " "1")
-                pick=$(printf '%s' "$pick" | tr -d ' ')
-                if [ "$pick" -ge 1 ] 2>/dev/null && [ "$pick" -le "$TOTAL_FOUND" ] 2>/dev/null; then
-                    target=$(sed -n "${pick}p" "$scan_tmp/ips.txt")
-                elif printf '%s' "$pick" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$'; then
-                    target="$pick"
-                else
-                    target=$(head -n 1 "$scan_tmp/ips.txt")
-                fi
-            else
-                echo ""
-                manual=$(read_r1_input "   Không tìm thấy loa. Nhập IP loa thủ công (Enter để quay lại menu): " "")
-                [ -n "$manual" ] && target="$manual"
-            fi
-            rm -rf "$scan_tmp" 2>/dev/null || true
+        2)
+            target=$(select_target_speaker)
             if [ -n "$target" ]; then
                 do_execute_install "$target" 1
             fi
             ;;
-        3.2)
-            scan_speaker_ip
-            target=""
-            if [ "$TOTAL_FOUND" -gt 0 ]; then
-                echo ""
-                pick=$(read_r1_input "   Chọn số thứ tự loa (1-$TOTAL_FOUND) hoặc nhập IP khác [Mặc định: 1]: " "1")
-                pick=$(printf '%s' "$pick" | tr -d ' ')
-                if [ "$pick" -ge 1 ] 2>/dev/null && [ "$pick" -le "$TOTAL_FOUND" ] 2>/dev/null; then
-                    target=$(sed -n "${pick}p" "$scan_tmp/ips.txt")
-                elif printf '%s' "$pick" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$'; then
-                    target="$pick"
-                else
-                    target=$(head -n 1 "$scan_tmp/ips.txt")
-                fi
-            else
-                echo ""
-                manual=$(read_r1_input "   Không tìm thấy loa. Nhập IP loa thủ công (Enter để quay lại menu): " "")
-                [ -n "$manual" ] && target="$manual"
-            fi
-            rm -rf "$scan_tmp" 2>/dev/null || true
+        3)
+            target=$(select_target_speaker)
             if [ -n "$target" ]; then
                 do_execute_install "$target" 0
             fi
             ;;
         4)
             scan_speaker_ip
-            read_r1_input "   Nhấn Enter để quay lại menu chính" "" >/dev/null 2>&1 || true
+            echo ""
+            read_r1_input "   Nhấn Enter để quay lại menu chính: " "" >/dev/null 2>&1 || true
             ;;
-        5|"q"|"Q"|"exit")
-            printf '%sThoát chương trình.%s
-' "$C_YELLOW" "$C_RESET"
+        5|q|Q|exit)
+            echo "Thoát chương trình."
             break
             ;;
-        "")
-            continue
-            ;;
         *)
-            printf '%sLựa chọn không hợp lệ. Vui lòng nhập số từ 1 đến 5 hoặc 2.1, 2.2, 3.1, 3.2.%s
-' "$C_YELLOW" "$C_RESET"
+            printf '%sLựa chọn không hợp lệ. Vui lòng nhập số từ 1 đến 5.%s\n' "$C_YELLOW" "$C_RESET"
             sleep 1
             ;;
     esac
