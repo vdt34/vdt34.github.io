@@ -787,11 +787,29 @@ scan_speaker_ip() {
 }
 
 # ------------------------------------------------------------------------------
-# 5. CHUẨN BỊ FILE APK DUY NHẤT (AIBOXPLUS ALL-IN-ONE)
+# 5. CHUẨN BỊ VÀ DỌN DẸP FILE APK (AIBOXPLUS ALL-IN-ONE)
 # ------------------------------------------------------------------------------
+clean_all_cached_apks() {
+    # 1. Dọn dẹp sạch toàn bộ file APK tạm trên máy tính / điện thoại
+    rm -rf "$CACHE_DIR" 2>/dev/null || true
+    rm -f /tmp/r1_cache/* /tmp/ai-box-plus*.apk /tmp/ai-box*.apk 2>/dev/null || true
+    rm -f "$SCRIPT_DIR"/*.apk.tmp ./*.apk.tmp 2>/dev/null || true
+    rm -f "$HOME"/ai-box-plus*.apk "$HOME"/ai-box*.apk 2>/dev/null || true
+    if [ "$SCRIPT_DIR" = "/tmp" ] || [ "$SCRIPT_DIR" = "$HOME" ] || [ "$SCRIPT_DIR" = "." ]; then
+        rm -f "$SCRIPT_DIR"/ai-box-plus-app.apk 2>/dev/null || true
+    fi
+
+    # 2. Dọn dẹp sạch toàn bộ file APK tạm và file OTA rác trên loa R1
+    if [ -n "$SERIAL" ]; then
+        adb -s "$SERIAL" shell "rm -f /data/local/tmp/*.apk /data/local/tmp/ai-box* /sdcard/*.apk /sdcard/Download/*.apk /sdcard/ai-box* /sdcard/incremental*.zip 2>/dev/null" >/dev/null 2>&1 || true
+    fi
+}
+
 get_local_ai_apk() {
-    for check_dir in "$SCRIPT_DIR" "." "$HOME" "/tmp"; do
+    # Chỉ tìm file APK cục bộ trong thư mục script nếu không phải thư mục tạm (/tmp) hoặc HOME
+    for check_dir in "$SCRIPT_DIR"; do
         [ -n "$check_dir" ] && [ -d "$check_dir" ] || continue
+        [ "$check_dir" = "/tmp" ] || [ "$check_dir" = "$HOME" ] && continue
 
         # 1. Tìm bản có phiên bản theo dạng ai-box-plus-X-Y-Z.apk
         best_file=""
@@ -817,29 +835,37 @@ get_local_ai_apk() {
 }
 
 ensure_apk() {
+    force_fresh="$1"
     target_apk_name="ai-box-plus-app.apk"
     cache_file="$CACHE_DIR/$target_apk_name"
+
+    # Khi yêu cầu tải mới (force_fresh=1), xóa sạch cache cũ để tránh cài nhầm bản lỗi cũ
+    if [ "$force_fresh" = "1" ]; then
+        clean_all_cached_apks
+    fi
     mkdir -p "$CACHE_DIR" 2>/dev/null || true
 
-    # 1. Ưu tiên kiểm tra file đã tải sẵn trong CACHE (đã tải ở Bước 1 của Cài đặt AP Mode hoặc lần chạy trước)
-    if [ -f "$cache_file" ] && [ "$(wc -c < "$cache_file" 2>/dev/null || echo 0)" -ge 1000000 ]; then
+    # 1. Kiểm tra file đã tải trong CACHE (chỉ dùng khi KHÔNG force_fresh, ví dụ bước 2 AP Mode)
+    if [ "$force_fresh" != "1" ] && [ -f "$cache_file" ] && [ "$(wc -c < "$cache_file" 2>/dev/null || echo 0)" -ge 1000000 ]; then
         apk_bytes=$(wc -c < "$cache_file" 2>/dev/null | tr -d ' ')
         apk_mb=$((apk_bytes / 1048576))
-        printf '%s>> [CACHE] Đã có sẵn file APK đã tải: %s (~%s MB). Bỏ qua bước tải lại!%s\n' "$C_GREEN" "$target_apk_name" "$apk_mb" "$C_RESET"
+        printf '%s>> [CACHE] Đã có sẵn file APK đã tải: %s (~%s MB).%s\n' "$C_GREEN" "$target_apk_name" "$apk_mb" "$C_RESET"
         return 0
     fi
 
-    # 2. Ưu tiên tìm file local trước
-    local_ai=$(get_local_ai_apk)
-    if [ -n "$local_ai" ] && [ -f "$local_ai" ]; then
-        printf '%s>> [LOCAL] Đã tìm thấy file APK cục bộ: %s%s\n' "$C_GREEN" "$(basename "$local_ai")" "$C_RESET"
-        if [ "$local_ai" != "$cache_file" ]; then
-            cp -f "$local_ai" "$cache_file"
+    # 2. Tìm file local trước (chỉ khi không force_fresh)
+    if [ "$force_fresh" != "1" ]; then
+        local_ai=$(get_local_ai_apk)
+        if [ -n "$local_ai" ] && [ -f "$local_ai" ]; then
+            printf '%s>> [LOCAL] Đã tìm thấy file APK cục bộ: %s%s\n' "$C_GREEN" "$(basename "$local_ai")" "$C_RESET"
+            if [ "$local_ai" != "$cache_file" ]; then
+                cp -f "$local_ai" "$cache_file"
+            fi
+            return 0
         fi
-        return 0
     fi
 
-    # 3. Nếu local và cache đều chưa có, tìm và tải trên server
+    # 3. Tải bản mới nhất từ máy chủ (có timestamp chống cache)
     printf '%s>> [ONLINE] Đang kiểm tra phiên bản mới nhất từ máy chủ (%s/version.json)...%s\n' "$C_CYAN" "$BASE_URL" "$C_RESET"
 
     TS=$(date +%s 2>/dev/null || echo "1")
@@ -861,7 +887,7 @@ ensure_apk() {
     fi
 
     printf '%s>> Phiên bản mới nhất trên máy chủ: %s (v%s)%s\n' "$C_GREEN" "$ai_apk_name" "$ai_ver" "$C_RESET"
-    printf '%s>> Đang tải: %s...%s\n' "$C_CYAN" "$ai_download_url" "$C_RESET"
+    printf '%s>> Đang tải bản mới nhất: %s...%s\n' "$C_CYAN" "$ai_download_url" "$C_RESET"
 
     if command -v curl >/dev/null 2>&1; then
         curl -k -fsSL --connect-timeout 20 --max-time 60 -o "$cache_file.tmp" "$ai_download_url?t=$TS" 2>/dev/null && mv -f "$cache_file.tmp" "$cache_file"
@@ -1003,7 +1029,13 @@ do_execute_install() {
     if ! ensure_adb; then return 1; fi
 
     set_r1_install_progress 15 "Đang chuẩn bị file APK AIBoxPlus"
-    if ! ensure_apk; then
+    # Nếu cài qua mạng LAN (target_ip khác 192.168.43.1), luôn tải bản mới nhất (force_fresh=1)
+    # Nếu cài qua AP Mode (192.168.43.1), dùng file vừa tải ở Bước 1
+    need_fresh=1
+    if [ "$target_ip" = "192.168.43.1" ]; then
+        need_fresh=0
+    fi
+    if ! ensure_apk "$need_fresh"; then
         complete_r1_install_progress
         return 1
     fi
@@ -1055,6 +1087,9 @@ do_execute_install() {
         adb -s "$SERIAL" shell /system/bin/pm uninstall info.dourok.voicebot >/dev/null 2>&1 || true
     fi
 
+    # Xóa sạch các file APK cũ còn sót lại trong /data/local/tmp trên loa trước khi truyền file mới
+    adb -s "$SERIAL" shell "rm -f /data/local/tmp/*.apk 2>/dev/null" >/dev/null 2>&1 || true
+
     # Đẩy APK vào /data/local/tmp
     local_apk="$CACHE_DIR/ai-box-plus-app.apk"
     remote_apk="/data/local/tmp/ai-box-plus-app.apk"
@@ -1062,6 +1097,7 @@ do_execute_install() {
     set_r1_install_progress 70 "Đang truyền file APK vào loa"
     if ! invoke_adb_install_step 0 -s "$SERIAL" push "$local_apk" "$remote_apk"; then
         complete_r1_install_progress
+        clean_all_cached_apks
         printf '%s>> [LỖI] Không thể truyền file APK lên loa tại %s.%s\n' "$C_RED" "$SERIAL" "$C_RESET"
         read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null || true
         return 1
@@ -1070,11 +1106,13 @@ do_execute_install() {
     set_r1_install_progress 80 "Đang cài đặt APK (pm install -r)..."
     if ! invoke_adb_install_step 1 -s "$SERIAL" shell /system/bin/pm install -r "$remote_apk"; then
         complete_r1_install_progress
+        clean_all_cached_apks
         printf '%s>> [LỖI] Cài đặt APK thất bại.%s\n' "$C_RED" "$C_RESET"
         read_r1_input "Nhấn Enter để quay lại menu: " "" >/dev/null || true
         return 1
     fi
-    adb -s "$SERIAL" shell rm "$remote_apk" >/dev/null 2>&1 || true
+    # Xóa sạch file APK cài đặt trên loa ngay khi vừa cài xong
+    adb -s "$SERIAL" shell "rm -f /data/local/tmp/*.apk /data/local/tmp/ai-box* /sdcard/*.apk /sdcard/Download/*.apk /sdcard/ai-box* 2>/dev/null" >/dev/null 2>&1 || true
 
     set_r1_install_progress 90 "Đang khởi động dịch vụ AI & WebUI (8081)"
     adb -s "$SERIAL" shell "tinymix -D 2 0 5; tinymix -D 2 1 5; tinymix -D 2 6 207; tinymix -D 2 7 207; tinymix -D 2 8 207; tinymix -D 2 9 207; tinymix -D 2 17 1; tinymix -D 2 18 1; tinymix -D 2 46 1; tinymix -D 2 47 1" >/dev/null 2>&1 || true
@@ -1101,9 +1139,8 @@ do_execute_install() {
     set_r1_install_progress 100 "Hoàn tất cài đặt!"
     complete_r1_install_progress
 
-    # Dọn dẹp sạch file APK trong bộ nhớ tạm sau khi cài đặt thành công
-    rm -rf "$CACHE_DIR" 2>/dev/null || true
-    rm -f /tmp/r1_cache/* /tmp/ai-box-plus*.apk 2>/dev/null || true
+    # Dọn dẹp sạch toàn bộ file APK đệm trên máy tính/điện thoại và trên loa sau khi cài đặt thành công
+    clean_all_cached_apks
 
     # 1. Trường hợp cài đặt trực tiếp qua WiFi của Loa (AP Mode: 192.168.43.1)
     if [ "$target_ip" = "192.168.43.1" ]; then
@@ -1236,7 +1273,7 @@ run_ap_install() {
     echo ""
     printf '%s>> BƯỚC 1: Tải sẵn file APK trước khi ngắt mạng Internet...%s\n' "$C_CYAN" "$C_RESET"
 
-    if ! ensure_apk; then
+    if ! ensure_apk 1; then
         printf '%s>> [LỖI] Không thể tải trước file APK. Vui lòng kiểm tra mạng Internet.%s\n' "$C_RED" "$C_RESET"
         read_r1_input "Nhấn Enter để quay lại menu chính..." "" >/dev/null || true
         return 1

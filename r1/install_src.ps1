@@ -1,4 +1,4 @@
-# ==============================================================================
+﻿# ==============================================================================
 # BỘ CÀI ĐẶT PHICOMM R1 SIÊU TỐC - WINDOWS POWERSHELL
 # Tự động cấu hình WiFi AP, quét tìm loa trong LAN, dọn sạch file cũ, giao diện UTF-8
 # Hỗ trợ WiFi AP, Cài đặt qua AP Mode, Cài đặt qua LAN, Quét loa, ADB ổn định
@@ -680,9 +680,26 @@ function Scan-SpeakerIp {
     return $phicommDevices
 }
 
-# 5. Chuẩn bị file APK duy nhất (AIBoxPlus All-in-One)
+# 5. Chuẩn bị và dọn dẹp file APK (AIBoxPlus All-in-One)
+function Clean-AllCachedApks {
+    param([string]$TargetSerial = "")
+    try {
+        if (Test-Path $TempDir) {
+            Remove-Item (Join-Path $TempDir "ai-box*.apk*") -Force -ErrorAction SilentlyContinue
+        }
+        if (Test-Path $ScriptDir) {
+            Remove-Item (Join-Path $ScriptDir "*.apk.tmp") -Force -ErrorAction SilentlyContinue
+        }
+        $ser = if ($TargetSerial) { $TargetSerial } else { $Serial }
+        if ($ser) {
+            adb -s $ser shell "rm -f /data/local/tmp/*.apk /data/local/tmp/ai-box* /sdcard/*.apk /sdcard/Download/*.apk /sdcard/ai-box* /sdcard/incremental*.zip 2>/dev/null" 2>$null | Out-Null
+        }
+    } catch {}
+}
+
 function Get-LocalAiApk {
-    $dirs = @($ScriptDir, (Get-Location).Path, $env:USERPROFILE, $env:TEMP) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+    # Chỉ tìm file APK cục bộ trong thư mục script nếu không phải thư mục tạm hoặc UserProfile
+    $dirs = @($ScriptDir) | Where-Object { $_ -and (Test-Path $_) -and ($_ -ne $env:TEMP) -and ($_ -ne $env:USERPROFILE) }
     foreach ($d in $dirs) {
         # 1. Tìm bản có phiên bản cao nhất theo dạng ai-box-plus-X-Y-Z.apk
         $files = Get-ChildItem -Path $d -File -Filter 'ai-box-plus-*-*-*.apk' -ErrorAction SilentlyContinue |
@@ -703,27 +720,38 @@ function Get-LocalAiApk {
 }
 
 function Ensure-Apk {
+    param([switch]$ForceFresh)
+
     $targetApkName = "ai-box-plus-app.apk"
     $cacheFile = Join-Path $TempDir $targetApkName
 
-    # 1. Ưu tiên kiểm tra file đã tải sẵn trong CACHE (đã tải ở Bước 1 của Cài đặt AP Mode hoặc lần chạy trước)
-    if ((Test-Path $cacheFile) -and ((Get-Item $cacheFile).Length -ge 1000000)) {
+    if ($ForceFresh) {
+        Clean-AllCachedApks
+    }
+    if (-not (Test-Path $TempDir)) {
+        New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
+    }
+
+    # 1. Ưu tiên kiểm tra file đã tải sẵn trong CACHE (chỉ khi không ForceFresh, ví dụ Bước 2 của AP Mode)
+    if (-not $ForceFresh -and (Test-Path $cacheFile) -and ((Get-Item $cacheFile).Length -ge 1000000)) {
         $mb = [math]::Round((Get-Item $cacheFile).Length / 1MB, 1)
-        Write-Host ">> [CACHE] Đã có sẵn file APK đã tải: $targetApkName (~$mb MB). Bỏ qua bước tải lại!" -ForegroundColor Green
+        Write-Host ">> [CACHE] Đã có sẵn file APK đã tải: $targetApkName (~$mb MB)." -ForegroundColor Green
         return $true
     }
 
-    # 2. Ưu tiên tìm file local trước
-    $aiFile = Get-LocalAiApk
-    if ($aiFile) {
-        Write-Host ">> [LOCAL] Đã tìm thấy file APK cục bộ: $($aiFile.Name)" -ForegroundColor Green
-        if ($aiFile.FullName -ne $cacheFile) {
-            Copy-Item $aiFile.FullName $cacheFile -Force
+    # 2. Ưu tiên tìm file local trước (chỉ khi không ForceFresh)
+    if (-not $ForceFresh) {
+        $aiFile = Get-LocalAiApk
+        if ($aiFile) {
+            Write-Host ">> [LOCAL] Đã tìm thấy file APK cục bộ: $($aiFile.Name)" -ForegroundColor Green
+            if ($aiFile.FullName -ne $cacheFile) {
+                Copy-Item $aiFile.FullName $cacheFile -Force
+            }
+            return $true
         }
-        return $true
     }
 
-    # 3. Nếu local và cache đều chưa có, tìm và tải trên server
+    # 3. Tải từ máy chủ
     Write-Host ">> [ONLINE] Đang kiểm tra phiên bản mới nhất từ máy chủ ($BaseUrl/version.json)..." -ForegroundColor Cyan
 
     try {
@@ -749,7 +777,7 @@ function Ensure-Apk {
             $aiVersion = "1.1.17"
         }
         Write-Host ">> Phiên bản mới nhất trên máy chủ: $aiApkName (v$aiVersion)" -ForegroundColor Green
-        Write-Host ">> Đang tải: $aiDownloadUrl..." -ForegroundColor Cyan
+        Write-Host ">> Đang tải bản mới nhất: $aiDownloadUrl..." -ForegroundColor Cyan
 
         $old = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
         Invoke-WebRequest -Uri "$aiDownloadUrl`?t=$UnixTs" -OutFile "$cacheFile.tmp" -TimeoutSec 60 -UseBasicParsing
@@ -896,7 +924,10 @@ function Do-ExecuteInstall {
     }
 
     Set-R1InstallProgress -Percent 15 -Status "Đang chuẩn bị file APK AIBoxPlus"
-    if (-not (Ensure-Apk)) {
+    # Nếu cài qua mạng LAN (TargetIp khác 192.168.43.1), luôn tải bản mới nhất (ForceFresh=$true)
+    # Nếu cài qua AP Mode (192.168.43.1), dùng file vừa tải ở Bước 1
+    $needFresh = ($TargetIp -ne "192.168.43.1")
+    if (-not (Ensure-Apk -ForceFresh:$needFresh)) {
         Complete-R1InstallProgress
         return
     }
@@ -948,6 +979,9 @@ function Do-ExecuteInstall {
         adb -s $Serial shell /system/bin/pm uninstall info.dourok.voicebot 2>$null | Out-Null
     }
 
+    # Xóa sạch các file APK cũ còn sót lại trong /data/local/tmp trên loa trước khi truyền file mới
+    adb -s $Serial shell "rm -f /data/local/tmp/*.apk 2>/dev/null" 2>$null | Out-Null
+
     # Đẩy APK vào /data/local/tmp
     $localApk = Join-Path $TempDir "ai-box-plus-app.apk"
     $remoteApk = "/data/local/tmp/ai-box-plus-app.apk"
@@ -955,6 +989,7 @@ function Do-ExecuteInstall {
     Set-R1InstallProgress -Percent 70 -Status "Đang truyền file APK vào loa"
     if (-not (Invoke-AdbInstallStep -Arguments @("-s", $Serial, "push", $localApk, $remoteApk))) {
         Complete-R1InstallProgress
+        Clean-AllCachedApks -TargetSerial $Serial
         Write-Host ">> [LỖI] Không thể truyền file APK lên loa tại $Serial." -ForegroundColor Red
         Read-R1Input "Nhấn Enter để quay lại menu"
         return
@@ -963,11 +998,13 @@ function Do-ExecuteInstall {
     Set-R1InstallProgress -Percent 80 -Status "Đang cài đặt APK (pm install -r)..."
     if (-not (Invoke-AdbInstallStep -Arguments @("-s", $Serial, "shell", "/system/bin/pm", "install", "-r", $remoteApk) -RequirePackageSuccess -TargetSerial $Serial)) {
         Complete-R1InstallProgress
+        Clean-AllCachedApks -TargetSerial $Serial
         Write-Host ">> [LỖI] Cài đặt APK thất bại." -ForegroundColor Red
         Read-R1Input "Nhấn Enter để quay lại menu"
         return
     }
-    adb -s $Serial shell rm $remoteApk 2>$null | Out-Null
+    # Xóa sạch file APK cài đặt trên loa ngay khi vừa cài xong
+    adb -s $Serial shell "rm -f /data/local/tmp/*.apk /data/local/tmp/ai-box* /sdcard/*.apk /sdcard/Download/*.apk /sdcard/ai-box* 2>/dev/null" 2>$null | Out-Null
 
     Set-R1InstallProgress -Percent 90 -Status "Đang khởi động dịch vụ AI & WebUI (8081)"
     adb -s $Serial shell "tinymix -D 2 0 5; tinymix -D 2 1 5; tinymix -D 2 6 207; tinymix -D 2 7 207; tinymix -D 2 8 207; tinymix -D 2 9 207; tinymix -D 2 17 1; tinymix -D 2 18 1; tinymix -D 2 46 1; tinymix -D 2 47 1" 2>$null | Out-Null
@@ -988,10 +1025,8 @@ function Do-ExecuteInstall {
     Set-R1InstallProgress -Percent 100 -Status "Hoàn tất cài đặt!"
     Complete-R1InstallProgress
 
-    # Dọn dẹp cache APK trong temp sau khi cài thành công
-    try {
-        Remove-Item (Join-Path $TempDir "ai-box-plus*.apk") -Force -ErrorAction SilentlyContinue
-    } catch {}
+    # Dọn dẹp sạch toàn bộ file APK trong bộ nhớ tạm và trên loa sau khi cài thành công
+    Clean-AllCachedApks -TargetSerial $Serial
 
     # 1. Trường hợp cài đặt trực tiếp qua WiFi của Loa (AP Mode: 192.168.43.1)
     if ($targetIp -eq "192.168.43.1") {
@@ -1100,7 +1135,7 @@ function Run-ApInstall {
     Write-Host ""
     Write-Host ">> BƯỚC 1: Tải sẵn file APK trước khi ngắt mạng Internet..." -ForegroundColor Cyan
 
-    $apkFile = Ensure-Apk
+    $apkFile = Ensure-Apk -ForceFresh
     if (-not $apkFile) {
         Write-Host ">> [LỖI] Không thể tải trước file APK. Vui lòng kiểm tra mạng Internet." -ForegroundColor Red
         Read-R1Input "Nhấn Enter để quay lại menu chính..." | Out-Null
