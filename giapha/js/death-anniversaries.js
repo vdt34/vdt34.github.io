@@ -3,8 +3,8 @@
  * Computes exact solar dates for lunar death anniversaries for 10 years ahead.
  */
 
-import { convertLunar2Solar, convertSolar2Lunar, getDaysInLunarMonth } from '../../amlich/engine/vietnam-lunar.js';
-import { getDayCanChi, getYearCanChi } from '../../amlich/engine/can-chi.js';
+import { convertLunar2Solar, convertSolar2Lunar, getDaysInLunarMonth } from '../engine/vietnam-lunar.js';
+import { getDayCanChi, getYearCanChi } from '../engine/can-chi.js';
 
 function escapeICSText(text) {
   if (!text) return '';

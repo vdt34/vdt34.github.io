@@ -82,6 +82,13 @@ export class MemberModalController {
         document.getElementById('member-edit-modal').style.display = 'none';
       });
     });
+
+    const editModal = document.getElementById('member-edit-modal');
+    editModal?.addEventListener('click', (e) => {
+      if (e.target === editModal) {
+        editModal.style.display = 'none';
+      }
+    });
   }
 
   open(memberId) {
