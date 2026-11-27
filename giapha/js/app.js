@@ -96,9 +96,22 @@ class GiaPhaApp {
         this.saveDataLocally();
         this.treeVisualizer.setData(this.clanData.members, this.selfId);
         this.populateSelfSelector();
-        this.showToast(`Đã lưu thay đổi cho ${updated.name}`, 'success');
+        this.showToast(`Đã lưu thành viên: ${updated.name}`, 'success');
       },
-      (selfId) => this.setSelf(selfId)
+      (selfId) => this.setSelf(selfId),
+      (deletedId) => {
+        this.clanData.members = this.clanData.members.filter(x => x.id !== deletedId);
+        for (const m of this.clanData.members) {
+          if (m.father_id === deletedId) m.father_id = null;
+          if (m.mother_id === deletedId) m.mother_id = null;
+          if (m.spouses) m.spouses = m.spouses.filter(sid => sid !== deletedId);
+          if (m.children) m.children = m.children.filter(cid => cid !== deletedId);
+        }
+        this.saveDataLocally();
+        this.treeVisualizer.setData(this.clanData.members, this.selfId);
+        this.populateSelfSelector();
+        this.showToast('Đã xóa thành viên khỏi gia phả.', 'info');
+      }
     );
 
     this.bookRenderer = new BookViewRenderer(
@@ -164,6 +177,11 @@ class GiaPhaApp {
       }
     });
 
+    // Quick Add on Header
+    document.getElementById('btn-header-add')?.addEventListener('click', () => {
+      this.memberModal.openCreateModal();
+    });
+
     // Tree Zoom buttons
     document.getElementById('btn-zoom-in')?.addEventListener('click', () => {
       this.treeVisualizer.zoom(1.2);
@@ -192,6 +210,65 @@ class GiaPhaApp {
       }
     });
 
+    // Backup & Restore Modal
+    const backupModal = document.getElementById('backup-modal');
+    document.getElementById('btn-backup-data')?.addEventListener('click', () => {
+      backupModal.style.display = 'flex';
+    });
+    document.getElementById('btn-close-backup-modal')?.addEventListener('click', () => {
+      backupModal.style.display = 'none';
+    });
+    backupModal?.addEventListener('click', (e) => {
+      if (e.target === backupModal) backupModal.style.display = 'none';
+    });
+
+    // Download JSON
+    document.getElementById('btn-download-json')?.addEventListener('click', () => {
+      const dataStr = JSON.stringify(this.clanData, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `clan-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      this.showToast('Đã tải file clan.json về máy!', 'success');
+    });
+
+    // Reset Data
+    document.getElementById('btn-reset-data')?.addEventListener('click', () => {
+      if (confirm('Khôi phục lại dữ liệu mẫu gốc? Mọi chỉnh sửa cục bộ sẽ bị xóa.')) {
+        localStorage.removeItem('giapha_clan_data');
+        location.reload();
+      }
+    });
+
+    // Import JSON File
+    document.getElementById('input-import-json')?.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const parsed = JSON.parse(event.target.result);
+          if (!parsed.members || !Array.isArray(parsed.members)) {
+            throw new Error('File JSON không đúng cấu trúc (thiếu danh sách members).');
+          }
+          this.clanData = parsed;
+          this.saveDataLocally();
+          backupModal.style.display = 'none';
+          this.initControllers();
+          this.renderCurrentView();
+          this.showToast(`Đã nạp thành công ${parsed.members.length} thành viên từ file!`, 'success');
+        } catch (err) {
+          alert(`Lỗi nạp file: ${err.message}`);
+        }
+      };
+      reader.readAsText(file);
+    });
+
     // Print Book View
     document.getElementById('btn-print-book')?.addEventListener('click', () => {
       window.print();
@@ -216,18 +293,21 @@ class GiaPhaApp {
     const bookContainer = document.getElementById('book-view-wrapper');
     const gravesContainer = document.getElementById('graves-view-wrapper');
     const anniversariesContainer = document.getElementById('anniversaries-view-wrapper');
+    const btnPrint = document.getElementById('btn-print-book');
 
     // Hide all
     treeContainer.style.display = 'none';
     bookContainer.style.display = 'none';
     gravesContainer.style.display = 'none';
     anniversariesContainer.style.display = 'none';
+    if (btnPrint) btnPrint.style.display = 'none';
 
     if (this.currentTab === 'tree') {
       treeContainer.style.display = 'block';
       this.treeVisualizer.setData(this.clanData.members, this.selfId);
     } else if (this.currentTab === 'book') {
       bookContainer.style.display = 'block';
+      if (btnPrint) btnPrint.style.display = 'inline-flex';
       this.bookRenderer.render(bookContainer);
     } else if (this.currentTab === 'graves') {
       gravesContainer.style.display = 'block';

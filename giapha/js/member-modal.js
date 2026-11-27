@@ -1,13 +1,15 @@
 /**
  * Member Profile Drawer & Kinship Detail Controller
+ * Handles viewing, adding (child, spouse, new member), editing, and deleting clan members.
  */
 
 export class MemberModalController {
-  constructor(clanData, kinshipResolver, onSaveMember, onSetSelf) {
+  constructor(clanData, kinshipResolver, onSaveMember, onSetSelf, onDeleteMember) {
     this.clanData = clanData;
     this.kinship = kinshipResolver;
     this.onSave = onSaveMember;
     this.onSetSelf = onSetSelf;
+    this.onDelete = onDeleteMember;
     this.currentMember = null;
     this.selfId = null;
 
@@ -36,6 +38,37 @@ export class MemberModalController {
 
     document.getElementById('btn-open-edit')?.addEventListener('click', () => {
       this.openEditModal(this.currentMember);
+    });
+
+    // Quick Add Child from Drawer
+    document.getElementById('btn-drawer-add-child')?.addEventListener('click', () => {
+      if (!this.currentMember) return;
+      const isFather = this.currentMember.gender === 'male';
+      this.openCreateModal({
+        fatherId: isFather ? this.currentMember.id : null,
+        motherId: !isFather ? this.currentMember.id : null,
+        generation: (this.currentMember.generation || 1) + 1
+      });
+    });
+
+    // Quick Add Spouse from Drawer
+    document.getElementById('btn-drawer-add-spouse')?.addEventListener('click', () => {
+      if (!this.currentMember) return;
+      this.openCreateModal({
+        spouseId: this.currentMember.id,
+        gender: this.currentMember.gender === 'male' ? 'female' : 'male',
+        generation: this.currentMember.generation || 1
+      });
+    });
+
+    // Delete Member from Drawer
+    document.getElementById('btn-drawer-delete')?.addEventListener('click', () => {
+      if (!this.currentMember) return;
+      if (confirm(`Bạn có chắc chắn muốn xóa thành viên "${this.currentMember.name}" khỏi gia phả?`)) {
+        const idToDelete = this.currentMember.id;
+        this.close();
+        if (this.onDelete) this.onDelete(idToDelete);
+      }
     });
 
     // Edit form save
@@ -160,9 +193,53 @@ export class MemberModalController {
     this.drawerEl.classList.remove('open');
   }
 
+  populateParentSelectors(fatherId = null, motherId = null) {
+    const fatherSel = document.getElementById('edit-member-father');
+    const motherSel = document.getElementById('edit-member-mother');
+    if (!fatherSel || !motherSel) return;
+
+    let fHtml = '<option value="">-- Không xác định cha --</option>';
+    let mHtml = '<option value="">-- Không xác định mẹ --</option>';
+
+    for (const m of this.clanData.members) {
+      if (m.gender === 'male') {
+        fHtml += `<option value="${m.id}" ${m.id === fatherId ? 'selected' : ''}>Đời ${m.generation}: ${m.name}</option>`;
+      } else {
+        mHtml += `<option value="${m.id}" ${m.id === motherId ? 'selected' : ''}>Đời ${m.generation}: ${m.name}</option>`;
+      }
+    }
+    fatherSel.innerHTML = fHtml;
+    motherSel.innerHTML = mHtml;
+  }
+
+  openCreateModal(params = {}) {
+    const modal = document.getElementById('member-edit-modal');
+    document.getElementById('edit-modal-title').textContent = 'Thêm Thành Viên Mới';
+    document.getElementById('edit-member-id').value = ''; // empty means new member
+    document.getElementById('edit-member-name').value = '';
+    document.getElementById('edit-member-gender').value = params.gender || 'male';
+    document.getElementById('edit-member-generation').value = params.generation || 1;
+    document.getElementById('edit-member-title').value = '';
+    document.getElementById('edit-member-alive').checked = true;
+    document.getElementById('edit-member-birth').value = '';
+    document.getElementById('edit-member-death-year').value = '';
+    document.getElementById('edit-member-lunar-day').value = '';
+    document.getElementById('edit-member-lunar-month').value = '';
+    document.getElementById('edit-member-grave-location').value = '';
+    document.getElementById('edit-member-bio').value = '';
+
+    // Linked spouse for new creation
+    this.pendingSpouseId = params.spouseId || null;
+
+    this.populateParentSelectors(params.fatherId, params.motherId);
+
+    modal.style.display = 'flex';
+  }
+
   openEditModal(m) {
     if (!m) return;
     const modal = document.getElementById('member-edit-modal');
+    document.getElementById('edit-modal-title').textContent = 'Chỉnh Sửa Hồ Sơ Thành Viên';
     document.getElementById('edit-member-id').value = m.id;
     document.getElementById('edit-member-name').value = m.name || '';
     document.getElementById('edit-member-gender').value = m.gender || 'male';
@@ -176,39 +253,106 @@ export class MemberModalController {
     document.getElementById('edit-member-grave-location').value = m.grave?.location || '';
     document.getElementById('edit-member-bio').value = m.bio || '';
 
+    this.pendingSpouseId = null;
+    this.populateParentSelectors(m.father_id, m.mother_id);
+
     modal.style.display = 'flex';
   }
 
   handleSave() {
     const id = document.getElementById('edit-member-id').value;
-    const m = this.clanData.members.find(x => x.id === id);
-    if (!m) return;
-
-    m.name = document.getElementById('edit-member-name').value.trim();
-    m.gender = document.getElementById('edit-member-gender').value;
-    m.generation = parseInt(document.getElementById('edit-member-generation').value, 10);
-    m.title = document.getElementById('edit-member-title').value.trim();
-    m.is_alive = document.getElementById('edit-member-alive').checked;
-    m.birth_year = parseInt(document.getElementById('edit-member-birth').value, 10) || null;
-    m.death_year = parseInt(document.getElementById('edit-member-death-year').value, 10) || null;
-    m.bio = document.getElementById('edit-member-bio').value.trim();
+    const name = document.getElementById('edit-member-name').value.trim();
+    const gender = document.getElementById('edit-member-gender').value;
+    const generation = parseInt(document.getElementById('edit-member-generation').value, 10) || 1;
+    const title = document.getElementById('edit-member-title').value.trim();
+    const is_alive = document.getElementById('edit-member-alive').checked;
+    const birth_year = parseInt(document.getElementById('edit-member-birth').value, 10) || null;
+    const death_year = parseInt(document.getElementById('edit-member-death-year').value, 10) || null;
+    const bio = document.getElementById('edit-member-bio').value.trim();
+    const father_id = document.getElementById('edit-member-father')?.value || null;
+    const mother_id = document.getElementById('edit-member-mother')?.value || null;
 
     const lDay = parseInt(document.getElementById('edit-member-lunar-day').value, 10);
     const lMonth = parseInt(document.getElementById('edit-member-lunar-month').value, 10);
+    let death = null;
     if (lDay && lMonth) {
-      m.death = m.death || {};
-      m.death.lunar_day = lDay;
-      m.death.lunar_month = lMonth;
+      death = { lunar_day: lDay, lunar_month: lMonth, note: '' };
     }
 
     const gLoc = document.getElementById('edit-member-grave-location').value.trim();
+    let grave = null;
     if (gLoc) {
-      m.grave = m.grave || {};
-      m.grave.location = gLoc;
+      grave = { location: gLoc };
+    }
+
+    let memberObj;
+    if (id) {
+      // Update existing
+      memberObj = this.clanData.members.find(x => x.id === id);
+      if (!memberObj) return;
+      memberObj.name = name;
+      memberObj.gender = gender;
+      memberObj.generation = generation;
+      memberObj.title = title;
+      memberObj.is_alive = is_alive;
+      memberObj.birth_year = birth_year;
+      memberObj.death_year = death_year;
+      memberObj.bio = bio;
+      memberObj.father_id = father_id;
+      memberObj.mother_id = mother_id;
+      if (death) memberObj.death = death;
+      if (grave) memberObj.grave = grave;
+    } else {
+      // Create new
+      const newId = `p${Date.now().toString().slice(-6)}`;
+      memberObj = {
+        id: newId,
+        name,
+        gender,
+        generation,
+        title,
+        is_alive,
+        birth_year,
+        death_year,
+        bio,
+        father_id,
+        mother_id,
+        death,
+        grave,
+        spouses: this.pendingSpouseId ? [this.pendingSpouseId] : [],
+        children: []
+      };
+
+      this.clanData.members.push(memberObj);
+
+      // Link to spouse
+      if (this.pendingSpouseId) {
+        const spouse = this.clanData.members.find(x => x.id === this.pendingSpouseId);
+        if (spouse) {
+          spouse.spouses = spouse.spouses || [];
+          if (!spouse.spouses.includes(newId)) spouse.spouses.push(newId);
+        }
+      }
+
+      // Link to parent children list
+      if (father_id) {
+        const father = this.clanData.members.find(x => x.id === father_id);
+        if (father) {
+          father.children = father.children || [];
+          if (!father.children.includes(newId)) father.children.push(newId);
+        }
+      }
+      if (mother_id) {
+        const mother = this.clanData.members.find(x => x.id === mother_id);
+        if (mother) {
+          mother.children = mother.children || [];
+          if (!mother.children.includes(newId)) mother.children.push(newId);
+        }
+      }
     }
 
     document.getElementById('member-edit-modal').style.display = 'none';
-    if (this.onSave) this.onSave(m);
-    this.open(m.id);
+    if (this.onSave) this.onSave(memberObj);
+    this.open(memberObj.id);
   }
 }
