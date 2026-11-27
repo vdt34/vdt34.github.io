@@ -714,15 +714,8 @@ EOF
             [ -z "$hostname" ] && hostname="Phicomm_R1"
             [ -z "$aver" ] && aver="5.1.1"
 
-            is_r1=0
-            case "$model" in *[Rr]1*|*[Rr][Kk]322*) is_r1=1 ;; esac
-            case "$hostname" in *[Pp][Hh][Ii][Cc][Oo][Mm][Mm]*|*[Rr]1*) is_r1=1 ;; esac
-
-            if [ "$is_r1" = "1" ]; then
-                printf '%s|(ADB: 5555)|%s|%s|%s\n' "$cand_ip" "$hostname" "$model" "$aver" >> "$scan_tmp/result.txt"
-            else
-                printf '%s|%s\n' "$cand_ip" "$model" >> "$scan_tmp/other.txt"
-            fi
+            # Đưa mọi thiết bị mở ADB cổng 5555 vào danh sách loa để chọn cài đặt
+            printf '%s|(ADB: 5555)|%s|%s|%s\n' "$cand_ip" "$hostname" "$model" "$aver" >> "$scan_tmp/result.txt"
         done < "$scan_tmp/adb_ips.txt"
     fi
 }
@@ -1108,6 +1101,10 @@ do_execute_install() {
     set_r1_install_progress 100 "Hoàn tất cài đặt!"
     complete_r1_install_progress
 
+    # Dọn dẹp sạch file APK trong bộ nhớ tạm sau khi cài đặt thành công
+    rm -rf "$CACHE_DIR" 2>/dev/null || true
+    rm -f /tmp/r1_cache/* /tmp/ai-box-plus*.apk 2>/dev/null || true
+
     # 1. Trường hợp cài đặt trực tiếp qua WiFi của Loa (AP Mode: 192.168.43.1)
     if [ "$target_ip" = "192.168.43.1" ]; then
         echo ""
@@ -1180,21 +1177,48 @@ select_target_speaker() {
     if [ "$TOTAL_FOUND" -gt 0 ]; then
         echo ""
         pick=$(read_r1_input "   Chọn số thứ tự loa (1-$TOTAL_FOUND) hoặc nhập IP khác [Mặc định: 1]: " "1")
-        pick=$(printf '%s' "$pick" | tr -d ' ')
+        pick=$(printf '%s' "$pick" | tr -d ' \r\n')
+        [ -z "$pick" ] && pick="1"
         if [ "$pick" -ge 1 ] 2>/dev/null && [ "$pick" -le "$TOTAL_FOUND" ] 2>/dev/null; then
-            TARGET_IP=$(sed -n "${pick}p" "$scan_tmp/ips.txt" 2>/dev/null)
+            TARGET_IP=$(sed -n "${pick}p" "$scan_tmp/ips.txt" 2>/dev/null | tr -d ' \r\n')
         elif printf '%s' "$pick" | grep -Eq '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}'; then
             TARGET_IP="$pick"
         else
-            TARGET_IP=$(head -n 1 "$scan_tmp/ips.txt" 2>/dev/null)
+            TARGET_IP=$(head -n 1 "$scan_tmp/ips.txt" 2>/dev/null | tr -d ' \r\n')
         fi
     else
         echo ""
         manual=$(read_r1_input "   Không tìm thấy loa tự động. Nhập IP loa thủ công (Enter để quay lại): " "")
-        manual=$(printf '%s' "$manual" | tr -d ' ')
+        manual=$(printf '%s' "$manual" | tr -d ' \r\n')
         [ -n "$manual" ] && TARGET_IP="$manual"
     fi
     rm -rf "$scan_tmp" 2>/dev/null || true
+    TARGET_IP=$(printf '%s' "$TARGET_IP" | tr -d ' \r\n')
+}
+
+run_lan_install() {
+    select_target_speaker
+    [ -z "$TARGET_IP" ] && return 1
+
+    echo ""
+    printf '%s---------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
+    printf '%s  CHỌN PHƯƠNG THỨC CÀI ĐẶT CHO LOA %s%s\n' "$C_YELLOW" "$TARGET_IP" "$C_RESET"
+    printf '%s---------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
+    echo "  1) Cài mới hoàn toàn (Clean Install)"
+    printf '%s     -> Gỡ sạch app rác cũ, cài đặt bản mới nhất%s\n' "$C_GRAY" "$C_RESET"
+    echo ""
+    echo "  2) Cập nhật / Nâng cấp (Update)"
+    printf '%s     -> Nâng cấp app, giữ nguyên cấu hình và token/license%s\n' "$C_GRAY" "$C_RESET"
+    printf '%s---------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
+    mode_pick=$(read_r1_input "Chọn chế độ [1-2, Mặc định: 1]: " "1")
+    mode_pick=$(printf '%s' "$mode_pick" | tr -d ' \r\n')
+    clean_mode=1
+    case "$mode_pick" in
+        "2") clean_mode=0 ;;
+        *) clean_mode=1 ;;
+    esac
+
+    do_execute_install "$TARGET_IP" "$clean_mode"
 }
 
 # ------------------------------------------------------------------------------
@@ -1265,21 +1289,18 @@ show_menu() {
     echo "  1) Cài đặt trực tiếp qua WiFi Loa (AP Mode)"
     printf '%s     -> Tải sẵn APK, kết nối WiFi loa và cài sạch ngay%s\n' "$C_GRAY" "$C_RESET"
     echo ""
-    echo "  2) Cài đặt mới hoàn toàn (Clean Install qua mạng LAN)"
-    printf '%s     -> Gỡ sạch app rác cũ, cài đặt bản mới nhất%s\n' "$C_GRAY" "$C_RESET"
+    echo "  2) Cài đặt qua mạng LAN (Quét tìm IP loa)"
+    printf '%s     -> Tùy chọn cài mới (gỡ app cũ) hoặc cập nhật (giữ token)%s\n' "$C_GRAY" "$C_RESET"
     echo ""
-    echo "  3) Cập nhật / Nâng cấp (Update qua mạng LAN)"
-    printf '%s     -> Nâng cấp app, giữ nguyên cấu hình và token/license%s\n' "$C_GRAY" "$C_RESET"
-    echo ""
-    echo "  4) Cấu hình WiFi cho loa (chế độ AP 192.168.43.1)"
+    echo "  3) Cấu hình WiFi cho loa (chế độ AP 192.168.43.1)"
     printf '%s     -> Kết nối loa vào WiFi nhà sau khi reset%s\n' "$C_GRAY" "$C_RESET"
     echo ""
-    echo "  5) Quét tìm IP loa Phicomm R1 trong mạng LAN"
-    echo "  6) Thoát"
+    echo "  4) Quét tìm IP loa Phicomm R1 trong mạng LAN"
+    echo "  5) Thoát"
     printf '%s---------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
-    CHOICE=$(read_r1_input "Chọn [1-6]: " "6")
-    CHOICE=$(printf '%s' "$CHOICE" | tr -d ' ')
-    [ -z "$CHOICE" ] && CHOICE="6"
+    CHOICE=$(read_r1_input "Chọn [1-5]: " "5")
+    CHOICE=$(printf '%s' "$CHOICE" | tr -d ' \r\n')
+    [ -z "$CHOICE" ] && CHOICE="5"
 }
 
 # Xử lý tham số dòng lệnh trực tiếp (Automation / Scripts)
@@ -1319,31 +1340,22 @@ while :; do
             run_ap_install
             ;;
         2)
-            select_target_speaker
-            if [ -n "$TARGET_IP" ]; then
-                do_execute_install "$TARGET_IP" 1
-            fi
+            run_lan_install
             ;;
         3)
-            select_target_speaker
-            if [ -n "$TARGET_IP" ]; then
-                do_execute_install "$TARGET_IP" 0
-            fi
-            ;;
-        4)
             run_wifi_config
             ;;
-        5)
+        4)
             scan_speaker_ip
             echo ""
             read_r1_input "   Nhấn Enter để quay lại menu chính: " "" >/dev/null || true
             ;;
-        6|q|Q|exit)
+        5|q|Q|exit)
             echo "Thoát chương trình."
             break
             ;;
         *)
-            printf '%sLựa chọn không hợp lệ. Vui lòng nhập số từ 1 đến 6.%s\n' "$C_YELLOW" "$C_RESET"
+            printf '%sLựa chọn không hợp lệ. Vui lòng nhập số từ 1 đến 5.%s\n' "$C_YELLOW" "$C_RESET"
             sleep 1
             ;;
     esac

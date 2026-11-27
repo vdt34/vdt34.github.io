@@ -632,14 +632,8 @@ function Scan-SpeakerIp {
                 Android  = if ($androidVer) { $androidVer } else { "5.1.1" }
             }
 
-            if ($isPhicomm) {
-                Write-Host "✓" -ForegroundColor Green
-                $phicommDevices += $devInfo
-            }
-            else {
-                Write-Host " (không phải Phicomm R1)" -ForegroundColor Yellow
-                $otherDevices += $devInfo
-            }
+            Write-Host "✓" -ForegroundColor Green
+            $phicommDevices += $devInfo
         }
         else {
             Write-Host "✗" -ForegroundColor Red
@@ -994,6 +988,30 @@ function Do-ExecuteInstall {
     Set-R1InstallProgress -Percent 100 -Status "Hoàn tất cài đặt!"
     Complete-R1InstallProgress
 
+    # Dọn dẹp cache APK trong temp sau khi cài thành công
+    try {
+        Remove-Item (Join-Path $TempDir "ai-box-plus*.apk") -Force -ErrorAction SilentlyContinue
+    } catch {}
+
+    # 1. Trường hợp cài đặt trực tiếp qua WiFi của Loa (AP Mode: 192.168.43.1)
+    if ($targetIp -eq "192.168.43.1") {
+        Write-Host ""
+        Write-Host "==========================================================" -ForegroundColor Green
+        Write-Host "                 CÀI ĐẶT THÀNH CÔNG!                      " -ForegroundColor Yellow
+        Write-Host "==========================================================" -ForegroundColor Green
+        Write-Host ">> BƯỚC TIẾP THEO: CẤU HÌNH WIFI CHO LOA" -ForegroundColor Yellow
+        Write-Host "----------------------------------------------------------" -ForegroundColor Gray
+        Write-Host "  1. Điện thoại / Máy tính vẫn đang kết nối WiFi của loa." -ForegroundColor White
+        Write-Host "  2. Mở trình duyệt Web (Safari, Chrome...) và truy cập ngay:" -ForegroundColor White
+        Write-Host "     👉 http://192.168.43.1:8081" -ForegroundColor Cyan
+        Write-Host "  3. Nhập tên WiFi & mật khẩu nhà bạn để loa kết nối Internet." -ForegroundColor White
+        Write-Host "     (Sau khi kết nối thành công, loa sẽ tự thoát chế độ AP)." -ForegroundColor Gray
+        Write-Host "----------------------------------------------------------" -ForegroundColor Gray
+        Write-Host ""
+        Read-R1Input "Nhấn Enter khi đã hoàn tất cấu hình để quay lại..." | Out-Null
+        return
+    }
+
     Write-Host ""
     Write-Host "==========================================================" -ForegroundColor Green
     Write-Host "                 CÀI ĐẶT THÀNH CÔNG!                      " -ForegroundColor Yellow
@@ -1044,6 +1062,28 @@ function Select-TargetSpeaker {
         if ($manual -and $manual.Trim()) { $target = $manual.Trim() }
     }
     return $target
+}
+
+function Run-LanInstall {
+    $target = Select-TargetSpeaker
+    if (-not $target) { return }
+
+    Write-Host ""
+    Write-Host "---------------------------------------------" -ForegroundColor Cyan
+    Write-Host "  CHỌN PHƯƠNG THỨC CÀI ĐẶT CHO LOA $target" -ForegroundColor Yellow
+    Write-Host "---------------------------------------------" -ForegroundColor Cyan
+    Write-Host "  1) Cài mới hoàn toàn (Clean Install)" -ForegroundColor White
+    Write-Host "     -> Gỡ sạch app rác cũ, cài đặt bản mới nhất" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  2) Cập nhật / Nâng cấp (Update)" -ForegroundColor White
+    Write-Host "     -> Nâng cấp app, giữ nguyên cấu hình và token/license" -ForegroundColor Gray
+    Write-Host "---------------------------------------------" -ForegroundColor Cyan
+    $modePick = Read-R1Input "Chọn chế độ [1-2, Mặc định: 1]"
+    $modePick = if ($modePick) { $modePick.Trim() } else { "1" }
+    $clean = 1
+    if ($modePick -eq "2") { $clean = 0 }
+
+    Do-ExecuteInstall -TargetIpParam $target -CleanMode $clean
 }
 
 # 8B. Cài đặt trực tiếp qua chế độ AP Mode (192.168.43.1)
@@ -1106,20 +1146,17 @@ function Show-Menu {
     Write-Host "  1) Cài đặt trực tiếp qua WiFi Loa (AP Mode)" -ForegroundColor White
     Write-Host "     -> Tải sẵn APK, kết nối WiFi loa và cài sạch ngay" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "  2) Cài đặt mới hoàn toàn (Clean Install qua mạng LAN)" -ForegroundColor White
-    Write-Host "     -> Gỡ sạch app rác cũ, cài đặt bản mới nhất" -ForegroundColor Gray
+    Write-Host "  2) Cài đặt qua mạng LAN (Quét tìm IP loa)" -ForegroundColor White
+    Write-Host "     -> Tùy chọn cài mới (gỡ app cũ) hoặc cập nhật (giữ token)" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "  3) Cập nhật / Nâng cấp (Update qua mạng LAN)" -ForegroundColor White
-    Write-Host "     -> Nâng cấp app, giữ nguyên cấu hình và token/license" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "  4) Cấu hình WiFi cho loa (chế độ AP 192.168.43.1)" -ForegroundColor White
+    Write-Host "  3) Cấu hình WiFi cho loa (chế độ AP 192.168.43.1)" -ForegroundColor White
     Write-Host "     -> Kết nối loa vào WiFi nhà sau khi reset" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "  5) Quét tìm IP loa Phicomm R1 trong mạng LAN" -ForegroundColor White
-    Write-Host "  6) Thoát" -ForegroundColor White
+    Write-Host "  4) Quét tìm IP loa Phicomm R1 trong mạng LAN" -ForegroundColor White
+    Write-Host "  5) Thoát" -ForegroundColor White
     Write-Host "---------------------------------------------" -ForegroundColor Cyan
-    $choice = Read-R1Input "Chọn [1-6]"
-    if ($null -eq $choice) { return "6" }
+    $choice = Read-R1Input "Chọn [1-5]"
+    if ($null -eq $choice) { return "5" }
     if ($choice) { return $choice.Trim() }
     return ""
 }
@@ -1160,25 +1197,16 @@ while ($true) {
         Run-ApInstall | Out-Null
     }
     elseif ($c -eq "2") {
-        $target = Select-TargetSpeaker
-        if ($target) {
-            Do-ExecuteInstall -TargetIpParam $target -CleanMode 1
-        }
+        Run-LanInstall | Out-Null
     }
     elseif ($c -eq "3") {
-        $target = Select-TargetSpeaker
-        if ($target) {
-            Do-ExecuteInstall -TargetIpParam $target -CleanMode 0
-        }
-    }
-    elseif ($c -eq "4") {
         Run-WifiConfig | Out-Null
     }
-    elseif ($c -eq "5") {
+    elseif ($c -eq "4") {
         $null = Scan-SpeakerIp
         Read-R1Input "   Nhấn Enter để quay lại menu chính"
     }
-    elseif ($c -eq "6" -or $c -eq "q" -or $c -eq "Q" -or $c -eq "exit") {
+    elseif ($c -eq "5" -or $c -eq "q" -or $c -eq "Q" -or $c -eq "exit") {
         Write-Host "Thoát chương trình." -ForegroundColor Yellow
         break
     }
@@ -1186,7 +1214,7 @@ while ($true) {
         continue
     }
     else {
-        Write-Host "Lựa chọn không hợp lệ. Vui lòng nhập số từ 1 đến 6." -ForegroundColor Yellow
+        Write-Host "Lựa chọn không hợp lệ. Vui lòng nhập số từ 1 đến 5." -ForegroundColor Yellow
         Start-Sleep -Milliseconds 600
     }
 }
