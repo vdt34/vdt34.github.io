@@ -8,6 +8,7 @@ import { GitHubAPI } from './github-api.js';
 import { EventManager } from './events.js';
 import { CalendarState } from './calendar.js';
 import { UIRenderer } from './ui.js';
+import { generateICSForEvents, downloadICSFile } from './ics-exporter.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const auth = new AuthManager();
@@ -270,5 +271,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         ui.showToast('Đã sao chép link đăng ký vào bộ nhớ tạm!', 'success');
       }
     });
+  });
+
+  // Export Anniversaries (Ngày Giỗ) button
+  document.getElementById('btn-export-anniversaries-ics')?.addEventListener('click', () => {
+    const all = events.getAllEvents();
+    // Filter family anniversaries or recurring lunar events
+    const anniversaries = all.filter(e => 
+      e.category === 'family_anniversary' || 
+      e.recurrence === 'annual_lunar' || 
+      e.scope === 'private'
+    );
+
+    if (anniversaries.length === 0) {
+      ui.showToast('Chưa có ngày giỗ hoặc sự kiện âm lịch nào. Hãy thêm sự kiện trước khi xuất!', 'info');
+      return;
+    }
+
+    try {
+      const ics = generateICSForEvents(anniversaries, 'Ngày Giỗ & Gia Đình', 10);
+      downloadICSFile('ngay-gio-gia-dinh.ics', ics);
+      ui.showToast(`Đã xuất thành công ${anniversaries.length} ngày giỗ (tính sẵn 10 năm tới)!`, 'success');
+    } catch (err) {
+      ui.showToast(`Lỗi xuất file ICS: ${err.message}`, 'error');
+    }
   });
 });

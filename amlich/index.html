@@ -335,6 +335,21 @@
           <input type="hidden" id="feed-url-events-webcal">
         </div>
 
+        <!-- Export Family Anniversaries (Ngày Giỗ) to ICS -->
+        <div style="background-color: var(--bg-surface-hover); border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; margin-top: 1rem;">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
+            <div style="flex: 1; min-width: 250px;">
+              <strong style="color: var(--lunar-gold); font-size: 0.95rem;">🕯️ Xuất File .ICS Ngày Giỗ Gia Đình (10 Năm)</strong>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                Tự động tính ngày dương cho 10 năm liên tiếp (đã xử lý tháng thiếu 29 ngày). Mở file này trên iPhone sẽ thêm toàn bộ ngày giỗ vào Lịch Apple và tự động bật chuông nhắc trước 1 ngày!
+              </p>
+            </div>
+            <button type="button" id="btn-export-anniversaries-ics" class="btn btn-primary" style="background-color: var(--lunar-gold); border-color: var(--lunar-gold); font-weight: 600;">
+              📥 Tải file .ics Ngày Giỗ
+            </button>
+          </div>
+        </div>
+
         <div style="border-top: 1px solid var(--border-color); padding-top: 1rem; font-size: 0.8125rem;">
           <h4 style="font-weight: 700; margin-bottom: 0.5rem;">📱 Hướng dẫn cài đặt trên iPhone:</h4>
           <ol style="padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.35rem; color: var(--text-secondary);">
