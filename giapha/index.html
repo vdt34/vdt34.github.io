@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gia Phả Dòng Họ — Cây Gia Phả & Lịch Giỗ Tổ Tiên</title>
+  <meta name="description" content="Hệ thống Cây Gia Phả tương tác, máy tính danh xưng xưng hô họ hàng, lịch giỗ âm lịch và bản đồ mộ phần tổ tiên.">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌳</text></svg>">
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <a href="#" class="brand">
+        <div class="brand-icon">GP</div>
+        <div>
+          <div class="brand-title">Gia Phả Dòng Họ</div>
+          <div class="brand-subtitle">Cây Gia Phả &amp; Danh Xưng Tổ Tiên</div>
+        </div>
+      </a>
+
+      <!-- View Switcher Tabs -->
+      <nav class="view-tabs">
+        <button class="tab-btn active" data-tab="tree">
+          🌳 Cây Gia Phả
+        </button>
+        <button class="tab-btn" data-tab="book">
+          📖 Sách Phả Ký
+        </button>
+        <button class="tab-btn" data-tab="anniversaries">
+          🕯️ Lịch Giỗ
+        </button>
+        <button class="tab-btn" data-tab="graves">
+          📍 Mộ Phần
+        </button>
+      </nav>
+
+      <!-- Header Actions -->
+      <div class="header-actions">
+        <a href="../amlich/" class="btn btn-outline btn-sm" title="Mở Dashboard Lịch Âm Dương">
+          🌙 Lịch Âm
+        </a>
+
+        <button id="btn-export-clan-ics" class="btn btn-gold btn-sm" title="Tải file .ics lịch giỗ cho iPhone">
+          📥 Xuất ICS Giỗ
+        </button>
+
+        <button id="btn-print-book" class="btn btn-outline btn-sm" title="In sách phả ký" style="display: none;">
+          🖨️ In sách
+        </button>
+
+        <button id="btn-theme-toggle" class="btn btn-outline btn-icon" title="Chuyển chế độ sáng/tối">
+          🌓
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Sub-Toolbar (Search & Self Selector) -->
+  <div class="sub-toolbar">
+    <div class="sub-toolbar-container">
+      <!-- Search -->
+      <div style="flex: 1; min-width: 240px; max-width: 400px;">
+        <input type="text" id="search-member-input" class="search-input" placeholder="🔍 Tìm tên cụ, đời, tiểu sử..." style="width: 100%;">
+      </div>
+
+      <!-- Kinship: Set Self -->
+      <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+        <label for="self-selector" style="font-size: 0.8125rem; font-weight: 600; color: var(--gold);">
+          👤 Tôi là ai:
+        </label>
+        <select id="self-selector" class="select-input" style="min-width: 220px;">
+          <!-- Injected by JS -->
+        </select>
+        <span style="font-size: 0.75rem; color: var(--text-muted);">(Dùng để tính quan hệ &amp; cách xưng hô chuẩn)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Views Container -->
+  <main class="main-content">
+    <!-- View 1: Tree View -->
+    <div id="tree-view-wrapper" style="width: 100%; height: 100%; position: relative;">
+      <div id="tree-container" class="tree-canvas-container">
+        <!-- SVG Injected by tree-view.js -->
+      </div>
+
+      <!-- Tree Zoom Controls -->
+      <div class="tree-controls">
+        <button id="btn-zoom-in" class="tree-control-btn" title="Phóng to">+</button>
+        <button id="btn-zoom-out" class="tree-control-btn" title="Thu nhỏ">−</button>
+        <button id="btn-zoom-reset" class="tree-control-btn" title="Về ban đầu">⟲</button>
+      </div>
+    </div>
+
+    <!-- View 2: Book View -->
+    <div id="book-view-wrapper" style="display: none; height: 100%; overflow-y: auto;">
+      <!-- Injected by book-view.js -->
+    </div>
+
+    <!-- View 3: Death Anniversaries View -->
+    <div id="anniversaries-view-wrapper" style="display: none; height: 100%; overflow-y: auto;">
+      <!-- Injected by app.js -->
+    </div>
+
+    <!-- View 4: Graves Map View -->
+    <div id="graves-view-wrapper" style="display: none; height: 100%; overflow-y: auto;">
+      <!-- Injected by grave-map.js -->
+    </div>
+  </main>
+
+  <!-- Member Profile Drawer -->
+  <aside id="member-drawer" class="member-drawer">
+    <div class="drawer-header">
+      <div>
+        <div id="drawer-generation" style="font-size: 0.75rem; font-weight: 600; color: var(--gold);">Đời thứ 1</div>
+        <h2 id="drawer-name" style="font-size: 1.35rem; font-weight: 700; margin-top: 2px;">Tên Thành Viên</h2>
+        <div id="drawer-title" style="font-size: 0.85rem; color: var(--text-secondary);">Trưởng tộc</div>
+      </div>
+      <button type="button" id="btn-close-drawer" class="btn btn-icon" style="font-size: 1.25rem;">✕</button>
+    </div>
+
+    <div class="drawer-content">
+      <!-- Status & Set Self -->
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+        <div id="drawer-status">
+          <span class="status-badge alive">Còn sống</span>
+        </div>
+        <button type="button" id="btn-set-self" class="btn btn-outline btn-sm" style="color: var(--gold); border-color: var(--gold); font-weight: 600;">
+          ★ Đặt làm "Tôi"
+        </button>
+      </div>
+
+      <!-- Kinship Box -->
+      <div>
+        <div class="drawer-section-title">Máy Tính Danh Xưng &amp; Thứ Bậc</div>
+        <div id="drawer-kinship-box">
+          <!-- Injected by JS -->
+        </div>
+      </div>
+
+      <!-- Basic Info -->
+      <div>
+        <div class="drawer-section-title">Năm Sinh &amp; Năm Mất</div>
+        <div id="drawer-years" style="font-size: 0.95rem; font-weight: 600;">1905 – 1978</div>
+      </div>
+
+      <!-- Death Anniversary -->
+      <div id="drawer-death-section">
+        <div class="drawer-section-title">Ngày Giỗ Tổ Tiên (Âm Lịch)</div>
+        <div style="background: #fef3c7; border: 1px solid #fde68a; padding: 0.65rem; border-radius: 6px;">
+          <div id="drawer-lunar-death" style="font-weight: 700; color: #b45309;">Ngày 15 tháng 7 Âm lịch</div>
+          <div id="drawer-death-note" style="font-size: 0.8rem; color: #78350f; margin-top: 2px;">Giỗ Rằm tháng Bảy.</div>
+        </div>
+      </div>
+
+      <!-- Grave Section -->
+      <div id="drawer-grave-section">
+        <div class="drawer-section-title">Vị Trí Mộ Phần Tổ Tiên</div>
+        <div style="font-size: 0.875rem; color: var(--text-primary);">
+          📍 <span id="drawer-grave-location">Nghĩa trang Mộ Trạch</span>
+        </div>
+        <div id="drawer-grave-desc" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px;"></div>
+        <a id="btn-open-grave-maps" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="margin-top: 0.5rem; display: inline-flex;">
+          🧭 Mở vị trí trên Google Maps
+        </a>
+      </div>
+
+      <!-- Family Relations -->
+      <div>
+        <div class="drawer-section-title">Quan Hệ Huyết Thống</div>
+        <div style="font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.35rem;">
+          <div><strong>Bố / Mẹ:</strong> <span id="drawer-parents">—</span></div>
+          <div><strong>Phối ngẫu:</strong> <span id="drawer-spouses">—</span></div>
+          <div><strong>Hậu duệ (Con cái):</strong> <span id="drawer-children">—</span></div>
+        </div>
+      </div>
+
+      <!-- Bio -->
+      <div>
+        <div class="drawer-section-title">Tiểu Sử &amp; Công Đức</div>
+        <p id="drawer-bio" style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6;"></p>
+      </div>
+
+      <!-- Action -->
+      <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+        <button type="button" id="btn-open-edit" class="btn btn-outline" style="width: 100%; justify-content: center;">
+          ✏️ Chỉnh sửa thông tin
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Member Edit Modal -->
+  <div id="member-edit-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="drawer-header">
+        <h3 style="font-size: 1.15rem; font-weight: 700;">Chỉnh Sửa Hồ Sơ Thành Viên</h3>
+        <button type="button" class="btn btn-icon btn-close-edit-modal">✕</button>
+      </div>
+
+      <form id="member-edit-form">
+        <div style="padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem;">
+          <input type="hidden" id="edit-member-id">
+
+          <div class="form-group">
+            <label class="form-label" for="edit-member-name">Họ và tên *</label>
+            <input type="text" id="edit-member-name" class="form-input" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="edit-member-gender">Giới tính</label>
+              <select id="edit-member-gender" class="form-select">
+                <option value="male">Nam</option>
+                <option value="female">Nữ</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="edit-member-generation">Đời thứ</label>
+              <input type="number" id="edit-member-generation" class="form-input" min="1" max="20" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="edit-member-title">Danh hiệu / Vai vế (ví dụ: Thủy Tổ, Trưởng Nam...)</label>
+            <input type="text" id="edit-member-title" class="form-input">
+          </div>
+
+          <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+              <input type="checkbox" id="edit-member-alive"> Hiện tại còn sống
+            </label>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="edit-member-birth">Năm sinh</label>
+              <input type="number" id="edit-member-birth" class="form-input" placeholder="Ví dụ: 1960">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="edit-member-death-year">Năm mất (nếu đã qua đời)</label>
+              <input type="number" id="edit-member-death-year" class="form-input" placeholder="Ví dụ: 2018">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="edit-member-lunar-day">Ngày Giỗ (Ngày Âm)</label>
+              <input type="number" id="edit-member-lunar-day" class="form-input" min="1" max="30" placeholder="1–30">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="edit-member-lunar-month">Tháng Giỗ (Tháng Âm)</label>
+              <input type="number" id="edit-member-lunar-month" class="form-input" min="1" max="12" placeholder="1–12">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="edit-member-grave-location">Vị trí mộ phần</label>
+            <input type="text" id="edit-member-grave-location" class="form-input" placeholder="Ví dụ: Nghĩa trang quê nhà, Hàng 2 Lô B">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="edit-member-bio">Tiểu sử &amp; Ghi chú</label>
+            <textarea id="edit-member-bio" class="form-textarea" rows="3"></textarea>
+          </div>
+        </div>
+
+        <div style="padding: 1rem 1.25rem; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 0.5rem;">
+          <button type="button" class="btn btn-outline btn-close-edit-modal">Hủy</button>
+          <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Main JavaScript Bootstrap -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
