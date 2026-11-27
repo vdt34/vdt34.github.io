@@ -1,0 +1,28 @@
+[
+  {
+    "id": "le-hoi-chua-huong",
+    "title": "Khai hội Chùa Hương (Mùng 6 tháng Giêng)",
+    "description": "Lễ hội tâm linh đầu xuân tại Hương Sơn, Mỹ Đức, Hà Nội.",
+    "calendar_type": "lunar",
+    "lunar_day": 6,
+    "lunar_month": 1,
+    "is_leap": false,
+    "category": "community",
+    "color": "#0284c7",
+    "scope": "public",
+    "recurrence": "annual_lunar"
+  },
+  {
+    "id": "le-hoi-den-hung",
+    "title": "Đại lễ Hội Đền Hùng",
+    "description": "Lễ hội tri ân công đức tổ tiên tại Khu di tích lịch sử Đền Hùng, Phú Thọ.",
+    "calendar_type": "lunar",
+    "lunar_day": 10,
+    "lunar_month": 3,
+    "is_leap": false,
+    "category": "community",
+    "color": "#b45309",
+    "scope": "public",
+    "recurrence": "annual_lunar"
+  }
+]

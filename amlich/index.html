@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vietnam Lunar Calendar — Lịch Âm Việt Nam</title>
+  <meta name="description" content="Hệ thống lịch âm dương Việt Nam chuẩn thiên văn UTC+7, quản lý ngày lễ, sự kiện lặp theo ngày âm và xuất feed iCalendar RFC 5545 cho iPhone.">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌙</text></svg>">
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <a href="#" class="brand">
+        <div class="brand-icon">ÂL</div>
+        <div>
+          <div class="brand-title">Lịch Âm Việt Nam</div>
+          <div class="brand-subtitle">Vietnam Lunar Calendar (UTC+7)</div>
+        </div>
+      </a>
+
+      <div class="header-actions">
+        <button id="private-status-pill" class="status-pill" title="Trạng thái mã hóa dữ liệu riêng tư">
+          <span class="status-dot locked"></span>
+          <span>Riêng tư: Đang khóa</span>
+        </button>
+
+        <button id="github-status-pill" class="status-pill" title="Cấu hình kết nối GitHub API">
+          <span class="status-dot"></span>
+          <span>Chưa kết nối GitHub</span>
+        </button>
+
+        <button id="btn-feeds-modal" class="btn btn-outline btn-sm">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+          Đăng ký iPhone
+        </button>
+
+        <button id="btn-add-event" class="btn btn-primary btn-sm">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Thêm sự kiện
+        </button>
+
+        <button id="btn-theme-toggle" class="btn btn-outline btn-icon" title="Chuyển chế độ sáng/tối">
+          🌓
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Calendar View -->
+  <main class="main-container">
+    <!-- Toolbar -->
+    <div class="calendar-toolbar">
+      <div class="toolbar-left">
+        <button id="btn-today" class="btn btn-outline">Hôm nay</button>
+        <button id="btn-prev" class="btn btn-outline btn-icon" title="Tháng trước">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <button id="btn-next" class="btn btn-outline btn-icon" title="Tháng sau">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+
+      <div class="toolbar-center">
+        <div class="calendar-title-group text-center">
+          <h1 id="calendar-main-title" class="calendar-main-title">Tháng 11, 2026</h1>
+          <span id="calendar-sub-title" class="calendar-sub-title">Năm Bính Ngọ (Ngựa)</span>
+        </div>
+      </div>
+
+      <div class="toolbar-right">
+        <div class="view-switcher">
+          <button class="view-btn active" data-view="month">Tháng</button>
+          <button class="view-btn" data-view="week">Tuần</button>
+          <button class="view-btn" data-view="list">Danh sách</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-bar">
+      <input type="text" id="search-input" class="search-input" placeholder="🔍 Tìm kiếm sự kiện, ngày lễ..." style="flex: 1; min-width: 200px;">
+      
+      <select id="category-filter" class="select-filter">
+        <option value="all">Tất cả danh mục</option>
+        <option value="national_holiday">Lễ Quốc Gia</option>
+        <option value="traditional_festival">Lễ Hội Dân Gian</option>
+        <option value="family_anniversary">Giỗ / Gia Đình</option>
+        <option value="birthday">Sinh Nhật</option>
+        <option value="personal">Cá Nhân</option>
+        <option value="community">Cộng Đồng</option>
+      </select>
+
+      <select id="scope-filter" class="select-filter">
+        <option value="all">Tất cả phạm vi</option>
+        <option value="public">Công khai (Public)</option>
+        <option value="private">Riêng tư (Private)</option>
+      </select>
+    </div>
+
+    <!-- Calendar Grid Container -->
+    <div id="calendar-container" class="calendar-view-container">
+      <!-- Injected by JavaScript -->
+    </div>
+  </main>
+
+  <!-- Modal: Thêm / Sửa Sự Kiện -->
+  <div id="event-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Thông tin sự kiện</h3>
+        <button type="button" class="btn btn-icon btn-modal-close">✕</button>
+      </div>
+      <form id="event-form">
+        <div class="modal-body">
+          <input type="hidden" id="event-id">
+
+          <div class="form-group">
+            <label class="form-label" for="event-title">Tiêu đề sự kiện *</label>
+            <input type="text" id="event-title" class="form-input" required placeholder="Ví dụ: Giỗ Cụ, Sinh nhật, v.v.">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="event-description">Mô tả / Ghi chú</label>
+            <textarea id="event-description" class="form-textarea" rows="2" placeholder="Ghi chú chi tiết..."></textarea>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="event-calendar-type">Loại lịch</label>
+              <select id="event-calendar-type" class="form-select">
+                <option value="solar">Dương lịch</option>
+                <option value="lunar">Âm lịch</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="event-scope">Phạm vi bảo mật</label>
+              <select id="event-scope" class="form-select">
+                <option value="public">Công khai (Public Feed)</option>
+                <option value="private">Riêng tư (Mã hóa AES-GCM)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Solar Date Fields -->
+          <div id="solar-date-fields" class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="solar-day">Ngày dương</label>
+              <input type="number" id="solar-day" class="form-input" min="1" max="31">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="solar-month">Tháng dương</label>
+              <input type="number" id="solar-month" class="form-input" min="1" max="12">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="solar-year">Năm</label>
+              <input type="number" id="solar-year" class="form-input" min="1900" max="2100">
+            </div>
+          </div>
+
+          <!-- Lunar Date Fields -->
+          <div id="lunar-date-fields" class="form-row" style="display: none;">
+            <div class="form-group">
+              <label class="form-label" for="lunar-day">Ngày âm</label>
+              <input type="number" id="lunar-day" class="form-input" min="1" max="30">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="lunar-month">Tháng âm</label>
+              <input type="number" id="lunar-month" class="form-input" min="1" max="12">
+            </div>
+            <div class="form-group" style="grid-column: span 2; display: flex; flex-direction: column; gap: 0.5rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="lunar-leap"> Tháng nhuận
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                <input type="checkbox" id="lunar-fallback" checked> Tự động lùi về ngày 29 nếu tháng chỉ có 29 ngày (Tháng thiếu)
+              </label>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="event-recurrence">Quy tắc lặp</label>
+              <select id="event-recurrence" class="form-select">
+                <option value="annual_lunar">Lặp hàng năm theo Âm lịch</option>
+                <option value="annual_solar">Lặp hàng năm theo Dương lịch</option>
+                <option value="none">Chỉ một lần (Không lặp)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="event-category">Danh mục</label>
+              <select id="event-category" class="form-select">
+                <option value="family_anniversary">Giỗ / Gia Đình</option>
+                <option value="birthday">Sinh Nhật</option>
+                <option value="personal">Cá Nhân</option>
+                <option value="community">Cộng Đồng</option>
+                <option value="traditional_festival">Lễ Hội Dân Gian</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="event-color">Màu hiển thị</label>
+            <input type="color" id="event-color" class="form-input" value="#2563eb" style="height: 40px; padding: 2px;">
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" id="btn-delete-event" class="btn btn-outline" style="color: var(--danger); margin-right: auto;">Xóa sự kiện</button>
+          <button type="button" class="btn btn-outline btn-modal-close">Hủy</button>
+          <button type="submit" class="btn btn-primary">Lưu sự kiện</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Kết Nối GitHub API -->
+  <div id="github-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Kết nối GitHub Repository</h3>
+        <button type="button" class="btn btn-icon btn-modal-close">✕</button>
+      </div>
+      <form id="github-auth-form">
+        <div class="modal-body">
+          <p style="font-size: 0.85rem; color: var(--text-secondary);">
+            Hệ thống sử dụng GitHub REST API để đọc/ghi trực tiếp vào repository mà không cần máy chủ trung gian.
+          </p>
+
+          <div class="form-group">
+            <label class="form-label" for="gh-token-input">GitHub Personal Access Token *</label>
+            <input type="password" id="gh-token-input" class="form-input" placeholder="ghp_... hoặc github_pat_..." required>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">
+              Cần quyền: <code>Contents: Read and Write</code>. Token chỉ lưu trong bộ nhớ phiên (sessionStorage), tuyệt đối không lưu công khai.
+            </span>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="gh-owner-input">Owner / Username</label>
+              <input type="text" id="gh-owner-input" class="form-input" value="vdt34" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="gh-repo-input">Repository</label>
+              <input type="text" id="gh-repo-input" class="form-input" value="vdt34.github.io" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="gh-branch-input">Branch</label>
+            <input type="text" id="gh-branch-input" class="form-input" value="main" required>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" id="btn-github-logout" class="btn btn-outline" style="color: var(--danger); margin-right: auto;">Đăng xuất</button>
+          <button type="button" class="btn btn-outline btn-modal-close">Đóng</button>
+          <button type="submit" class="btn btn-primary">Kiểm tra & Kết nối</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Mở Khóa Dữ Liệu Riêng Tư (Web Crypto AES-GCM) -->
+  <div id="private-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Bảo mật Dữ Liệu Riêng Tư (Web Crypto)</h3>
+        <button type="button" class="btn btn-icon btn-modal-close">✕</button>
+      </div>
+      <form id="private-auth-form">
+        <div class="modal-body">
+          <div style="background-color: var(--bg-surface-hover); padding: 0.75rem; border-radius: 6px; font-size: 0.8125rem; border-left: 4px solid var(--lunar-gold);">
+            <strong>Kiến trúc Zero-Knowledge:</strong> Dữ liệu ngày giỗ, sinh nhật cá nhân được mã hóa chuẩn <strong>AES-GCM 256-bit</strong> ngay trên trình duyệt trước khi đồng bộ. Không lưu mật khẩu hay khóa giải mã trên GitHub.
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="private-passphrase-input">Mật khẩu giải mã *</label>
+            <input type="password" id="private-passphrase-input" class="form-input" placeholder="Nhập mật khẩu riêng của bạn..." required minlength="6">
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" id="btn-lock-private" class="btn btn-outline" style="margin-right: auto;">Khóa lại</button>
+          <button type="button" class="btn btn-outline btn-modal-close">Hủy</button>
+          <button type="submit" class="btn btn-primary">Mở khóa</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Đăng ký Feed Lịch trên iPhone / Apple Calendar -->
+  <div id="feeds-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Đăng ký Lịch iCalendar (.ics) trên iPhone</h3>
+        <button type="button" class="btn btn-icon btn-modal-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.875rem; color: var(--text-secondary);">
+          Đăng ký link feed dưới đây vào ứng dụng Lịch (Apple Calendar) trên iPhone hoặc Google Calendar để tự động đồng bộ ngày âm và ngày lễ.
+        </p>
+
+        <!-- Feed 1: Holidays -->
+        <div class="form-group">
+          <label class="form-label">1. Feed Ngày Lễ Việt Nam (holidays.ics)</label>
+          <div style="display: flex; gap: 0.5rem;">
+            <input type="text" id="feed-url-holidays" class="form-input" readonly style="font-family: monospace; font-size: 0.75rem;">
+            <button type="button" class="btn btn-outline btn-copy-url" data-target="feed-url-holidays">Sao chép</button>
+          </div>
+          <input type="hidden" id="feed-url-holidays-webcal">
+        </div>
+
+        <!-- Feed 2: Lunar Mung 1 & Ram -->
+        <div class="form-group">
+          <label class="form-label">2. Feed Lịch Âm Mùng 1 & Rằm (lunar.ics)</label>
+          <div style="display: flex; gap: 0.5rem;">
+            <input type="text" id="feed-url-lunar" class="form-input" readonly style="font-family: monospace; font-size: 0.75rem;">
+            <button type="button" class="btn btn-outline btn-copy-url" data-target="feed-url-lunar">Sao chép</button>
+          </div>
+          <input type="hidden" id="feed-url-lunar-webcal">
+        </div>
+
+        <!-- Feed 3: Public Events -->
+        <div class="form-group">
+          <label class="form-label">3. Feed Sự Kiện Cộng Đồng (public-events.ics)</label>
+          <div style="display: flex; gap: 0.5rem;">
+            <input type="text" id="feed-url-events" class="form-input" readonly style="font-family: monospace; font-size: 0.75rem;">
+            <button type="button" class="btn btn-outline btn-copy-url" data-target="feed-url-events">Sao chép</button>
+          </div>
+          <input type="hidden" id="feed-url-events-webcal">
+        </div>
+
+        <div style="border-top: 1px solid var(--border-color); padding-top: 1rem; font-size: 0.8125rem;">
+          <h4 style="font-weight: 700; margin-bottom: 0.5rem;">📱 Hướng dẫn cài đặt trên iPhone:</h4>
+          <ol style="padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.35rem; color: var(--text-secondary);">
+            <li>Mở ứng dụng <strong>Cài đặt (Settings)</strong> trên iPhone.</li>
+            <li>Chọn mục <strong>Lịch (Calendar)</strong> &gt; <strong>Tài khoản (Accounts)</strong>.</li>
+            <li>Nhấn <strong>Thêm tài khoản (Add Account)</strong> &gt; chọn <strong>Khác (Other)</strong>.</li>
+            <li>Chọn <strong>Thêm Lịch đã Đăng ký (Add Subscribed Calendar)</strong>.</li>
+            <li>Dán link Feed (sao chép ở trên) vào ô <strong>Máy chủ (Server)</strong> rồi nhấn <strong>Tiếp theo (Next)</strong>.</li>
+            <li>Bật tùy chọn tự động làm mới và nhấn <strong>Lưu (Save)</strong>.</li>
+          </ol>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary btn-modal-close">Đã hiểu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Bootstrap App -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

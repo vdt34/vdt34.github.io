@@ -1,0 +1,68 @@
+name: Update Vietnam Lunar Calendar Feeds (Amlich)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'amlich/data/public/**'
+      - 'amlich/scripts/**'
+      - 'amlich/tests/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-amlich-calendar-feeds
+  cancel-in-progress: true
+
+jobs:
+  build-and-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Run Unit Tests
+        run: |
+          cd amlich
+          python -m unittest discover -s tests -v
+
+      - name: Validate Public & Security Rules
+        run: |
+          cd amlich
+          python scripts/validate_data.py
+
+      - name: Regenerate iCalendar (ICS) Feeds
+        run: |
+          cd amlich
+          python scripts/generate_ics.py
+
+      - name: Check for Feed Changes
+        id: git-check
+        run: |
+          if git diff --quiet amlich/feeds/; then
+            echo "changed=0" >> $GITHUB_OUTPUT
+            echo "Feeds are already up to date. No commit needed."
+          else
+            echo "changed=1" >> $GITHUB_OUTPUT
+            echo "Feeds updated. Ready to commit."
+          fi
+
+      - name: Commit and Push Updated Feeds
+        if: steps.git-check.outputs.changed == '1'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add amlich/feeds/*.ics
+          git commit -m "chore(amlich): auto-regenerate RFC 5545 iCalendar feeds [skip ci]"
+          git push

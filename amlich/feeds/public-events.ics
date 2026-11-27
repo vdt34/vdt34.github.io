@@ -1,0 +1,199 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Vietnam Lunar Calendar//RFC 5545//VI
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Sự Kiện Cộng Đồng (Public Events)
+X-WR-CALDESC:Các sự kiện văn hóa\, lễ hội cộng đồng theo l
+ ịch âm dương Việt Nam
+X-WR-TIMEZONE:Asia/Ho_Chi_Minh
+BEGIN:VEVENT
+UID:pub-event-le-hoi-chua-huong-2025@amlich.vn
+DTSTAMP:20250101T000000Z
+DTSTART;VALUE=DATE:20250203
+DTEND;VALUE=DATE:20250204
+SUMMARY:Khai hội Chùa Hương (Mùng 6 tháng Giêng)
+DESCRIPTION:Lễ hội tâm linh đầu xuân tại Hương Sơn\, Mỹ Đ
+ ức\, Hà Nội.\nÂm lịch: 6/1 Năm Ất Tỵ (Ngày Quý Mão)
+CATEGORIES:EVENT\,COMMUNITY
+CLASS:PUBLIC
+STATUS:CONFIRMED
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:pub-event-le-hoi-den-hung-2025@amlich.vn
+DTSTAMP:20250101T000000Z
+DTSTART;VALUE=DATE:20250407
+DTEND;VALUE=DATE:20250408
+SUMMARY:Đại lễ Hội Đền Hùng
+DESCRIPTION:Lễ hội tri ân công đức tổ tiên tại Khu di tích l
+ ịch sử Đền Hùng\, Phú Thọ.\nÂm lịch: 10/3 Năm Ất Tỵ (Ng
+ ày Bính Ngọ)
+CATEGORIES:EVENT\,COMMUNITY
+CLASS:PUBLIC
+STATUS:CONFIRMED
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:pub-event-le-hoi-chua-huong-2026@amlich.vn
+DTSTAMP:20260101T000000Z
+DTSTART;VALUE=DATE:20260222
+DTEND;VALUE=DATE:20260223
+SUMMARY:Khai hội Chùa Hương (Mùng 6 tháng Giêng)
+DESCRIPTION:Lễ hội tâm linh đầu xuân tại Hương Sơn\, Mỹ Đ
+ ức\, Hà Nội.\nÂm lịch: 6/1 Năm Bính Ngọ (Ngày Đinh Mão)
+CATEGORIES:EVENT\,COMMUNITY
+CLASS:PUBLIC
+STATUS:CONFIRMED
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:pub-event-le-hoi-den-hung-2026@amlich.vn
+DTSTAMP:20260101T000000Z
+DTSTART;VALUE=DATE:20260426
+DTEND;VALUE=DATE:20260427
+SUMMARY:Đại lễ Hội Đền Hùng
+DESCRIPTION:Lễ hội tri ân công đức tổ tiên tại Khu di tích l
+ ịch sử Đền Hùng\, Phú Thọ.\nÂm lịch: 10/3 Năm Bính Ngọ (
+ Ngày Canh Ngọ)
+CATEGORIES:EVENT\,COMMUNITY
+CLASS:PUBLIC
+STATUS:CONFIRMED
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:pub-event-le-hoi-chua-huong-2027@amlich.vn
+DTSTAMP:20270101T000000Z
+DTSTART;VALUE=DATE:20270211
+DTEND;VALUE=DATE:20270212
+SUMMARY:Khai hội Chùa Hương (Mùng 6 tháng Giêng)
+DESCRIPTION:Lễ hội tâm linh đầu xuân tại Hương Sơn\, Mỹ Đ
+ ức\, Hà Nội.\nÂm lịch: 6/1 Năm Đinh Mùi (Ngày Tân Dậu)
+CATEGORIES:EVENT\,COMMUNITY
+CLASS:PUBLIC
+STATUS:CONFIRMED
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:pub-event-le-hoi-den-hung-2027@amlich.vn
+DTSTAMP:20270101T000000Z
+DTSTART;VALUE=DATE:20270416
+DTEND;VALUE=DATE:20270417
+SUMMARY:Đại lễ Hội Đền Hùng
+DESCRIPTION:Lễ hội tri ân công đức tổ tiên tại Khu di tích l
+ ịch sử Đền Hùng\, Phú Thọ.\nÂm lịch: 10/3 Năm Đinh Mùi (N
+ gày Ất Sửu)
+CATEGORIES:EVENT\,COMMUNITY
+CLASS:PUBLIC
+STATUS:CONFIRMED
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:pub-event-le-hoi-chua-huong-2028@amlich.vn
+DTSTAMP:20280101T000000Z
+DTSTART;VALUE=DATE:20280131
+DTEND;VALUE=DATE:20280201
+SUMMARY:Khai hội Chùa Hương (Mùng 6 tháng Giêng)
+DESCRIPTION:Lễ hội tâm linh đầu xuân tại Hương Sơn\, Mỹ Đ
+ ức\, Hà Nội.\nÂm lịch: 6/1 Năm Mậu Thân (Ngày Ất Mão)
+CATEGORIES:EVENT\,COMMUNITY
+CLASS:PUBLIC
+STATUS:CONFIRMED
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:pub-event-le-hoi-den-hung-2028@amlich.vn
+DTSTAMP:20280101T000000Z
+DTSTART;VALUE=DATE:20280404
+DTEND;VALUE=DATE:20280405
+SUMMARY:Đại lễ Hội Đền Hùng
+DESCRIPTION:Lễ hội tri ân công đức tổ tiên tại Khu di tích l
+ ịch sử Đền Hùng\, Phú Thọ.\nÂm lịch: 10/3 Năm Mậu Thân (
+ Ngày Kỷ Mùi)
+CATEGORIES:EVENT\,COMMUNITY
+CLASS:PUBLIC
+STATUS:CONFIRMED
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:pub-event-le-hoi-chua-huong-2029@amlich.vn
+DTSTAMP:20290101T000000Z
+DTSTART;VALUE=DATE:20290218
+DTEND;VALUE=DATE:20290219
+SUMMARY:Khai hội Chùa Hương (Mùng 6 tháng Giêng)
+DESCRIPTION:Lễ hội tâm linh đầu xuân tại Hương Sơn\, Mỹ Đ
+ ức\, Hà Nội.\nÂm lịch: 6/1 Năm Kỷ Dậu (Ngày Kỷ Mão)
+CATEGORIES:EVENT\,COMMUNITY
+CLASS:PUBLIC
+STATUS:CONFIRMED
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:pub-event-le-hoi-den-hung-2029@amlich.vn
+DTSTAMP:20290101T000000Z
+DTSTART;VALUE=DATE:20290423
+DTEND;VALUE=DATE:20290424
+SUMMARY:Đại lễ Hội Đền Hùng
+DESCRIPTION:Lễ hội tri ân công đức tổ tiên tại Khu di tích l
+ ịch sử Đền Hùng\, Phú Thọ.\nÂm lịch: 10/3 Năm Kỷ Dậu (N
+ gày Quý Mùi)
+CATEGORIES:EVENT\,COMMUNITY
+CLASS:PUBLIC
+STATUS:CONFIRMED
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:pub-event-le-hoi-chua-huong-2030@amlich.vn
+DTSTAMP:20300101T000000Z
+DTSTART;VALUE=DATE:20300207
+DTEND;VALUE=DATE:20300208
+SUMMARY:Khai hội Chùa Hương (Mùng 6 tháng Giêng)
+DESCRIPTION:Lễ hội tâm linh đầu xuân tại Hương Sơn\, Mỹ Đ
+ ức\, Hà Nội.\nÂm lịch: 6/1 Năm Canh Tuất (Ngày Quý Dậu)
+CATEGORIES:EVENT\,COMMUNITY
+CLASS:PUBLIC
+STATUS:CONFIRMED
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:pub-event-le-hoi-den-hung-2030@amlich.vn
+DTSTAMP:20300101T000000Z
+DTSTART;VALUE=DATE:20300412
+DTEND;VALUE=DATE:20300413
+SUMMARY:Đại lễ Hội Đền Hùng
+DESCRIPTION:Lễ hội tri ân công đức tổ tiên tại Khu di tích l
+ ịch sử Đền Hùng\, Phú Thọ.\nÂm lịch: 10/3 Năm Canh Tuất (
+ Ngày Đinh Sửu)
+CATEGORIES:EVENT\,COMMUNITY
+CLASS:PUBLIC
+STATUS:CONFIRMED
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:pub-event-le-hoi-chua-huong-2031@amlich.vn
+DTSTAMP:20310101T000000Z
+DTSTART;VALUE=DATE:20310128
+DTEND;VALUE=DATE:20310129
+SUMMARY:Khai hội Chùa Hương (Mùng 6 tháng Giêng)
+DESCRIPTION:Lễ hội tâm linh đầu xuân tại Hương Sơn\, Mỹ Đ
+ ức\, Hà Nội.\nÂm lịch: 6/1 Năm Tân Hợi (Ngày Mậu Thìn)
+CATEGORIES:EVENT\,COMMUNITY
+CLASS:PUBLIC
+STATUS:CONFIRMED
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:pub-event-le-hoi-den-hung-2031@amlich.vn
+DTSTAMP:20310101T000000Z
+DTSTART;VALUE=DATE:20310401
+DTEND;VALUE=DATE:20310402
+SUMMARY:Đại lễ Hội Đền Hùng
+DESCRIPTION:Lễ hội tri ân công đức tổ tiên tại Khu di tích l
+ ịch sử Đền Hùng\, Phú Thọ.\nÂm lịch: 10/3 Năm Tân Hợi (N
+ gày Tân Mùi)
+CATEGORIES:EVENT\,COMMUNITY
+CLASS:PUBLIC
+STATUS:CONFIRMED
+TRANSP:TRANSPARENT
+END:VEVENT
+END:VCALENDAR
