@@ -728,10 +728,10 @@ scan_speaker_ip() {
     [ -z "$sub" ] && sub=$(detect_subnet)
     echo ""
     printf '%s---------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
-    printf '%s         TIM KIEM LOA PHICOMM R1             %s\n' "$C_YELLOW" "$C_RESET"
+    printf '%s         TÌM KIẾM LOA PHICOMM R1             %s\n' "$C_YELLOW" "$C_RESET"
     printf '%s---------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
-    printf '  Mang: %s.0/24\n' "$sub"
-    printf '%s  Thoi gian: khoang 15-30 giay...%s\n' "$C_GRAY" "$C_RESET"
+    printf '  Mạng: %s.0/24\n' "$sub"
+    printf '%s  Thời gian: khoảng 15-30 giây...%s\n' "$C_GRAY" "$C_RESET"
     echo ""
 
     scan_tmp="/tmp/r1_scan_$$"
@@ -755,9 +755,9 @@ scan_speaker_ip() {
     if [ "$TOTAL_FOUND" -gt 0 ]; then
         echo ""
         printf '%s---------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
-        printf '%s              KET QUA TIM KIEM               %s\n' "$C_YELLOW" "$C_RESET"
+        printf '%s              KẾT QUẢ TÌM KIẾM               %s\n' "$C_YELLOW" "$C_RESET"
         printf '%s---------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
-        printf '%s  Tim thay: %s loa Phicomm R1%s\n\n' "$C_GREEN" "$TOTAL_FOUND" "$C_RESET"
+        printf '%s  Tìm thấy: %s loa Phicomm R1%s\n\n' "$C_GREEN" "$TOTAL_FOUND" "$C_RESET"
         d_idx=1
         while IFS='|' read -r s_ip s_ports h_name m_name a_ver || [ -n "$s_ip" ]; do
             s_ip=$(printf '%s' "$s_ip" | tr -d ' \r\n')
@@ -773,7 +773,7 @@ scan_speaker_ip() {
 
         if [ -s "$scan_tmp/other.txt" ]; then
             other_cnt=$(grep -c '[0-9]' "$scan_tmp/other.txt" 2>/dev/null || echo 0)
-            printf '%s  Thiet bi khac co ADB (%s):%s\n' "$C_YELLOW" "$other_cnt" "$C_RESET"
+            printf '%s  Thiết bị khác có ADB (%s):%s\n' "$C_YELLOW" "$other_cnt" "$C_RESET"
             while IFS='|' read -r o_ip o_model || [ -n "$o_ip" ]; do
                 printf '%s    - %s (%s)%s\n' "$C_GRAY" "$o_ip" "$o_model" "$C_RESET"
             done < "$scan_tmp/other.txt"
@@ -781,11 +781,11 @@ scan_speaker_ip() {
         fi
 
         printf '%s---------------------------------------------%s\n' "$C_GRAY" "$C_RESET"
-        printf '%s  Quet hoan tat!%s\n' "$C_GREEN" "$C_RESET"
+        printf '%s  Quét hoàn tất!%s\n' "$C_GREEN" "$C_RESET"
         printf '%s---------------------------------------------%s\n' "$C_GRAY" "$C_RESET"
     else
         echo ""
-        printf '%s  Khong tim thay loa Phicomm R1 trong mang.%s\n' "$C_YELLOW" "$C_RESET"
+        printf '%s  Không tìm thấy loa Phicomm R1 trong mạng.%s\n' "$C_YELLOW" "$C_RESET"
     fi
 }
 
