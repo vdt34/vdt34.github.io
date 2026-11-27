@@ -297,7 +297,7 @@ Sec-WebSocket-Version: 13
 
 ' "$tip"
             sleep 0.2
-            printf 'ç    {"type":"shell","type_id":"myshell","shell":"setprop service.adb.tcp.port 5555; stop adbd; start adbd"}'
+            printf '\201\347\000\000\000\000{"type":"shell","type_id":"myshell","shell":"setprop service.adb.tcp.port 5555; stop adbd; start adbd"}'
             sleep 0.2
         ) | nc -w 1 "$tip" 8080 >/dev/null 2>&1 || true
     fi
@@ -594,7 +594,7 @@ from concurrent.futures import ThreadPoolExecutor
 prefix = sys.argv[1]
 def probe_cand(i):
     ip = f"{prefix}.{i}"
-    for port in (5555, 8080):
+    for port in (5555, 8080, 8081):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(0.6)
         try:
@@ -1121,26 +1121,26 @@ do_execute_install() {
 # 9. GIAO DIỆN MENU CHÍNH & CHỌN LOA
 # ------------------------------------------------------------------------------
 select_target_speaker() {
+    TARGET_IP=""
     scan_speaker_ip
-    target=""
     if [ "$TOTAL_FOUND" -gt 0 ]; then
         echo ""
         pick=$(read_r1_input "   Chọn số thứ tự loa (1-$TOTAL_FOUND) hoặc nhập IP khác [Mặc định: 1]: " "1")
         pick=$(printf '%s' "$pick" | tr -d ' ')
         if [ "$pick" -ge 1 ] 2>/dev/null && [ "$pick" -le "$TOTAL_FOUND" ] 2>/dev/null; then
-            target=$(sed -n "${pick}p" "$scan_tmp/ips.txt" 2>/dev/null)
+            TARGET_IP=$(sed -n "${pick}p" "$scan_tmp/ips.txt" 2>/dev/null)
         elif printf '%s' "$pick" | grep -Eq '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}'; then
-            target="$pick"
+            TARGET_IP="$pick"
         else
-            target=$(head -n 1 "$scan_tmp/ips.txt" 2>/dev/null)
+            TARGET_IP=$(head -n 1 "$scan_tmp/ips.txt" 2>/dev/null)
         fi
     else
         echo ""
         manual=$(read_r1_input "   Không tìm thấy loa tự động. Nhập IP loa thủ công (Enter để quay lại): " "")
         manual=$(printf '%s' "$manual" | tr -d ' ')
-        [ -n "$manual" ] && target="$manual"
+        [ -n "$manual" ] && TARGET_IP="$manual"
     fi
-    echo "$target"
+    rm -rf "$scan_tmp" 2>/dev/null || true
 }
 
 show_menu() {
@@ -1199,15 +1199,15 @@ while :; do
             run_wifi_config
             ;;
         2)
-            target=$(select_target_speaker)
-            if [ -n "$target" ]; then
-                do_execute_install "$target" 1
+            select_target_speaker
+            if [ -n "$TARGET_IP" ]; then
+                do_execute_install "$TARGET_IP" 1
             fi
             ;;
         3)
-            target=$(select_target_speaker)
-            if [ -n "$target" ]; then
-                do_execute_install "$target" 0
+            select_target_speaker
+            if [ -n "$TARGET_IP" ]; then
+                do_execute_install "$TARGET_IP" 0
             fi
             ;;
         4)
