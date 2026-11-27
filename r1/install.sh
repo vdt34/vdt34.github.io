@@ -1071,12 +1071,27 @@ do_execute_install() {
     fi
     adb -s "$SERIAL" shell rm "$remote_apk" >/dev/null 2>&1 || true
 
-    set_r1_install_progress 90 "Đang khởi tạo cấu hình âm thanh và dịch vụ AI"
+    set_r1_install_progress 90 "Đang khởi động dịch vụ AI & WebUI (8081)"
     adb -s "$SERIAL" shell "tinymix -D 2 0 5; tinymix -D 2 1 5; tinymix -D 2 6 207; tinymix -D 2 7 207; tinymix -D 2 8 207; tinymix -D 2 9 207; tinymix -D 2 17 1; tinymix -D 2 18 1; tinymix -D 2 46 1; tinymix -D 2 47 1" >/dev/null 2>&1 || true
-    adb -s "$SERIAL" shell am start -n info.dourok.voicebot/.java.activities.MainActivity >/dev/null 2>&1 || true
-    sleep 3
-
     adb -s "$SERIAL" shell "settings put global bluetooth_on 1 2>/dev/null; service call bluetooth_manager 6 2>/dev/null; setprop persist.sys.r1_led 0 2>/dev/null; lights_test set 7fffff8000 0 2>/dev/null; lights_test set 7fffff0000 ffffff 2>/dev/null" >/dev/null 2>&1 || true
+
+    # Khởi động app bằng nhiều phương thức đồng thời (MainActivity, Broadcast, BootService)
+    adb -s "$SERIAL" shell am start -n info.dourok.voicebot/.java.activities.MainActivity >/dev/null 2>&1 || true
+    adb -s "$SERIAL" shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n info.dourok.voicebot/info.dourok.voicebot.java.activities.MainActivity >/dev/null 2>&1 || true
+    adb -s "$SERIAL" shell am broadcast -a info.dourok.voicebot.START >/dev/null 2>&1 || true
+    adb -s "$SERIAL" shell am broadcast -a android.intent.action.BOOT_COMPLETED >/dev/null 2>&1 || true
+    adb -s "$SERIAL" shell am startservice -n info.dourok.voicebot/info.dourok.voicebot.java.services.BootStartService >/dev/null 2>&1 || true
+
+    # Chờ WebUI cổng 8081 sẵn sàng (thử tối đa 10 giây)
+    w_try=1
+    while [ "$w_try" -le 5 ]; do
+        sleep 2
+        if test_r1_tcp_port "$target_ip" 8081 1; then
+            break
+        fi
+        adb -s "$SERIAL" shell am start -n info.dourok.voicebot/info.dourok.voicebot.java.activities.MainActivity >/dev/null 2>&1 || true
+        w_try=$((w_try + 1))
+    done
 
     set_r1_install_progress 100 "Hoàn tất cài đặt!"
     complete_r1_install_progress

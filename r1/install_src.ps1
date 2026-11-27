@@ -967,12 +967,21 @@ function Do-ExecuteInstall {
     }
     adb -s $Serial shell rm $remoteApk 2>$null | Out-Null
 
-    Set-R1InstallProgress -Percent 90 -Status "Đang khởi tạo cấu hình âm thanh và dịch vụ AI"
+    Set-R1InstallProgress -Percent 90 -Status "Đang khởi động dịch vụ AI & WebUI (8081)"
     adb -s $Serial shell "tinymix -D 2 0 5; tinymix -D 2 1 5; tinymix -D 2 6 207; tinymix -D 2 7 207; tinymix -D 2 8 207; tinymix -D 2 9 207; tinymix -D 2 17 1; tinymix -D 2 18 1; tinymix -D 2 46 1; tinymix -D 2 47 1" 2>$null | Out-Null
-    adb -s $Serial shell am start -n info.dourok.voicebot/.java.activities.MainActivity 2>$null | Out-Null
-    Start-Sleep -Seconds 3
-
     adb -s $Serial shell "settings put global bluetooth_on 1 2>/dev/null; service call bluetooth_manager 6 2>/dev/null; setprop persist.sys.r1_led 0 2>/dev/null; lights_test set 7fffff8000 0 2>/dev/null; lights_test set 7fffff0000 ffffff 2>/dev/null" 2>$null | Out-Null
+
+    adb -s $Serial shell am start -n info.dourok.voicebot/.java.activities.MainActivity 2>$null | Out-Null
+    adb -s $Serial shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n info.dourok.voicebot/info.dourok.voicebot.java.activities.MainActivity 2>$null | Out-Null
+    adb -s $Serial shell am broadcast -a info.dourok.voicebot.START 2>$null | Out-Null
+    adb -s $Serial shell am broadcast -a android.intent.action.BOOT_COMPLETED 2>$null | Out-Null
+    adb -s $Serial shell am startservice -n info.dourok.voicebot/info.dourok.voicebot.java.services.BootStartService 2>$null | Out-Null
+
+    for ($i = 1; $i -le 5; $i++) {
+        Start-Sleep -Seconds 2
+        if (Test-R1TcpPort -HostName $TargetIp -Port 8081 -TimeoutMilliseconds 1000) { break }
+        adb -s $Serial shell am start -n info.dourok.voicebot/info.dourok.voicebot.java.activities.MainActivity 2>$null | Out-Null
+    }
 
     Set-R1InstallProgress -Percent 100 -Status "Hoàn tất cài đặt!"
     Complete-R1InstallProgress
