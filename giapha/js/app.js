@@ -155,18 +155,51 @@ class GiaPhaApp {
   }
 
   bindEvents() {
-    // Tab switching
-    document.querySelectorAll('.tab-btn').forEach(btn => {
+    // Tab switching (sync desktop tabs & mobile bottom bar)
+    const switchTab = (tabName) => {
+      this.currentTab = tabName;
+      document.querySelectorAll('.tab-btn, .mobile-tab-btn').forEach(b => {
+        b.classList.toggle('active', b.getAttribute('data-tab') === tabName);
+      });
+      this.renderCurrentView();
+    };
+
+    document.querySelectorAll('.tab-btn, .mobile-tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.currentTab = btn.getAttribute('data-tab');
-        this.renderCurrentView();
+        switchTab(btn.getAttribute('data-tab'));
       });
     });
 
     // Theme toggle
     document.getElementById('btn-theme-toggle')?.addEventListener('click', () => {
+      this.toggleTheme();
+    });
+
+    // Mobile Actions Menu Sheet
+    const mobileMenuModal = document.getElementById('mobile-actions-modal');
+    document.getElementById('btn-mobile-menu')?.addEventListener('click', () => {
+      if (mobileMenuModal) mobileMenuModal.style.display = 'flex';
+    });
+    document.querySelectorAll('.btn-close-mobile-menu').forEach(b => {
+      b.addEventListener('click', () => {
+        if (mobileMenuModal) mobileMenuModal.style.display = 'none';
+      });
+    });
+    mobileMenuModal?.addEventListener('click', (e) => {
+      if (e.target === mobileMenuModal) mobileMenuModal.style.display = 'none';
+    });
+
+    document.getElementById('btn-mobile-export-ics')?.addEventListener('click', () => {
+      if (mobileMenuModal) mobileMenuModal.style.display = 'none';
+      document.getElementById('btn-export-clan-ics')?.click();
+    });
+
+    document.getElementById('btn-mobile-backup')?.addEventListener('click', () => {
+      if (mobileMenuModal) mobileMenuModal.style.display = 'none';
+      document.getElementById('btn-backup-data')?.click();
+    });
+
+    document.getElementById('btn-mobile-theme')?.addEventListener('click', () => {
       this.toggleTheme();
     });
 
