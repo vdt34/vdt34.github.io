@@ -1,242 +1,252 @@
 [
-    {
-        "version": "1.1.19",
-        "date": "2026-11-27",
-        "title": "Sửa dứt điểm công tắc Led chờ & Khôi phục LED nháy theo nhạc",
-        "changes": [
-            "Đổi tên thành 'Led chờ': Tích (ON) bật LED chờ; Bỏ tích (OFF) tắt hoàn toàn LED khi loa nhàn rỗi.",
-            "Khôi phục hiệu ứng LED nháy theo nhạc (FastLED Visualizer) khi tắt Led chờ và đang phát media (YouTube, Zing, DLNA).",
-            "Mở quyền điều khiển /api/fast-led không cần đăng nhập, bảo toàn trạng thái Led chờ sau khi khởi động lại loa."
-        ]
-    },
-    {
-        "version": "1.1.18",
-        "date": "2026-11-27",
-        "title": "Gỡ bỏ bảo mật voice.html & Widget RAM, CPU, Nhiệt độ",
-        "changes": [
-            "Gỡ bỏ hoàn toàn mã PIN và xác thực trên voice.html, vào thẳng đàm thoại 2 chiều.",
-            "Tích hợp 3 widget giám sát thời gian thực: RAM (%), CPU (%), Nhiệt độ CPU (°C) tại Quản trị thiết bị.",
-            "Khắc phục triệt để lỗi Dalvik VerifyError trên Android 5.1.1 RK3229 (VoicePlaybackBridge)."
-        ]
-    },
-    {
-        "version": "1.1.17",
-        "date": "2026-11-27",
-        "title": "Fix triệt để WiFi AP Mode & Chống sập nguồn khi quét WiFi",
-        "changes": [
-            "Thống nhất cơ chế quét WiFi an toàn có throttle 5s chống nghẽn bus SDIO, triệt tiêu lỗi sập nguồn/treo loa.",
-            "Hoàn thiện cấu hình WiFi AP Mode: kết nối và lưu WiFi nhà chuẩn xác, tự thoát AP hotspot mượt mà.",
-            "WebUI hiển thị đúng trạng thái cấu hình WiFi, loại bỏ hoàn toàn thông báo thành công giả."
-        ]
-    },
-    {
-        "version": "1.1.16",
-        "date": "2026-11-26",
-        "title": "Nhấn giữ nút đỉnh loa >= 2s dừng nhạc & Tối ưu FastLED",
-        "changes": [
-            "Nhấn giữ nút đỉnh loa >= 2.0s lập tức dừng tất cả nguồn phát nhạc (Radio, Zing, YouTube, DLNA, AirPlay).",
-            "Chuẩn hóa Đơn Cửa Ngõ Điều Phối LED qua Singleton LedStateManager, dọn sạch mã nguồn LED chết.",
-            "Bảo toàn đầy đủ các thao tác nút bấm vật lý (nhấn 1 lần, 2 lần, 3 lần, nhấn giữ 6s)."
-        ]
-    },
-    {
-        "version": "1.1.15",
-        "date": "2026-11-25",
-        "title": "Nâng cấp giao diện Bento Grid & Khắc phục sập nguồn RK3229",
-        "changes": [
-            "Thiết kế lại toàn bộ WebUI theo phong cách Bento Grid hiện đại, tối ưu vuốt chạm mobile.",
-            "Triệt tiêu lỗi sập nguồn RK3229 khi đánh thức AI bằng cơ chế khóa tài nguyên phần cứng an toàn.",
-            "Tối ưu hóa độ trễ xử lý giọng nói và giảm tải tiêu thụ CPU khi phát media."
-        ]
-    },
-    {
-        "version": "1.1.14",
-        "date": "2026-11-24",
-        "title": "Tích hợp Gemini Live & Trợ lý giọng nói đa nền tảng",
-        "changes": [
-            "Hỗ trợ kết nối song song XiaoZhi AI và Google Gemini API với độ trễ thấp.",
-            "Tối ưu bộ lọc âm chống ồn 4-Mic Hardware HAL cho tiếng Việt rõ ràng từ xa.",
-            "Nâng cấp cơ chế tự động phục hồi kết nối WebSocket và giảm giật lag WebUI."
-        ]
-    },
-    {
-        "version": "1.1.13",
-        "date": "2026-11-23",
-        "title": "Sửa lỗi Bluetooth Toggle & Nâng cấp OTA ngầm",
-        "changes": [
-            "Sửa lỗi công tắc Bluetooth không tắt được phần cứng radio trên Android Lollipop.",
-            "Tự động tải và cập nhật OTA ngầm khi loa ở trạng thái rảnh rỗi (Idle).",
-            "Đồng bộ trạng thái phát media giữa WebUI, DLNA và AirPlay."
-        ]
-    },
-    {
-        "version": "1.1.12",
-        "date": "2026-11-22",
-        "title": "Hoàn thiện điều khiển Bluetooth & Tối ưu hiệu năng",
-        "changes": [
-            "Chuẩn hóa lệnh điều khiển Bluetooth qua giọng nói và nút bấm 3 lần.",
-            "Tối ưu giao diện WebUI không tải CPU khi chạy nền hoặc đóng tab.",
-            "Nâng cao độ ổn định phát nhạc trực tuyến Zing MP3 và Radio VOV."
-        ]
-    },
-    {
-        "version": "1.1.11",
-        "date": "2026-11-21",
-        "title": "Hạ tải CPU chuyên sâu & Nâng cấp 4-Mic HAL",
-        "changes": [
-            "Loại bỏ hoàn toàn polling định kỳ, triệt tiêu tải CPU nền khi không mở WebUI.",
-            "Tích hợp xử lý âm thanh 4-Mic Hardware HAL trực tiếp không phụ thuộc Unisound cũ.",
-            "Tối ưu thuật toán quét tìm loa và kết nối ADB 5555 siêu tốc."
-        ]
-    },
-    {
-        "version": "1.1.10",
-        "date": "2026-11-20",
-        "title": "Hỗ trợ TikTok Live Reply & Đổi mật khẩu WebUI",
-        "changes": [
-            "Tích hợp công tắc bật/tắt tự động phản hồi bình luận TikTok Live dưới khung chat.",
-            "Bổ sung tính năng đổi mật khẩu quản trị WebUI trực tiếp trong Cài đặt hệ thống.",
-            "Nâng cấp cơ chế cập nhật OTA qua WebSocket 8080 ổn định hơn."
-        ]
-    },
-    {
-        "version": "1.1.9",
-        "date": "2026-11-20",
-        "title": "Tối ưu lõi Voice Bot & Tinh gọn giao diện",
-        "changes": [
-            "Duy trì mã nguồn lõi ổn định: Voice Bot Xiaozhi, Micro 4-mic Unisound, YouTube/Zing/VOV.",
-            "Lược bỏ các mục cấu hình thừa trong Cài đặt hệ thống giúp WebUI tải nhanh hơn.",
-            "Khắc phục hiện tượng xung đột âm thanh giữa TTS và trình phát nhạc."
-        ]
-    },
-    {
-        "version": "1.1.8",
-        "date": "2026-11-12",
-        "title": "Tối ưu thuật toán lọc ồn XiaozhiMicDenoiser",
-        "changes": [
-            "Điều chỉnh dải tần lọc âm 85Hz - 7500Hz giữ trọn phụ âm đầu và âm gió tiếng Việt.",
-            "Tăng tốc độ mở cổng micro (Fast Attack Gate < 10ms), nghe rõ tiếng Việt từ xa.",
-            "Nới lỏng sàn suy hao nền chống nuốt chữ khi nói thì thầm."
-        ]
-    },
-    {
-        "version": "1.1.7",
-        "date": "2026-11-12",
-        "title": "Chuẩn hóa thông tin thiết bị & Sửa font tiếng Việt",
-        "changes": [
-            "Nâng cấp R1_get_device_status đọc chuẩn IP và phiên bản thiết bị thật.",
-            "Sửa lỗi hiển thị font tiếng Việt trong công cụ R1_stop_listen.",
-            "Dọn dẹp schema thừa và đồng bộ mô tả MCP Tools tiếng Việt."
-        ]
-    },
-    {
-        "version": "1.1.6",
-        "date": "2026-11-19",
-        "title": "Chống rớt kết nối WebUI & Giữ chế độ Stereo",
-        "changes": [
-            "Tích hợp Heartbeat Ping/Pong 15s tự phục hồi kết nối WebSocket không cần F5.",
-            "Cơ chế Exponential Backoff và Watchdog 10s tự kết nối lại khi mạng chập chờn.",
-            "Duy trì đầy đủ và ổn định tính năng ghép đôi Stereo Mode."
-        ]
-    },
-    {
-        "version": "1.1.5",
-        "date": "2026-11-19",
-        "title": "Sửa triệt để chế độ âm thanh nổi Stereo",
-        "changes": [
-            "Chuẩn hóa giải mã AudioTrack stereo 44.1kHz 16-bit PCM cho cặp loa Mẹ - Con.",
-            "Triệt tiêu hiện tượng loa con phát chậm 0.5x và lệch tone so với loa mẹ.",
-            "Loại bỏ hoàn toàn lỗi bytecode Dalvik VerifyError trên Android Lollipop."
-        ]
-    },
-    {
-        "version": "1.1.3",
-        "date": "2026-11-19",
-        "title": "Bật/tắt Bluetooth 3 nhấn & Giảm 27% dung lượng APK",
-        "changes": [
-            "Sửa triệt để bật/tắt Bluetooth bằng phím bấm 3 lần kèm âm báo tiếng Việt chuẩn xác.",
-            "Đồng bộ trạng thái Bluetooth hai chiều thông minh giữa WebUI và giọng nói.",
-            "Gỡ bỏ 3.6 MB dữ liệu rác Snowboy, giảm dung lượng APK từ 13.6 MB xuống 10.7 MB."
-        ]
-    },
-    {
-        "version": "1.1.2",
-        "date": "2026-11-19",
-        "title": "Điều khiển Bluetooth bằng giọng nói & Zero-Load WebUI",
-        "changes": [
-            "Sửa lệnh điều khiển Bluetooth qua khẩu lệnh Xiaozhi trên Android Lollipop.",
-            "Cơ chế Zero-Load WebUI tự ngắt WebSocket và triệt tiêu CPU khi không mở tab.",
-            "Nâng cấp cơ chế tải và cập nhật ngầm OTA khi loa nhàn rỗi."
-        ]
-    },
-    {
-        "version": "1.1.1",
-        "date": "2026-11-19",
-        "title": "Tối ưu hóa hiệu năng & 4-Mic Hardware HAL",
-        "changes": [
-            "Cắt bỏ truy vấn lặp Equalizer và giãn chu kỳ heartbeat giữ kết nối nhẹ máy.",
-            "Xử lý âm thanh 4-Mic Hardware HAL trực tiếp tăng độ nhạy nhận diện giọng nói.",
-            "Nâng cấp script cài đặt và thuật toán tìm loa qua ADB 5555 siêu tốc."
-        ]
-    },
-    {
-        "version": "1.1.0",
-        "date": "2026-11-17",
-        "title": "TikTok Live Reply & Đổi mật khẩu hệ thống",
-        "changes": [
-            "Bổ sung tính năng tương tác tự động phản hồi livestream TikTok Live.",
-            "Tích hợp đổi mật khẩu bảo vệ WebUI ngay trong Cài đặt hệ thống.",
-            "Hoàn thiện cơ chế đàm thoại hai chiều và nâng cấp OTA qua WebSocket 8080."
-        ]
-    },
-    {
-        "version": "1.0.9",
-        "date": "2026-11-16",
-        "title": "Phát hành bản chuẩn AIBox Plus v1.0.9",
-        "changes": [
-            "Ổn định Voice Bot Xiaozhi, Micro 4-mic Unisound, YouTube, Zing MP3, Radio VOV.",
-            "Tinh gọn giao diện WebUI, loại bỏ các mục cài đặt không cần thiết.",
-            "Tối ưu hóa bộ nhớ RAM giúp loa chạy mượt mà dài ngày."
-        ]
-    },
-    {
-        "version": "1.0.8",
-        "date": "2026-11-12",
-        "title": "Nâng cấp bộ lọc micro XiaozhiMicDenoiser",
-        "changes": [
-            "Tối ưu hóa bộ lọc dải tần nhận diện tiếng Việt rõ ràng từ xa.",
-            "Tăng tốc độ bắt giọng nói (Fast Attack Gate < 10ms).",
-            "Giảm méo tiếng và lọc bỏ tiếng ồn nền hiệu quả."
-        ]
-    },
-    {
-        "version": "1.0.7",
-        "date": "2026-11-12",
-        "title": "Nâng cấp thông tin thiết bị & Sửa lỗi font",
-        "changes": [
-            "Cập nhật công cụ R1_get_device_status trả về thông tin phần cứng thật.",
-            "Khắc phục lỗi font chữ tiếng Việt hiển thị trên giao diện.",
-            "Chuẩn hóa toàn bộ mô tả MCP Tools sang tiếng Việt."
-        ]
-    },
-    {
-        "version": "1.0.6",
-        "date": "2026-11-12",
-        "title": "Chống phát chồng chéo nhạc & Thêm kênh Radio",
-        "changes": [
-            "Chặn triệt để phát chồng chéo giữa Radio VOV và YouTube / Zing MP3 / DLNA.",
-            "Thêm kênh VOV5 và thay VOV GT HCM bằng VOV Sonata - FM89.",
-            "Hỗ trợ lưu tên và link stream kênh Radio tùy chọn."
-        ]
-    },
-    {
-        "version": "1.0.5",
-        "date": "2026-11-12",
-        "title": "Tích hợp Radio VOV & Giọng đọc Neural TTS",
-        "changes": [
-            "Tích hợp Radio VOV vào trình phát Media chung (chuyển kênh, tạm dừng tiện lợi).",
-            "Ưu tiên tối đa Wake Word: tự động ngắt nhạc và radio khi gọi trợ lý ảo.",
-            "Nâng cấp giọng đọc tiếng Việt sang Microsoft Edge Neural TTS tự nhiên."
-        ]
-    }
+  {
+    "version": "1.1.20",
+    "date": "2026-11-27",
+    "title": "Thêm công tắc Âm phản hồi khi Wake & Cố định âm lượng êm dịu",
+    "changes": [
+      "Thêm công tắc 'Âm phản hồi khi Wake' [Bật / Tắt] trong WebUI: Tắt để phản hồi tức thì 0ms và hoàn toàn yên tĩnh.",
+      "Tự động nén và cố định âm lượng 'Em nghe' ở mức 35% êm dịu, triệt tiêu hiện tượng kêu to giật mình khi nghe nhạc lớn.",
+      "Tích hợp API và WebSocket đồng bộ trạng thái hai chiều, bảo toàn cấu hình đã lưu sau khi khởi động lại loa."
+    ]
+  },
+  {
+    "version": "1.1.19",
+    "date": "2026-11-27",
+    "title": "Sửa dứt điểm công tắc Led chờ & Khôi phục LED nháy theo nhạc",
+    "changes": [
+      "Đổi tên thành 'Led chờ': Tích (ON) bật LED chờ; Bỏ tích (OFF) tắt hoàn toàn LED khi loa nhàn rỗi.",
+      "Khôi phục hiệu ứng LED nháy theo nhạc (FastLED Visualizer) khi tắt Led chờ và đang phát media (YouTube, Zing, DLNA).",
+      "Mở quyền điều khiển /api/fast-led không cần đăng nhập, bảo toàn trạng thái Led chờ sau khi khởi động lại loa."
+    ]
+  },
+  {
+    "version": "1.1.18",
+    "date": "2026-11-27",
+    "title": "Gỡ bỏ bảo mật voice.html & Widget RAM, CPU, Nhiệt độ",
+    "changes": [
+      "Gỡ bỏ hoàn toàn mã PIN và xác thực trên voice.html, vào thẳng đàm thoại 2 chiều.",
+      "Tích hợp 3 widget giám sát thời gian thực: RAM (%), CPU (%), Nhiệt độ CPU (°C) tại Quản trị thiết bị.",
+      "Khắc phục triệt để lỗi Dalvik VerifyError trên Android 5.1.1 RK3229 (VoicePlaybackBridge)."
+    ]
+  },
+  {
+    "version": "1.1.17",
+    "date": "2026-11-27",
+    "title": "Fix triệt để WiFi AP Mode & Chống sập nguồn khi quét WiFi",
+    "changes": [
+      "Thống nhất cơ chế quét WiFi an toàn có throttle 5s chống nghẽn bus SDIO, triệt tiêu lỗi sập nguồn/treo loa.",
+      "Hoàn thiện cấu hình WiFi AP Mode: kết nối và lưu WiFi nhà chuẩn xác, tự thoát AP hotspot mượt mà.",
+      "WebUI hiển thị đúng trạng thái cấu hình WiFi, loại bỏ hoàn toàn thông báo thành công giả."
+    ]
+  },
+  {
+    "version": "1.1.16",
+    "date": "2026-11-26",
+    "title": "Nhấn giữ nút đỉnh loa >= 2s dừng nhạc & Tối ưu FastLED",
+    "changes": [
+      "Nhấn giữ nút đỉnh loa >= 2.0s lập tức dừng tất cả nguồn phát nhạc (Radio, Zing, YouTube, DLNA, AirPlay).",
+      "Chuẩn hóa Đơn Cửa Ngõ Điều Phối LED qua Singleton LedStateManager, dọn sạch mã nguồn LED chết.",
+      "Bảo toàn đầy đủ các thao tác nút bấm vật lý (nhấn 1 lần, 2 lần, 3 lần, nhấn giữ 6s)."
+    ]
+  },
+  {
+    "version": "1.1.15",
+    "date": "2026-11-25",
+    "title": "Nâng cấp giao diện Bento Grid & Khắc phục sập nguồn RK3229",
+    "changes": [
+      "Thiết kế lại toàn bộ WebUI theo phong cách Bento Grid hiện đại, tối ưu vuốt chạm mobile.",
+      "Triệt tiêu lỗi sập nguồn RK3229 khi đánh thức AI bằng cơ chế khóa tài nguyên phần cứng an toàn.",
+      "Tối ưu hóa độ trễ xử lý giọng nói và giảm tải tiêu thụ CPU khi phát media."
+    ]
+  },
+  {
+    "version": "1.1.14",
+    "date": "2026-11-24",
+    "title": "Tích hợp Gemini Live & Trợ lý giọng nói đa nền tảng",
+    "changes": [
+      "Hỗ trợ kết nối song song XiaoZhi AI và Google Gemini API với độ trễ thấp.",
+      "Tối ưu bộ lọc âm chống ồn 4-Mic Hardware HAL cho tiếng Việt rõ ràng từ xa.",
+      "Nâng cấp cơ chế tự động phục hồi kết nối WebSocket và giảm giật lag WebUI."
+    ]
+  },
+  {
+    "version": "1.1.13",
+    "date": "2026-11-23",
+    "title": "Sửa lỗi Bluetooth Toggle & Nâng cấp OTA ngầm",
+    "changes": [
+      "Sửa lỗi công tắc Bluetooth không tắt được phần cứng radio trên Android Lollipop.",
+      "Tự động tải và cập nhật OTA ngầm khi loa ở trạng thái rảnh rỗi (Idle).",
+      "Đồng bộ trạng thái phát media giữa WebUI, DLNA và AirPlay."
+    ]
+  },
+  {
+    "version": "1.1.12",
+    "date": "2026-11-22",
+    "title": "Hoàn thiện điều khiển Bluetooth & Tối ưu hiệu năng",
+    "changes": [
+      "Chuẩn hóa lệnh điều khiển Bluetooth qua giọng nói và nút bấm 3 lần.",
+      "Tối ưu giao diện WebUI không tải CPU khi chạy nền hoặc đóng tab.",
+      "Nâng cao độ ổn định phát nhạc trực tuyến Zing MP3 và Radio VOV."
+    ]
+  },
+  {
+    "version": "1.1.11",
+    "date": "2026-11-21",
+    "title": "Hạ tải CPU chuyên sâu & Nâng cấp 4-Mic HAL",
+    "changes": [
+      "Loại bỏ hoàn toàn polling định kỳ, triệt tiêu tải CPU nền khi không mở WebUI.",
+      "Tích hợp xử lý âm thanh 4-Mic Hardware HAL trực tiếp không phụ thuộc Unisound cũ.",
+      "Tối ưu thuật toán quét tìm loa và kết nối ADB 5555 siêu tốc."
+    ]
+  },
+  {
+    "version": "1.1.10",
+    "date": "2026-11-20",
+    "title": "Hỗ trợ TikTok Live Reply & Đổi mật khẩu WebUI",
+    "changes": [
+      "Tích hợp công tắc bật/tắt tự động phản hồi bình luận TikTok Live dưới khung chat.",
+      "Bổ sung tính năng đổi mật khẩu quản trị WebUI trực tiếp trong Cài đặt hệ thống.",
+      "Nâng cấp cơ chế cập nhật OTA qua WebSocket 8080 ổn định hơn."
+    ]
+  },
+  {
+    "version": "1.1.9",
+    "date": "2026-11-20",
+    "title": "Tối ưu lõi Voice Bot & Tinh gọn giao diện",
+    "changes": [
+      "Duy trì mã nguồn lõi ổn định: Voice Bot Xiaozhi, Micro 4-mic Unisound, YouTube/Zing/VOV.",
+      "Lược bỏ các mục cấu hình thừa trong Cài đặt hệ thống giúp WebUI tải nhanh hơn.",
+      "Khắc phục hiện tượng xung đột âm thanh giữa TTS và trình phát nhạc."
+    ]
+  },
+  {
+    "version": "1.1.8",
+    "date": "2026-11-12",
+    "title": "Tối ưu thuật toán lọc ồn XiaozhiMicDenoiser",
+    "changes": [
+      "Điều chỉnh dải tần lọc âm 85Hz - 7500Hz giữ trọn phụ âm đầu và âm gió tiếng Việt.",
+      "Tăng tốc độ mở cổng micro (Fast Attack Gate < 10ms), nghe rõ tiếng Việt từ xa.",
+      "Nới lỏng sàn suy hao nền chống nuốt chữ khi nói thì thầm."
+    ]
+  },
+  {
+    "version": "1.1.7",
+    "date": "2026-11-12",
+    "title": "Chuẩn hóa thông tin thiết bị & Sửa font tiếng Việt",
+    "changes": [
+      "Nâng cấp R1_get_device_status đọc chuẩn IP và phiên bản thiết bị thật.",
+      "Sửa lỗi hiển thị font tiếng Việt trong công cụ R1_stop_listen.",
+      "Dọn dẹp schema thừa và đồng bộ mô tả MCP Tools tiếng Việt."
+    ]
+  },
+  {
+    "version": "1.1.6",
+    "date": "2026-11-19",
+    "title": "Chống rớt kết nối WebUI & Giữ chế độ Stereo",
+    "changes": [
+      "Tích hợp Heartbeat Ping/Pong 15s tự phục hồi kết nối WebSocket không cần F5.",
+      "Cơ chế Exponential Backoff và Watchdog 10s tự kết nối lại khi mạng chập chờn.",
+      "Duy trì đầy đủ và ổn định tính năng ghép đôi Stereo Mode."
+    ]
+  },
+  {
+    "version": "1.1.5",
+    "date": "2026-11-19",
+    "title": "Sửa triệt để chế độ âm thanh nổi Stereo",
+    "changes": [
+      "Chuẩn hóa giải mã AudioTrack stereo 44.1kHz 16-bit PCM cho cặp loa Mẹ - Con.",
+      "Triệt tiêu hiện tượng loa con phát chậm 0.5x và lệch tone so với loa mẹ.",
+      "Loại bỏ hoàn toàn lỗi bytecode Dalvik VerifyError trên Android Lollipop."
+    ]
+  },
+  {
+    "version": "1.1.3",
+    "date": "2026-11-19",
+    "title": "Bật/tắt Bluetooth 3 nhấn & Giảm 27% dung lượng APK",
+    "changes": [
+      "Sửa triệt để bật/tắt Bluetooth bằng phím bấm 3 lần kèm âm báo tiếng Việt chuẩn xác.",
+      "Đồng bộ trạng thái Bluetooth hai chiều thông minh giữa WebUI và giọng nói.",
+      "Gỡ bỏ 3.6 MB dữ liệu rác Snowboy, giảm dung lượng APK từ 13.6 MB xuống 10.7 MB."
+    ]
+  },
+  {
+    "version": "1.1.2",
+    "date": "2026-11-19",
+    "title": "Điều khiển Bluetooth bằng giọng nói & Zero-Load WebUI",
+    "changes": [
+      "Sửa lệnh điều khiển Bluetooth qua khẩu lệnh Xiaozhi trên Android Lollipop.",
+      "Cơ chế Zero-Load WebUI tự ngắt WebSocket và triệt tiêu CPU khi không mở tab.",
+      "Nâng cấp cơ chế tải và cập nhật ngầm OTA khi loa nhàn rỗi."
+    ]
+  },
+  {
+    "version": "1.1.1",
+    "date": "2026-11-19",
+    "title": "Tối ưu hóa hiệu năng & 4-Mic Hardware HAL",
+    "changes": [
+      "Cắt bỏ truy vấn lặp Equalizer và giãn chu kỳ heartbeat giữ kết nối nhẹ máy.",
+      "Xử lý âm thanh 4-Mic Hardware HAL trực tiếp tăng độ nhạy nhận diện giọng nói.",
+      "Nâng cấp script cài đặt và thuật toán tìm loa qua ADB 5555 siêu tốc."
+    ]
+  },
+  {
+    "version": "1.1.0",
+    "date": "2026-11-17",
+    "title": "TikTok Live Reply & Đổi mật khẩu hệ thống",
+    "changes": [
+      "Bổ sung tính năng tương tác tự động phản hồi livestream TikTok Live.",
+      "Tích hợp đổi mật khẩu bảo vệ WebUI ngay trong Cài đặt hệ thống.",
+      "Hoàn thiện cơ chế đàm thoại hai chiều và nâng cấp OTA qua WebSocket 8080."
+    ]
+  },
+  {
+    "version": "1.0.9",
+    "date": "2026-11-16",
+    "title": "Phát hành bản chuẩn AIBox Plus v1.0.9",
+    "changes": [
+      "Ổn định Voice Bot Xiaozhi, Micro 4-mic Unisound, YouTube, Zing MP3, Radio VOV.",
+      "Tinh gọn giao diện WebUI, loại bỏ các mục cài đặt không cần thiết.",
+      "Tối ưu hóa bộ nhớ RAM giúp loa chạy mượt mà dài ngày."
+    ]
+  },
+  {
+    "version": "1.0.8",
+    "date": "2026-11-12",
+    "title": "Nâng cấp bộ lọc micro XiaozhiMicDenoiser",
+    "changes": [
+      "Tối ưu hóa bộ lọc dải tần nhận diện tiếng Việt rõ ràng từ xa.",
+      "Tăng tốc độ bắt giọng nói (Fast Attack Gate < 10ms).",
+      "Giảm méo tiếng và lọc bỏ tiếng ồn nền hiệu quả."
+    ]
+  },
+  {
+    "version": "1.0.7",
+    "date": "2026-11-12",
+    "title": "Nâng cấp thông tin thiết bị & Sửa lỗi font",
+    "changes": [
+      "Cập nhật công cụ R1_get_device_status trả về thông tin phần cứng thật.",
+      "Khắc phục lỗi font chữ tiếng Việt hiển thị trên giao diện.",
+      "Chuẩn hóa toàn bộ mô tả MCP Tools sang tiếng Việt."
+    ]
+  },
+  {
+    "version": "1.0.6",
+    "date": "2026-11-12",
+    "title": "Chống phát chồng chéo nhạc & Thêm kênh Radio",
+    "changes": [
+      "Chặn triệt để phát chồng chéo giữa Radio VOV và YouTube / Zing MP3 / DLNA.",
+      "Thêm kênh VOV5 và thay VOV GT HCM bằng VOV Sonata - FM89.",
+      "Hỗ trợ lưu tên và link stream kênh Radio tùy chọn."
+    ]
+  },
+  {
+    "version": "1.0.5",
+    "date": "2026-11-12",
+    "title": "Tích hợp Radio VOV & Giọng đọc Neural TTS",
+    "changes": [
+      "Tích hợp Radio VOV vào trình phát Media chung (chuyển kênh, tạm dừng tiện lợi).",
+      "Ưu tiên tối đa Wake Word: tự động ngắt nhạc và radio khi gọi trợ lý ảo.",
+      "Nâng cấp giọng đọc tiếng Việt sang Microsoft Edge Neural TTS tự nhiên."
+    ]
+  }
 ]
