@@ -1141,13 +1141,73 @@ select_target_speaker() {
     rm -rf "$scan_tmp" 2>/dev/null || true
 }
 
+# ------------------------------------------------------------------------------
+# 8B. CÀI ĐẶT TRỰC TIẾP QUA CHẾ ĐỘ AP MODE (192.168.43.1)
+# ------------------------------------------------------------------------------
+run_ap_install() {
+    echo ""
+    printf '%s---------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
+    printf '%s   CÀI ĐẶT TRỰC TIẾP QUA WIFI CỦA LOA (AP)   %s\n' "$C_YELLOW" "$C_RESET"
+    printf '%s---------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
+    echo ""
+    printf '%s>> BƯỚC 1: Tải sẵn file APK trước khi ngắt mạng Internet...%s\n' "$C_CYAN" "$C_RESET"
+
+    if ! ensure_apk; then
+        printf '%s>> [LỖI] Không thể tải trước file APK. Vui lòng kiểm tra mạng Internet.%s\n' "$C_RED" "$C_RESET"
+        read_r1_input "Nhấn Enter để quay lại menu chính..." "" >/dev/null 2>&1 || true
+        return 1
+    fi
+
+    echo ""
+    printf '%s>> BƯỚC 2: Kết nối thiết bị vào WiFi của Loa R1%s\n' "$C_YELLOW" "$C_RESET"
+    printf '%s---------------------------------------------%s\n' "$C_GRAY" "$C_RESET"
+    echo "  1. Nếu loa chưa phát WiFi AP:"
+    echo "     -> Nhấn giữ nút [||] (Play/Pause) trên đỉnh loa khoảng 5-6 giây."
+    echo "     -> Đèn loa nhấp nháy tím/xanh và phát WiFi: Phicomm_R1_xxxx."
+    echo "  2. Trên Điện thoại / Máy tính:"
+    echo "     -> Vào Cài đặt WiFi -> Kết nối vào mạng 'Phicomm_R1_xxxx'."
+    echo "     -> (Nếu điện thoại hỏi 'WiFi không có internet, giữ kết nối?': Chọn CÓ)."
+    printf '%s---------------------------------------------%s\n' "$C_GRAY" "$C_RESET"
+    echo ""
+    read_r1_input "Nhấn Enter khi ĐÃ KẾT NỐI vào WiFi của Loa: " "" >/dev/null 2>&1 || true
+
+    echo ""
+    printf '%s>> Đang kiểm tra kết nối tới loa (192.168.43.1)...%s\n' "$C_CYAN" "$C_RESET"
+    ap_ok=0
+    ap_try=1
+    while [ "$ap_try" -le 5 ]; do
+        if test_r1_tcp_port "192.168.43.1" 5555 1 || test_r1_tcp_port "192.168.43.1" 8080 1 || test_r1_tcp_port "192.168.43.1" 8081 1; then
+            ap_ok=1
+            break
+        fi
+        sleep 1
+        ap_try=$((ap_try + 1))
+    done
+
+    if [ "$ap_ok" != "1" ]; then
+        printf '%s>> [CẢNH BÁO] Chưa kết nối được IP 192.168.43.1 của loa.%s\n' "$C_YELLOW" "$C_RESET"
+        printf '%s   Hãy kiểm tra: Bạn đã kết nối đúng WiFi Phicomm_R1 chưa?%s\n' "$C_GRAY" "$C_RESET"
+        cont=$(read_r1_input "   Bạn vẫn muốn thử kết nối và cài đặt? [y/N]: " "n")
+        case "$(printf '%s' "$cont" | tr '[:upper:]' '[:lower:]')" in
+            "y"|"yes") ;;
+            *) return 1 ;;
+        esac
+    else
+        printf '%s   [OK] Đã kết nối thành công tới loa tại 192.168.43.1!%s\n' "$C_GREEN" "$C_RESET"
+    fi
+
+    # Thực hiện cài đặt sạch vào IP 192.168.43.1 (Clean Install = 1)
+    do_execute_install "192.168.43.1" 1
+    return $?
+}
+
 show_menu() {
     echo ""
-    printf '%s=============================================%s\n' "$C_CYAN" "$C_RESET"
-    printf '%s  BỘ CÀI ĐẶT PHICOMM R1 (AI-BOX PLUS)                    %s\n' "$C_YELLOW" "$C_RESET"
-    printf '%s=============================================%s\n' "$C_CYAN" "$C_RESET"
-    echo "  1) Cấu hình WiFi cho loa (chế độ AP 192.168.43.1)"
-    printf '%s     -> Kết nối loa vào WiFi nhà khi loa vừa reset%s\n' "$C_GRAY" "$C_RESET"
+    printf '%s---------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
+    printf '%s     BỘ CÀI ĐẶT PHICOMM R1 (AI-BOX PLUS)     %s\n' "$C_YELLOW" "$C_RESET"
+    printf '%s---------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
+    echo "  1) Cài đặt trực tiếp qua WiFi Loa (AP Mode)"
+    printf '%s     -> Tải sẵn APK, kết nối WiFi loa và cài sạch ngay%s\n' "$C_GRAY" "$C_RESET"
     echo ""
     echo "  2) Cài đặt mới hoàn toàn (Clean Install qua mạng LAN)"
     printf '%s     -> Gỡ sạch app rác cũ, cài đặt bản mới nhất%s\n' "$C_GRAY" "$C_RESET"
@@ -1155,12 +1215,15 @@ show_menu() {
     echo "  3) Cập nhật / Nâng cấp (Update qua mạng LAN)"
     printf '%s     -> Nâng cấp app, giữ nguyên cấu hình và token/license%s\n' "$C_GRAY" "$C_RESET"
     echo ""
-    echo "  4) Quét tìm IP loa Phicomm R1 trong mạng LAN"
-    echo "  5) Thoát"
-    printf '%s=============================================%s\n' "$C_CYAN" "$C_RESET"
-    CHOICE=$(read_r1_input "Chọn [1-5]: " "5")
+    echo "  4) Cấu hình WiFi cho loa (chế độ AP 192.168.43.1)"
+    printf '%s     -> Kết nối loa vào WiFi nhà sau khi reset%s\n' "$C_GRAY" "$C_RESET"
+    echo ""
+    echo "  5) Quét tìm IP loa Phicomm R1 trong mạng LAN"
+    echo "  6) Thoát"
+    printf '%s---------------------------------------------%s\n' "$C_CYAN" "$C_RESET"
+    CHOICE=$(read_r1_input "Chọn [1-6]: " "6")
     CHOICE=$(printf '%s' "$CHOICE" | tr -d ' ')
-    [ -z "$CHOICE" ] && CHOICE="5"
+    [ -z "$CHOICE" ] && CHOICE="6"
 }
 
 # Xử lý tham số dòng lệnh trực tiếp (Automation / Scripts)
@@ -1197,7 +1260,7 @@ while :; do
     show_menu
     case "$CHOICE" in
         1)
-            run_wifi_config
+            run_ap_install
             ;;
         2)
             select_target_speaker
@@ -1212,16 +1275,19 @@ while :; do
             fi
             ;;
         4)
+            run_wifi_config
+            ;;
+        5)
             scan_speaker_ip
             echo ""
             read_r1_input "   Nhấn Enter để quay lại menu chính: " "" >/dev/null 2>&1 || true
             ;;
-        5|q|Q|exit)
+        6|q|Q|exit)
             echo "Thoát chương trình."
             break
             ;;
         *)
-            printf '%sLựa chọn không hợp lệ. Vui lòng nhập số từ 1 đến 5.%s\n' "$C_YELLOW" "$C_RESET"
+            printf '%sLựa chọn không hợp lệ. Vui lòng nhập số từ 1 đến 6.%s\n' "$C_YELLOW" "$C_RESET"
             sleep 1
             ;;
     esac

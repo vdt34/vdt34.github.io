@@ -1038,25 +1038,80 @@ function Select-TargetSpeaker {
     return $target
 }
 
+# 8B. Cài đặt trực tiếp qua chế độ AP Mode (192.168.43.1)
+function Run-ApInstall {
+    Write-Host ""
+    Write-Host "---------------------------------------------" -ForegroundColor Cyan
+    Write-Host "   CÀI ĐẶT TRỰC TIẾP QUA WIFI CỦA LOA (AP)   " -ForegroundColor Yellow
+    Write-Host "---------------------------------------------" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host ">> BƯỚC 1: Tải sẵn file APK trước khi ngắt mạng Internet..." -ForegroundColor Cyan
+
+    $apkFile = Ensure-Apk
+    if (-not $apkFile) {
+        Write-Host ">> [LỖI] Không thể tải trước file APK. Vui lòng kiểm tra mạng Internet." -ForegroundColor Red
+        Read-R1Input "Nhấn Enter để quay lại menu chính..." | Out-Null
+        return
+    }
+
+    Write-Host ""
+    Write-Host ">> BƯỚC 2: Kết nối thiết bị vào WiFi của Loa R1" -ForegroundColor Yellow
+    Write-Host "---------------------------------------------" -ForegroundColor Gray
+    Write-Host "  1. Nếu loa chưa phát WiFi AP:"
+    Write-Host "     -> Nhấn giữ nút [||] (Play/Pause) trên đỉnh loa khoảng 5-6 giây."
+    Write-Host "     -> Đèn loa nhấp nháy tím/xanh và phát WiFi: Phicomm_R1_xxxx."
+    Write-Host "  2. Trên Điện thoại / Máy tính:"
+    Write-Host "     -> Vào Cài đặt WiFi -> Kết nối vào mạng 'Phicomm_R1_xxxx'."
+    Write-Host "     -> (Nếu máy hỏi 'WiFi không có internet, giữ kết nối?': Chọn CÓ)."
+    Write-Host "---------------------------------------------" -ForegroundColor Gray
+    Write-Host ""
+    Read-R1Input "Nhấn Enter khi ĐÃ KẾT NỐI vào WiFi của Loa: " | Out-Null
+
+    Write-Host ""
+    Write-Host ">> Đang kiểm tra kết nối tới loa (192.168.43.1)..." -ForegroundColor Cyan
+    $apOk = $false
+    for ($i = 1; $i -le 5; $i++) {
+        if ((Test-R1TcpPort -HostName "192.168.43.1" -Port 5555 -TimeoutMilliseconds 1000) -or (Test-R1TcpPort -HostName "192.168.43.1" -Port 8080 -TimeoutMilliseconds 1000) -or (Test-R1TcpPort -HostName "192.168.43.1" -Port 8081 -TimeoutMilliseconds 1000)) {
+            $apOk = $true
+            break
+        }
+        Start-Sleep -Seconds 1
+    }
+
+    if (-not $apOk) {
+        Write-Host ">> [CẢNH BÁO] Chưa kết nối được IP 192.168.43.1 của loa." -ForegroundColor Yellow
+        Write-Host "   Hãy kiểm tra: Bạn đã kết nối đúng WiFi Phicomm_R1 chưa?" -ForegroundColor Gray
+        $cont = Read-R1Input "   Bạn vẫn muốn thử kết nối và cài đặt? [y/N]: "
+        if ($cont -ne "y" -and $cont -ne "Y") { return }
+    } else {
+        Write-Host "   [OK] Đã kết nối thành công tới loa tại 192.168.43.1!" -ForegroundColor Green
+    }
+
+    Do-ExecuteInstall -TargetIpParam "192.168.43.1" -CleanMode 1
+}
+
 function Show-Menu {
     Write-Host ""
-    Write-Host "==========================================================" -ForegroundColor Cyan
-    Write-Host "     CÔNG CỤ CÀI ĐẶT PHICOMM R1 (AI-BOX PLUS)             " -ForegroundColor Yellow
-    Write-Host "==========================================================" -ForegroundColor Cyan
-    Write-Host "  1) Cấu hình WiFi cho loa (chế độ AP 192.168.43.1)" -ForegroundColor White
-    Write-Host "     -> Kết nối loa vào WiFi nhà khi loa vừa reset" -ForegroundColor Gray
+    Write-Host "---------------------------------------------" -ForegroundColor Cyan
+    Write-Host "     BỘ CÀI ĐẶT PHICOMM R1 (AI-BOX PLUS)     " -ForegroundColor Yellow
+    Write-Host "---------------------------------------------" -ForegroundColor Cyan
+    Write-Host "  1) Cài đặt trực tiếp qua WiFi Loa (AP Mode)" -ForegroundColor White
+    Write-Host "     -> Tải sẵn APK, kết nối WiFi loa và cài sạch ngay" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  2) Cài đặt mới hoàn toàn (Clean Install qua mạng LAN)" -ForegroundColor White
-    Write-Host "     -> Gỡ sạch app rác cũ, cài đặt bản mới nhất v1.1.17" -ForegroundColor Gray
+    Write-Host "     -> Gỡ sạch app rác cũ, cài đặt bản mới nhất" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  3) Cập nhật / Nâng cấp (Update qua mạng LAN)" -ForegroundColor White
     Write-Host "     -> Nâng cấp app, giữ nguyên cấu hình và token/license" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "  4) Quét tìm IP loa Phicomm R1 trong mạng LAN" -ForegroundColor White
-    Write-Host "  5) Thoát" -ForegroundColor White
-    Write-Host "==========================================================" -ForegroundColor Cyan
-    $choice = Read-R1Input "Chọn [1-5]"
-    if ($null -eq $choice) { return "5" }
+    Write-Host "  4) Cấu hình WiFi cho loa (chế độ AP 192.168.43.1)" -ForegroundColor White
+    Write-Host "     -> Kết nối loa vào WiFi nhà sau khi reset" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  5) Quét tìm IP loa Phicomm R1 trong mạng LAN" -ForegroundColor White
+    Write-Host "  6) Thoát" -ForegroundColor White
+    Write-Host "---------------------------------------------" -ForegroundColor Cyan
+    $choice = Read-R1Input "Chọn [1-6]"
+    if ($null -eq $choice) { return "6" }
     if ($choice) { return $choice.Trim() }
     return ""
 }
@@ -1094,7 +1149,7 @@ if ($Ip -and $Ip -ne "") {
 while ($true) {
     $c = Show-Menu
     if ($c -eq "1") {
-        Run-WifiConfig | Out-Null
+        Run-ApInstall | Out-Null
     }
     elseif ($c -eq "2") {
         $target = Select-TargetSpeaker
@@ -1109,10 +1164,13 @@ while ($true) {
         }
     }
     elseif ($c -eq "4") {
+        Run-WifiConfig | Out-Null
+    }
+    elseif ($c -eq "5") {
         $null = Scan-SpeakerIp
         Read-R1Input "   Nhấn Enter để quay lại menu chính"
     }
-    elseif ($c -eq "5" -or $c -eq "q" -or $c -eq "Q" -or $c -eq "exit") {
+    elseif ($c -eq "6" -or $c -eq "q" -or $c -eq "Q" -or $c -eq "exit") {
         Write-Host "Thoát chương trình." -ForegroundColor Yellow
         break
     }
@@ -1120,7 +1178,7 @@ while ($true) {
         continue
     }
     else {
-        Write-Host "Lựa chọn không hợp lệ. Vui lòng nhập số từ 1 đến 5." -ForegroundColor Yellow
+        Write-Host "Lựa chọn không hợp lệ. Vui lòng nhập số từ 1 đến 6." -ForegroundColor Yellow
         Start-Sleep -Milliseconds 600
     }
 }
