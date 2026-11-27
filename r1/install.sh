@@ -87,10 +87,10 @@ read_r1_input() {
     fi
     printf "%s" "$prompt" >&2
     val=""
-    if [ -t 0 ]; then
-        read -r val 2>/dev/null || val=""
-    elif [ -r /dev/tty ]; then
+    if [ -r /dev/tty ]; then
         read -r val < /dev/tty 2>/dev/null || val=""
+    elif [ -t 0 ]; then
+        read -r val 2>/dev/null || val=""
     else
         read -r val 2>/dev/null || val=""
     fi
@@ -1110,7 +1110,7 @@ do_execute_install() {
                 ;;
         esac
         echo ""
-        read_r1_input "Nhấn Enter để quay lại menu chính" "" >/dev/null 2>&1 || true
+        read_r1_input "Nhấn Enter để quay lại menu chính..." "" >/dev/null 2>&1 || true
     fi
     return 0
 }
@@ -1150,7 +1150,7 @@ show_menu() {
     printf '%s     -> Kết nối loa vào WiFi nhà khi loa vừa reset%s\n' "$C_GRAY" "$C_RESET"
     echo ""
     echo "  2) Cài đặt mới hoàn toàn (Clean Install qua mạng LAN)"
-    printf '%s     -> Gỡ sạch app rác cũ, cài đặt bản mới nhất v1.1.17%s\n' "$C_GRAY" "$C_RESET"
+    printf '%s     -> Gỡ sạch app rác cũ, cài đặt bản mới nhất%s\n' "$C_GRAY" "$C_RESET"
     echo ""
     echo "  3) Cập nhật / Nâng cấp (Update qua mạng LAN)"
     printf '%s     -> Nâng cấp app, giữ nguyên cấu hình và token/license%s\n' "$C_GRAY" "$C_RESET"

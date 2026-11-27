@@ -22,4 +22,17 @@ elif command -v apt-get >/dev/null 2>&1; then
 fi
 
 TS=$(date +%s 2>/dev/null || echo "1")
-exec sh -c "$(curl -fsSL https://vdt34.github.io/r1/install.sh?t=$TS)"
+tmp_inst="/tmp/r1_install_$$.sh"
+if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "https://vdt34.github.io/r1/install.sh?t=$TS" -o "$tmp_inst" 2>/dev/null
+elif command -v wget >/dev/null 2>&1; then
+    wget -qO "$tmp_inst" --no-check-certificate "https://vdt34.github.io/r1/install.sh?t=$TS" 2>/dev/null
+fi
+
+if [ -s "$tmp_inst" ]; then
+    trap 'rm -f "$tmp_inst"' EXIT INT TERM
+    sh "$tmp_inst" </dev/tty
+    rm -f "$tmp_inst"
+else
+    sh -c "$(curl -fsSL https://vdt34.github.io/r1/install.sh?t=$TS)" </dev/tty
+fi
