@@ -415,18 +415,28 @@ run_wifi_config() {
         mkdir -p "/tmp/r1_cache" 2>/dev/null || true
         rm -f "$scan_file" 2>/dev/null || true
 
-        py_cmd=$(find_python)
-        if [ "$port_8081_open" = "1" ] && [ -n "$py_cmd" ]; then
+        if [ "$port_8081_open" = "1" ]; then
             printf '\n%s>> Đang quét các mạng WiFi xung quanh loa...%s\n' "$C_CYAN" "$C_RESET"
             raw_scan=""
-            if command -v curl >/dev/null 2>&1; then
-                raw_scan=$(curl -s -m 5 "http://192.168.43.1:8081/api/getwifilist" 2>/dev/null || true)
-            elif command -v wget >/dev/null 2>&1; then
-                raw_scan=$(wget -q -O- --timeout=5 "http://192.168.43.1:8081/api/getwifilist" 2>/dev/null || true)
-            fi
+            scan_attempt=1
+            while [ "$scan_attempt" -le 3 ]; do
+                if command -v curl >/dev/null 2>&1; then
+                    raw_scan=$(curl -s -m 4 "http://192.168.43.1:8081/api/getwifilist" 2>/dev/null || true)
+                elif command -v wget >/dev/null 2>&1; then
+                    raw_scan=$(wget -q -O- --timeout=4 "http://192.168.43.1:8081/api/getwifilist" 2>/dev/null || true)
+                fi
+                # Nếu đã có dữ liệu mạng (chứa "ssid":)
+                case "$raw_scan" in
+                    *'"ssid":'*) break ;;
+                esac
+                sleep 1
+                scan_attempt=$((scan_attempt + 1))
+            done
 
             if [ -n "$raw_scan" ]; then
-                "$py_cmd" -c '
+                py_cmd=$(find_python)
+                if [ -n "$py_cmd" ]; then
+                    "$py_cmd" -c '
 import sys, json
 try:
     data = json.loads(sys.argv[1])
@@ -444,6 +454,46 @@ try:
 except Exception:
     pass
 ' "$raw_scan" "$scan_file" 2>/dev/null || true
+                fi
+
+                # Fallback AWK thuần POSIX nếu máy không có Python hoặc Python chưa ghi được file
+                if [ ! -s "$scan_file" ] && command -v awk >/dev/null 2>&1; then
+                    printf '%s\n' "$raw_scan" | awk -F'"ssid":"' '
+{
+    for (i = 2; i <= NF; i++) {
+        split($i, a, "\"");
+        s = a[1];
+        if (s == "") continue;
+        lvl = -100;
+        if (match($i, /"level":-?[0-9]+/)) {
+            substr_lvl = substr($i, RSTART, RLENGTH);
+            split(substr_lvl, b, ":");
+            lvl = b[2] + 0;
+        }
+        sec = "True";
+        if (match($i, /"is_secure":(true|false)/)) {
+            substr_sec = substr($i, RSTART, RLENGTH);
+            split(substr_sec, c, ":");
+            if (c[2] == "false") sec = "False";
+        }
+        if (!(s in seen)) {
+            seen[s] = 1;
+            order[++count] = s;
+            levels[s] = lvl;
+            secures[s] = sec;
+        } else if (lvl > levels[s]) {
+            levels[s] = lvl;
+        }
+    }
+}
+END {
+    for (j = 1; j <= count && j <= 15; j++) {
+        name = order[j];
+        print name "\t" levels[name] "\t" secures[name];
+    }
+}
+' > "$scan_file" 2>/dev/null || true
+                fi
             fi
         fi
 
