@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.1.22",
+    "date": "2026-11-28",
+    "title": "Sửa lỗi chứng chỉ TLS cho Deepgram Nova-2 STT trên Android 5.1.1",
+    "changes": [
+      "Bổ sung TrustManager tương thích chứng chỉ Let's Encrypt trong TLS 1.2 SocketFactory trên Android 5.1.1.",
+      "Khắc phục triệt để lỗi Deepgram Nova-2 STT kết thúc phiên im lặng khi dùng Custom AI trên loa R1.",
+      "Bảo toàn ổn định toàn bộ Gemini Flash/Live, XiaoZhi, LED xanh lá và các nguồn phát nhạc."
+    ]
+  },
+  {
     "version": "1.1.21",
     "date": "2026-11-28",
     "title": "Khôi phục Não AI Gemini, đồng bộ LED xanh lá & tự ngắt khi mở nhạc",
