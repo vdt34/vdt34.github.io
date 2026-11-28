@@ -2,11 +2,12 @@
   {
     "version": "1.1.22",
     "date": "2026-11-28",
-    "title": "Sửa lỗi TLS Deepgram Nova-2 STT & Chèn giờ thực Việt Nam (GMT+7) cho AI",
+    "title": "Sửa lỗi TLS Deepgram, giờ thực Việt Nam (GMT+7), thu thử 4-Mic & thanh kéo AK7755",
     "changes": [
       "Bổ sung TrustManager tương thích chứng chỉ Let's Encrypt trong TLS 1.2 SocketFactory trên Android 5.1.1, khắc phục lỗi Deepgram Nova-2 STT im lặng.",
-      "Tự động chèn ngày giờ thực tế theo múi giờ Việt Nam (GMT+7) vào System Prompt cho Gemini Live, Gemini Flash và Custom AI, khắc phục hoàn toàn tình trạng AI báo sai giờ.",
-      "Bảo toàn ổn định toàn bộ XiaoZhi, LED xanh lá và các nguồn phát nhạc."
+      "Tự động chèn ngày giờ thực tế theo múi giờ Việt Nam (GMT+7) vào System Prompt cho Gemini Live, Gemini Flash và Custom AI.",
+      "Khắc phục lỗi SocketTimeoutException khi Chẩn đoán & Thu thử Micro: tạm dừng Wake Word nhả ALSA, tự fallback AudioRecord và luôn khôi phục Wake Word sau khi thu.",
+      "Sửa lỗi đồng bộ thanh kéo Độ Nhạy Micro Phần Cứng (AK7755) trên WebUI khi tải trang, kéo về mức 0 và thao tác cảm ứng."
     ]
   },
   {
