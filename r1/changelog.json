@@ -2,11 +2,11 @@
   {
     "version": "1.1.22",
     "date": "2026-11-28",
-    "title": "Sửa lỗi chứng chỉ TLS cho Deepgram Nova-2 STT trên Android 5.1.1",
+    "title": "Sửa lỗi TLS Deepgram Nova-2 STT & Chèn giờ thực Việt Nam (GMT+7) cho AI",
     "changes": [
-      "Bổ sung TrustManager tương thích chứng chỉ Let's Encrypt trong TLS 1.2 SocketFactory trên Android 5.1.1.",
-      "Khắc phục triệt để lỗi Deepgram Nova-2 STT kết thúc phiên im lặng khi dùng Custom AI trên loa R1.",
-      "Bảo toàn ổn định toàn bộ Gemini Flash/Live, XiaoZhi, LED xanh lá và các nguồn phát nhạc."
+      "Bổ sung TrustManager tương thích chứng chỉ Let's Encrypt trong TLS 1.2 SocketFactory trên Android 5.1.1, khắc phục lỗi Deepgram Nova-2 STT im lặng.",
+      "Tự động chèn ngày giờ thực tế theo múi giờ Việt Nam (GMT+7) vào System Prompt cho Gemini Live, Gemini Flash và Custom AI, khắc phục hoàn toàn tình trạng AI báo sai giờ.",
+      "Bảo toàn ổn định toàn bộ XiaoZhi, LED xanh lá và các nguồn phát nhạc."
     ]
   },
   {
