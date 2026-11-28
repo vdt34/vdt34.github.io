@@ -1,9 +1,11 @@
 [
   {
     "version": "1.1.22",
-    "date": "2026-11-28",
-    "title": "Sửa TLS Deepgram, giờ thực GMT+7, thu thử 4-Mic, AK7755 & khôi phục Hẹn giờ tắt nhạc",
+    "date": "2026-11-29",
+    "title": "Tinh gọn WebUI Não AI (3 chế độ), sửa TLS Deepgram, giờ thực GMT+7, 4-Mic & Hẹn giờ tắt nhạc",
     "changes": [
+      "Tinh gọn giao diện Não AI còn 3 chế độ rõ ràng: XiaoZhi (Chính chủ & Server tự build, bỏ AI-BOX.VN), Gemini (Live trên / Flash dưới, 1 dòng chọn model) và Custom AI (1 dòng chọn model LLM, Mẫu nhanh Groq/Ollama/OpenRouter/DeepSeek/OpenAI, link console.deepgram.com).",
+      "Đồng bộ màu tiêu đề và badge trạng thái ApiPay Ting Ting (Biến động số dư) với các mục Zalo Bot, TikTok Live Reply và Não AI.",
       "Bổ sung TrustManager tương thích chứng chỉ Let's Encrypt trong TLS 1.2 SocketFactory trên Android 5.1.1, khắc phục lỗi Deepgram Nova-2 STT im lặng.",
       "Tự động chèn ngày giờ thực tế theo múi giờ Việt Nam (GMT+7) vào System Prompt cho Gemini Live, Gemini Flash và Custom AI.",
       "Khắc phục lỗi SocketTimeoutException khi Chẩn đoán & Thu thử Micro: tạm dừng Wake Word nhả ALSA, tự fallback AudioRecord và luôn khôi phục Wake Word sau khi thu.",
