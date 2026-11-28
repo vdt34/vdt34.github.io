@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tổng Hợp Dương Trạch — Âm Lịch Việt Nam (UTC+7 · 2014–2099)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="loading-overlay" class="loading-overlay">
+    <div class="loading-box">
+      <div class="spinner"></div>
+      <div class="loading-text">Đang tải dữ liệu Dương Trạch (2014–2099)...</div>
+    </div>
+  </div>
+
+  <!-- Mobile Top Header -->
+  <header class="mobile-header">
+    <button id="btn-menu" class="icon-btn" aria-label="Mở menu">☰</button>
+    <div class="mobile-brand">
+      <span class="brand-gold">DƯƠNG TRẠCH</span>
+      <span class="brand-tz">UTC+7</span>
+    </div>
+    <button id="btn-reset-mobile" class="soft-btn sm" title="Đặt lại mặc định">↺</button>
+  </header>
+
+  <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+
+  <div class="app-shell">
+    <!-- Sidebar Navigation -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-head">
+        <div class="app-title">DƯƠNG TRẠCH</div>
+        <div class="app-subtitle">Phần mềm Phong Thủy tổng hợp</div>
+        <div class="tz-badge">ÂM LỊCH VIỆT NAM · UTC+7 · ĐẾN 2099</div>
+      </div>
+
+      <div class="sync-box">
+        <label class="sync-toggle">
+          <input type="checkbox" id="chk-global-sync" checked />
+          <span>Tự đồng bộ thông tin Chủ nhà &amp; Năm giữa các mục</span>
+        </label>
+      </div>
+
+      <nav class="nav-list" id="nav-list">
+        <button class="nav-btn active" data-tab="battrach">1. Bát Trạch &amp; Tổng Hợp</button>
+        <button class="nav-btn" data-tab="huyenkhong">2. Huyền Không – Bát Trạch</button>
+        <button class="nav-btn" data-tab="thansat">3. Tính Thần Sát</button>
+        <button class="nav-btn" data-tab="thansatthang">4. Thần Sát Tháng</button>
+        <button class="nav-btn" data-tab="phitinh">5. Tra Phi Tinh</button>
+        <button class="nav-btn" data-tab="lecung">6. Lệ Cung Niên Vận Đồ</button>
+        <button class="nav-btn" data-tab="chongio">7. Chọn Giờ Cát Thời</button>
+        <button class="nav-btn" data-tab="licham">8. Lịch Âm – Đổi Ngày</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button id="btn-reset" class="reset-btn">↺ Đặt lại số liệu mặc định</button>
+        <div class="footer-note">Chuẩn hóa 2014–2099 · Lịch Vạn Niên 1900–2100</div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <main class="main-content">
+      <!-- Quick Mobile Pill Tabs -->
+      <div class="mobile-tabs" id="mobile-tabs">
+        <button class="pill-tab active" data-tab="battrach">Bát Trạch</button>
+        <button class="pill-tab" data-tab="huyenkhong">Huyền Không</button>
+        <button class="pill-tab" data-tab="thansat">Thần Sát</button>
+        <button class="pill-tab" data-tab="thansatthang">TS Tháng</button>
+        <button class="pill-tab" data-tab="phitinh">Phi Tinh</button>
+        <button class="pill-tab" data-tab="lecung">Lệ Cung</button>
+        <button class="pill-tab" data-tab="chongio">Chọn Giờ</button>
+        <button class="pill-tab" data-tab="licham">Lịch Âm</button>
+      </div>
+
+      <!-- TAB 1: BÁT TRẠCH -->
+      <section class="tab-panel active" id="tab-battrach">
+        <div class="page-head">
+          <h1>Bát Trạch &amp; Tổng Hợp Dương Trạch</h1>
+          <p>Nhập thông tin chủ nhà, năm xây dựng và hướng độ — kết quả tự động đồng bộ sang Huyền Không, Thần Sát và các mục liên quan.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-title">THÔNG TIN ĐẦU VÀO</div>
+          <div class="form-grid-3">
+            <div class="field">
+              <label for="bt-gender">Giới tính chủ nhà</label>
+              <select id="bt-gender">
+                <option value="Nam">Nam</option>
+                <option value="Nữ">Nữ</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="bt-owner">Năm sinh chủ nhà</label>
+              <div class="field-inline">
+                <input type="number" id="bt-owner" min="1924" max="2099" value="1950" />
+                <span id="bt-owner-cc" class="badge gold">—</span>
+              </div>
+            </div>
+            <div class="field">
+              <label for="bt-digger">Năm sinh người cuốc móng</label>
+              <div class="field-inline">
+                <input type="number" id="bt-digger" min="1924" max="2099" value="1970" />
+                <span id="bt-digger-cc" class="badge gold">—</span>
+              </div>
+            </div>
+            <div class="field">
+              <label for="bt-year">Năm dự định xây nhà</label>
+              <div class="field-inline">
+                <input type="number" id="bt-year" min="1924" max="2099" value="2026" />
+                <span id="bt-year-cc" class="badge gold">—</span>
+              </div>
+            </div>
+            <div class="field">
+              <label for="bt-house-deg">Hướng nhà (0–359.9°)</label>
+              <div class="field-inline">
+                <input type="number" id="bt-house-deg" min="0" max="359.9" step="0.5" value="156" />
+                <span id="bt-toa-deg" class="badge neutral">—</span>
+              </div>
+            </div>
+            <div class="field">
+              <label for="bt-door-deg">Hướng cửa (0–359.9°)</label>
+              <input type="number" id="bt-door-deg" min="0" max="359.9" step="0.5" value="137" />
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-3" id="bt-dir-cards"></div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">I. TUỔI LÀM NHÀ (THEO NGƯỜI CUỐC MÓNG)</div>
+            <div class="kv-list" id="bt-age-list"></div>
+            <p class="muted-note">Lưu ý: Các tuổi không bao giờ phạm Kim Lâu: Kỷ Sửu, Tân Sửu, Kỷ Mùi, Tân Mùi, Canh Dần, Nhâm Dần, Canh Thân, Nhâm Thân.</p>
+          </div>
+          <div class="card">
+            <div class="card-title">II. NĂM LÀM NHÀ</div>
+            <div class="kv-list" id="bt-year-list"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">III. ĐẶT BẾP THEO LỤC DIỆU (NHẤT LONG &amp; TỨ HỔ)</div>
+          <div class="table-wrap">
+            <table class="data-table" id="bt-bep-table"></table>
+          </div>
+          <div class="bep-notes" id="bt-bep-notes"></div>
+        </div>
+      </section>
+
+      <!-- TAB 2: HUYỀN KHÔNG - BÁT TRẠCH -->
+      <section class="tab-panel" id="tab-huyenkhong">
+        <div class="page-head">
+          <h1>Huyền Không Phi Tinh – Bát Trạch</h1>
+          <p>Đồng bộ tự động từ thông số Hướng nhà, Năm xây dựng (Vận 1–9 đến 2103) và Chủ nhà ở tab Bát Trạch.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-title">THÔNG SỐ HUYỀN KHÔNG</div>
+          <div class="summary-strip" id="hk-summary"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">TINH BÀN CỬU CUNG (SƠN TINH · VẬN TINH · HƯỚNG TINH)</div>
+          <div class="cuucung-grid" id="hk-board"></div>
+          <p class="muted-note">Chú thích: Trái (Xanh ngọc) = Sơn tinh · Giữa (Đen lớn) = Vận tinh · Phải (Vàng đồng) = Hướng tinh.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-title">BẢNG 24 SƠN — LỤC DIỆU (NHẤT LONG / TỨ HỔ) &amp; KIÊNG BẾP</div>
+          <div class="son24-grid" id="hk-24son"></div>
+        </div>
+      </section>
+
+      <!-- TAB 3: TÍNH THẦN SÁT -->
+      <section class="tab-panel" id="tab-thansat">
+        <div class="page-head">
+          <h1>Tính Thần Sát (Theo Phân Kim Hướng &amp; Tọa)</h1>
+          <p>Tự động đồng bộ Phân kim Hướng cửa / Hướng nhà và Tọa nhà từ tab Bát Trạch.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">PHÂN KIM ĐANG XÉT</div>
+          <div class="summary-strip" id="ts-summary"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">BẢN ĐỒ THẦN SÁT CỬU CUNG</div>
+          <div class="cuucung-grid" id="ts-board"></div>
+        </div>
+      </section>
+
+      <!-- TAB 4: THẦN SÁT THÁNG -->
+      <section class="tab-panel" id="tab-thansatthang">
+        <div class="page-head">
+          <h1>Thần Sát Tháng (Lộc – Mã – Quý Nhân)</h1>
+          <p>Tìm Lộc, Mã, Dương Quý Nhân (+Quý) và Âm Quý Nhân (-Quý) đáo cung nào theo năm và tháng.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">THÔNG SỐ TRA CỨU</div>
+          <div class="form-row">
+            <div class="field">
+              <label for="tst-year">Năm</label>
+              <div class="field-inline">
+                <input type="number" id="tst-year" min="1900" max="2099" value="2026" />
+                <span id="tst-year-cc" class="badge gold">—</span>
+              </div>
+            </div>
+            <div class="field">
+              <label for="tst-month">Tháng (1–12)</label>
+              <div class="field-inline">
+                <input type="number" id="tst-month" min="1" max="12" value="1" />
+                <span id="tst-month-cc" class="badge gold">—</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">KẾT QUẢ LỘC · MÃ · QUÝ NHÂN ĐÁO CUNG</div>
+          <div class="table-wrap">
+            <table class="data-table" id="tst-table"></table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 5: TRA PHI TINH -->
+      <section class="tab-panel" id="tab-phitinh">
+        <div class="page-head">
+          <h1>Tra Phi Tinh (Năm · Tháng · Ngày với 8 Hướng)</h1>
+          <p>Tra Cửu Tinh nhập trung cung theo Năm (1900–2099), Tháng, Ngày Can Chi &amp; Tiết khí, phối với Mệnh chủ.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">THÔNG SỐ TRA PHI TINH</div>
+          <div class="form-grid-3">
+            <div class="field">
+              <label for="pt-year">Năm cần tra (1900–2099)</label>
+              <div class="field-inline">
+                <input type="number" id="pt-year" min="1900" max="2099" value="2026" />
+                <span id="pt-year-info" class="badge gold">—</span>
+              </div>
+            </div>
+            <div class="field">
+              <label for="pt-month">Tháng cần tra (1–12)</label>
+              <div class="field-inline">
+                <input type="number" id="pt-month" min="1" max="12" value="4" />
+                <span id="pt-month-info" class="badge gold">—</span>
+              </div>
+            </div>
+            <div class="field">
+              <label for="pt-day">Ngày Can Chi</label>
+              <div class="field-inline">
+                <select id="pt-day"></select>
+                <span id="pt-day-info" class="badge gold">—</span>
+              </div>
+            </div>
+            <div class="field">
+              <label for="pt-tiet">Tiết khí</label>
+              <select id="pt-tiet"></select>
+            </div>
+            <div class="field">
+              <label for="pt-birth">Năm sinh người xem</label>
+              <input type="number" id="pt-birth" min="1924" max="2099" value="1968" />
+            </div>
+            <div class="field">
+              <label for="pt-gender">Giới tính &amp; Mệnh</label>
+              <div class="field-inline">
+                <select id="pt-gender">
+                  <option value="Nam">Nam</option>
+                  <option value="Nữ">Nữ</option>
+                </select>
+                <span id="pt-menh" class="badge gold">—</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-3" id="pt-boards"></div>
+      </section>
+
+      <!-- TAB 6: LỆ CUNG NIÊN VẬN ĐỒ -->
+      <section class="tab-panel" id="tab-lecung">
+        <div class="page-head">
+          <h1>Lệ Cung Niên Vận Đồ (2014–2099 · UTC+7)</h1>
+          <p>An lịch 30 ngày âm lịch vào 9 cung Lệ Cung phối với Mệnh người xem. Hỗ trợ đầy đủ 86 năm và toàn bộ 32 tháng nhuận đến 2099.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-title">THÔNG SỐ XEM LỆ CUNG (ÂM LỊCH)</div>
+          <div class="form-grid-3">
+            <div class="field">
+              <label for="lc-year">Năm xem (2014–2099)</label>
+              <div class="field-inline">
+                <input type="number" id="lc-year" min="2014" max="2099" value="2026" />
+                <span id="lc-year-cc" class="badge gold">—</span>
+              </div>
+            </div>
+            <div class="field">
+              <label for="lc-month">Tháng âm lịch (1–12)</label>
+              <div class="field-inline">
+                <input type="number" id="lc-month" min="1" max="12" value="5" />
+                <label class="chk-inline"><input type="checkbox" id="lc-leap" /> Nhuận</label>
+                <span id="lc-month-cc" class="badge gold">—</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>Ngày mùng 1 &amp; Tháng nhuận</label>
+              <div class="field-inline">
+                <span id="lc-day1" class="badge good">—</span>
+                <span id="lc-leap-hint" class="muted-inline"></span>
+              </div>
+            </div>
+            <div class="field">
+              <label for="lc-birth">Năm sinh người xem</label>
+              <div class="field-inline">
+                <input type="number" id="lc-birth" min="1924" max="2099" value="2000" />
+                <span id="lc-birth-cc" class="badge neutral">—</span>
+              </div>
+            </div>
+            <div class="field">
+              <label for="lc-gender">Nam / Nữ</label>
+              <div class="field-inline">
+                <select id="lc-gender">
+                  <option value="nam">Nam</option>
+                  <option value="nữ">Nữ</option>
+                </select>
+                <span id="lc-menh" class="badge gold">—</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">BẢN ĐỒ LỆ CUNG 30 NGÀY TRONG THÁNG</div>
+          <div class="cuucung-grid" id="lc-board"></div>
+        </div>
+      </section>
+
+      <!-- TAB 7: CHỌN GIỜ -->
+      <section class="tab-panel" id="tab-chongio">
+        <div class="page-head">
+          <h1>Chọn Giờ Tứ Đại Cát Thời &amp; Giờ Quý Nhân</h1>
+          <p>Bảng tra cứu nhanh giờ tốt theo Tiết khí và Can ngày, kèm ý nghĩa 12 Vòng Quý Nhân.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">CHỌN GIỜ TỨ ĐẠI CÁT THỜI</div>
+          <div class="table-wrap"><table class="data-table" id="cg-tudaicat"></table></div>
+        </div>
+        <div class="card">
+          <div class="card-title">CHỌN GIỜ QUÝ NHÂN (DƯƠNG QUÝ / ÂM QUÝ)</div>
+          <div class="table-wrap"><table class="data-table compact" id="cg-quynhan"></table></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Ý NGHĨA 12 VÒNG QUÝ NHÂN (DƯƠNG AN THUẬN · ÂM AN NGHỊCH)</div>
+          <div class="vong-list" id="cg-vong"></div>
+        </div>
+      </section>
+
+      <!-- TAB 8: LỊCH ÂM & ĐỔI NGÀY -->
+      <section class="tab-panel" id="tab-licham">
+        <div class="page-head">
+          <h1>Lịch Âm – Đổi Ngày Dương ↔ Âm (UTC+7)</h1>
+          <p>Lịch tháng song song Dương – Âm, thông tin Lịch Vạn Niên (Trực, 28 Sao, Hoàng Đạo, Nạp Âm, Giờ Hoàng Đạo) và đổi ngày hai chiều 1900–2100.</p>
+        </div>
+
+        <div class="grid-2 licham-top">
+          <!-- Calendar Card -->
+          <div class="card">
+            <div class="card-title">LỊCH THÁNG DƯƠNG – ÂM</div>
+            <div class="cal-nav">
+              <button id="cal-prev" class="soft-btn sm">◀</button>
+              <select id="cal-month"></select>
+              <input type="number" id="cal-year" min="1900" max="2100" />
+              <button id="cal-next" class="soft-btn sm">▶</button>
+              <button id="cal-today" class="action-btn sm">Hôm nay</button>
+            </div>
+            <div class="cal-weekdays">
+              <span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span>T7</span><span class="sun">CN</span>
+            </div>
+            <div class="cal-grid" id="cal-grid"></div>
+            <p class="muted-note">● Ngày Hoàng Đạo · Vàng: Mùng 1 âm (có chữ N nếu nhuận) · Viền xanh: Hôm nay</p>
+          </div>
+
+          <!-- Unified Day Detail & Almanac Card -->
+          <div class="card" id="cal-detail-card">
+            <div class="card-title">CHI TIẾT NGÀY &amp; LỊCH VẠN NIÊN</div>
+            <div class="det-header">
+              <div id="det-solar" class="det-solar">—</div>
+              <span id="det-hd" class="badge good">—</span>
+            </div>
+            <div id="det-lunar" class="det-lunar">—</div>
+            <div class="kv-list compact" id="det-kv"></div>
+            <div id="det-ghd" class="ghd-box">—</div>
+            <div class="det-actions">
+              <button id="btn-jump-lecung" class="action-btn sm">Xem ở Lệ Cung</button>
+              <button id="btn-jump-phitinh" class="soft-btn sm">Tra Phi Tinh</button>
+              <button id="btn-jump-tst" class="soft-btn sm">Thần Sát Tháng</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <!-- Solar -> Lunar -->
+          <div class="card">
+            <div class="card-title">ĐỔI DƯƠNG LỊCH → ÂM LỊCH</div>
+            <div class="conv-inputs">
+              <label>Ng <input type="number" id="s2l-d" min="1" max="31" /></label>
+              <label>Th <input type="number" id="s2l-m" min="1" max="12" /></label>
+              <label>Năm <input type="number" id="s2l-y" min="1900" max="2100" /></label>
+              <button id="btn-s2l-pick" class="soft-btn sm">Chọn</button>
+            </div>
+            <div id="s2l-res" class="conv-res warm">—</div>
+          </div>
+
+          <!-- Lunar -> Solar -->
+          <div class="card">
+            <div class="card-title">ĐỔI ÂM LỊCH → DƯƠNG LỊCH</div>
+            <div class="conv-inputs">
+              <label>Ng <input type="number" id="l2s-d" min="1" max="30" /></label>
+              <label>Th <input type="number" id="l2s-m" min="1" max="12" /></label>
+              <label>Năm <input type="number" id="l2s-y" min="1900" max="2100" /></label>
+              <label class="chk-inline"><input type="checkbox" id="l2s-leap" /> Nhuận</label>
+              <button id="btn-l2s-pick" class="soft-btn sm">Chọn</button>
+            </div>
+            <div id="l2s-res" class="conv-res jade">—</div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="js/engine.js"></script>
+  <script src="js/lunar.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
